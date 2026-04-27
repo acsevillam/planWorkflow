@@ -66,7 +66,7 @@ robOpt.runTests();
 Pass the matRad checkout explicitly when using robOpt as a standalone toolbox:
 
 ```matlab
-robOpt.runTests('/Users/acsevillam/workspace/matRad/integration_varRBErobOpt_robOpt');
+robOpt.runTests('/path/to/matRad');
 ```
 
 The tests cover strict config validation, dose scaling, robustness strategies,

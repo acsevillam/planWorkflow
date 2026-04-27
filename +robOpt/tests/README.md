@@ -13,6 +13,6 @@ robOpt.runTests();
 When robOpt is used as a standalone toolbox, pass the matRad root explicitly:
 
 ```matlab
-addpath('/Users/acsevillam/workspace/matRad/robOpt');
-robOpt.runTests('/Users/acsevillam/workspace/matRad/integration_varRBErobOpt_robOpt');
+addpath('/path/to/external/robOpt');
+robOpt.runTests('/path/to/matRad');
 ```

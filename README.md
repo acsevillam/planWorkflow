@@ -15,16 +15,18 @@ matRad checkout at runtime, but matRad is not vendored here.
 
 ## Setup
 
-Add the repository root to the MATLAB path and initialize matRad:
+When used from a matRad integration worktree, add the toolbox root and
+initialize matRad:
 
 ```matlab
-setupRobOpt('/Users/acsevillam/workspace/matRad/integration_varRBErobOpt_robOpt');
+addpath('/path/to/matRad/thirdParty/robOpt');
+setupRobOpt('/path/to/matRad');
 ```
 
 If matRad is already on the MATLAB path, the toolbox can also be added directly:
 
 ```matlab
-addpath('/Users/acsevillam/workspace/matRad/robOpt');
+addpath('/path/to/external/robOpt');
 ```
 
 ## Example
@@ -58,8 +60,9 @@ workflow.save();
 Run the fast package tests from MATLAB:
 
 ```matlab
-setupRobOpt('/Users/acsevillam/workspace/matRad/integration_varRBErobOpt_robOpt');
-robOpt.runTests('/Users/acsevillam/workspace/matRad/integration_varRBErobOpt_robOpt');
+addpath('/path/to/external/robOpt');
+setupRobOpt('/path/to/matRad');
+robOpt.runTests('/path/to/matRad');
 ```
 
 The tests cover strict config validation, dose scaling, robustness strategies,
