@@ -19,7 +19,7 @@ When used from a matRad integration worktree, add the toolbox root and
 initialize matRad:
 
 ```matlab
-addpath('/path/to/matRad/thirdParty/robOpt');
+addpath('/path/to/matRad/submodules/robOpt');
 setupRobOpt('/path/to/matRad');
 ```
 
