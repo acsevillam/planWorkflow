@@ -1,6 +1,6 @@
-# robOpt Toolbox
+# planWorkflow Toolbox
 
-`robOpt` provides staged robust optimization workflows for matRad with
+`planWorkflow` provides staged robust optimization workflows for matRad with
 persistent workflow state, checkpoints, resume support, computational-resource
 tracking, dose influence matrix caching, and plan-analysis helpers.
 
@@ -9,9 +9,9 @@ matRad checkout at runtime, but matRad is not vendored here.
 
 ## Layout
 
-- `+robOpt`: toolbox package namespace.
-- `+robOpt/tests`: fast MATLAB unit tests.
-- `setupRobOpt.m`: path setup helper for robOpt and matRad.
+- `+planWorkflow`: toolbox package namespace.
+- `+planWorkflow/tests`: fast MATLAB unit tests.
+- `setupPlanWorkflow.m`: path setup helper for planWorkflow and matRad.
 
 ## Setup
 
@@ -19,14 +19,14 @@ When used from a matRad integration worktree, add the toolbox root and
 initialize matRad:
 
 ```matlab
-addpath('/path/to/matRad/submodules/robOpt');
-setupRobOpt('/path/to/matRad');
+addpath('/path/to/matRad/submodules/planWorkflow');
+setupPlanWorkflow('/path/to/matRad');
 ```
 
 If matRad is already on the MATLAB path, the toolbox can also be added directly:
 
 ```matlab
-addpath('/path/to/external/robOpt');
+addpath('/path/to/external/planWorkflow');
 ```
 
 ## Example
@@ -44,7 +44,7 @@ config.sampling_wcSigma = 1.5;
 config.analysis = struct('doseWindowDvh',[],'gammaCriteria',[3 3], ...
     'robustnessCriteria',[5 5]);
 
-workflow = robOpt.PhotonWorkflow(config);
+workflow = planWorkflow.PhotonWorkflow(config);
 
 workflow.prepare();
 workflow.precompute();
@@ -60,9 +60,9 @@ workflow.save();
 Run the fast package tests from MATLAB:
 
 ```matlab
-addpath('/path/to/external/robOpt');
-setupRobOpt('/path/to/matRad');
-robOpt.runTests('/path/to/matRad');
+addpath('/path/to/external/planWorkflow');
+setupPlanWorkflow('/path/to/matRad');
+planWorkflow.runTests('/path/to/matRad');
 ```
 
 The tests cover strict config validation, dose scaling, robustness strategies,
