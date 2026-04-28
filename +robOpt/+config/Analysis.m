@@ -4,7 +4,7 @@ classdef Analysis
     methods (Static)
         function analysis = defaults()
             analysis = struct();
-            analysis.doseMode = 'total';
+            analysis.displayDoseMode = 'perFraction';
             analysis.doseWindow = [];
             analysis.doseWindowDvh = [];
             analysis.doseWindowUncertainty = [];
@@ -32,14 +32,15 @@ classdef Analysis
                 end
             end
 
-            [~,analysis.doseMode] = matRad_getAnalysisDoseScale( ...
-                struct('numOfFractions',1),analysis.doseMode,[]);
+            [~,analysis.displayDoseMode] = matRad_getDisplayDoseScale( ...
+                struct('numOfFractions',1),analysis.displayDoseMode);
         end
 
         function analysis = applyPrescriptionDefaults(analysis,prescriptionDose,pln)
             analysis = robOpt.config.Analysis.normalize(analysis);
-            doseScale = matRad_getAnalysisDoseScale(pln,analysis.doseMode,[]);
-            prescriptionDose = prescriptionDose/pln.numOfFractions*doseScale;
+            displayDoseScale = matRad_getDisplayDoseScale( ...
+                pln,analysis.displayDoseMode);
+            prescriptionDose = prescriptionDose/pln.numOfFractions * displayDoseScale;
 
             if isempty(analysis.doseWindow)
                 analysis.doseWindow = [0 prescriptionDose * 1.25];

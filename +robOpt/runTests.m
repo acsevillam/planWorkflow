@@ -32,7 +32,7 @@ end
 
 function initializeMatRad(robOptFolder,pathToMatRadRoot)
 
-if exist('matRad_getAnalysisDoseScale','file') == 2 && ...
+if exist('matRad_getDisplayDoseScale','file') == 2 && ...
         exist('MatRad_Config','class') == 8
     return;
 end

@@ -756,10 +756,8 @@ classdef Engine < robOpt.WorkflowBase
 
             for scenIt = 1:pln.multScen.totNumScen
                 doseField = [pln.bioParam.quantityVis '_' num2str(scenIt)];
-                doseScale = obj.analysisDoseScale(pln);
                 qi = matRad_calcQualityIndicators(cst,pln, ...
-                    resultGUI.(doseField) * doseScale,[],[], ...
-                    'doseScale',doseScale);
+                    resultGUI.(doseField),[],[]);
                 targetIx = obj.findQiTargets(qi,obj.runConfig.dose_pulling1_target);
                 for targetIt = 1:numel(criteria)
                     scenarioValues(scenIt,targetIt) = ...
@@ -924,9 +922,8 @@ classdef Engine < robOpt.WorkflowBase
             robOpt.analysis.ResultLogger.log(@(message) obj.log(message),results);
         end
 
-        function expectedQi = expectedQiFromCstStat(~,cstStat,cst,pln,doseMode)
-            expectedQi = robOpt.analysis.ExpectedQi.fromCstStat( ...
-                cstStat,cst,pln,doseMode);
+        function expectedQi = expectedQiFromCstStat(~,cstStat,cst,pln)
+            expectedQi = robOpt.analysis.ExpectedQi.fromCstStat(cstStat,cst,pln);
         end
 
         function values = selectRobustDosePullingCriteria(obj,metrics)
@@ -992,9 +989,7 @@ classdef Engine < robOpt.WorkflowBase
 
             structSel = {};
             [caSamp,mSampDose,plnSamp,resultGUINomScen] = matRad_sampling( ...
-                ctSampling,stf,cstSampling,pln,resultGUI.w,structSel,multScen, ...
-                'doseMode',obj.runConfig.analysis.doseMode, ...
-                'dvhDoseWindow',obj.runConfig.analysis.doseWindowDvh);
+                ctSampling,stf,cstSampling,pln,resultGUI.w,structSel,multScen);
 
             sample = struct();
             sample.caSamp = caSamp;
@@ -1032,7 +1027,6 @@ classdef Engine < robOpt.WorkflowBase
                 'phaseProb',samplingData.phaseProb, ...
                 'gammaCriterion',analysis.gammaCriteria, ...
                 'robustnessCriteria',analysis.robustnessCriteria, ...
-                'doseMode',analysis.doseMode, ...
                 'slice',slice);
 
             planSamplingResults = struct();
@@ -1040,7 +1034,7 @@ classdef Engine < robOpt.WorkflowBase
             planSamplingResults.doseStat = doseStat;
             planSamplingResults.meta = meta;
             planSamplingResults.expectedQi = obj.expectedQiFromCstStat( ...
-                cstStat,samplingData.cst,sample.pln,analysis.doseMode);
+                cstStat,samplingData.cst,sample.pln);
             planSamplingResults.expectedQiSource = ...
                 'cstStat(i).dvhStat.mean from matRad_samplingAnalysis';
             planSamplingResults.expectedDvhSource = ...
@@ -1172,11 +1166,6 @@ classdef Engine < robOpt.WorkflowBase
                 isstruct(obj.data.objectiveInfo) && ...
                 isfield(obj.data.objectiveInfo,'prescriptionDose') && ...
                 ~isempty(obj.data.objectiveInfo.prescriptionDose);
-        end
-
-        function doseScale = analysisDoseScale(obj,pln)
-            doseScale = robOpt.analysis.PlanAnalysis.doseScale( ...
-                pln,obj.runConfig.analysis.doseMode);
         end
 
         function [pln,quantityOpt] = createPlan(obj,ct,cst)

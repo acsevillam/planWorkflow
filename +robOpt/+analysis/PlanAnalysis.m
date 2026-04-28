@@ -9,13 +9,10 @@ classdef PlanAnalysis
             end
 
             quantity = robOpt.analysis.PlanAnalysis.resolveQuantity(pln,resultGUI);
-            doseScale = robOpt.analysis.PlanAnalysis.doseScale( ...
-                pln,analysisConfig.doseMode);
             if showFigures
                 resultGUI = matRad_planAnalysis(resultGUI,ct,cst,stf,pln, ...
                     'quantity',quantity, ...
-                    'doseMode',analysisConfig.doseMode, ...
-                    'doseScale',doseScale, ...
+                    'displayDoseMode',analysisConfig.displayDoseMode, ...
                     'refGy',[], ...
                     'refVol',[], ...
                     'doseWindow',analysisConfig.doseWindowDvh);
@@ -23,12 +20,11 @@ classdef PlanAnalysis
                 qi = resultGUI.qi;
             else
                 [dvh,qi] = robOpt.analysis.PlanAnalysis.calculateIndicators( ...
-                    cst,pln,resultGUI,quantity,doseScale);
+                    cst,pln,resultGUI,quantity);
                 resultGUI.dvh = dvh;
                 resultGUI.qi = qi;
                 resultGUI.analysisQuantity = quantity;
-                resultGUI.analysisDoseMode = analysisConfig.doseMode;
-                resultGUI.analysisDoseScale = doseScale;
+                resultGUI.analysisDoseMode = 'perFraction';
             end
         end
 
@@ -50,21 +46,15 @@ classdef PlanAnalysis
             end
         end
 
-        function [dvh,qi] = calculateIndicators(cst,pln,resultGUI, ...
-                quantity,doseScale)
+        function [dvh,qi] = calculateIndicators(cst,pln,resultGUI,quantity)
             if ~isfield(resultGUI,quantity)
                 error('robOpt:analysis:PlanAnalysis:UnknownQuantity', ...
                     'Unknown quantity "%s" to analyse.',quantity);
             end
 
-            doseCube = resultGUI.(quantity) * doseScale;
+            doseCube = resultGUI.(quantity);
             dvh = matRad_calcDVH(cst,doseCube,'cum');
-            qi = matRad_calcQualityIndicators(cst,pln,doseCube,[],[], ...
-                'doseScale',doseScale);
-        end
-
-        function doseScale = doseScale(pln,doseMode)
-            doseScale = matRad_getAnalysisDoseScale(pln,doseMode,[]);
+            qi = matRad_calcQualityIndicators(cst,pln,doseCube,[],[]);
         end
     end
 end

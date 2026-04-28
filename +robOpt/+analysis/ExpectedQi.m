@@ -2,13 +2,12 @@ classdef ExpectedQi
     % ExpectedQi Quality indicators derived from the expected DVH curve.
 
     methods (Static)
-        function expectedQi = fromCstStat(cstStat,cst,pln,doseMode)
+        function expectedQi = fromCstStat(cstStat,cst,pln)
             expectedQi = struct([]);
             if isempty(cstStat)
                 return;
             end
 
-            [doseScale,~] = matRad_getAnalysisDoseScale(pln,doseMode,[]);
             expectedQi = repmat(struct('name',''),1,numel(cstStat));
             for i = 1:numel(cstStat)
                 expectedQi(i).name = robOpt.analysis.ExpectedQi.structTextField( ...
@@ -50,8 +49,10 @@ classdef ExpectedQi
 
                 if i <= size(cst,1) && strcmp(cst{i,3},'TARGET')
                     referenceDose = robOpt.analysis.ExpectedQi.targetReferenceDose( ...
-                        cst,i,pln,doseScale);
+                        cst,i,pln);
                     if isfinite(referenceDose)
+                        expectedQi(i).referenceDose = referenceDose;
+                        expectedQi(i).doseMode = 'perFraction';
                         expectedQi(i).COV1 = ...
                             robOpt.analysis.ExpectedQi.dvhVolumeAtDose( ...
                             doseGrid,volumePoints,referenceDose);
@@ -127,7 +128,7 @@ classdef ExpectedQi
             end
         end
 
-        function referenceDose = targetReferenceDose(cst,voiIx,pln,doseScale)
+        function referenceDose = targetReferenceDose(cst,voiIx,pln)
             referenceDose = inf;
             objectives = cst{voiIx,6};
             if isempty(objectives)
@@ -170,7 +171,7 @@ classdef ExpectedQi
             end
 
             if isfinite(referenceDose)
-                referenceDose = referenceDose / pln.numOfFractions * doseScale;
+                referenceDose = referenceDose / pln.numOfFractions;
             else
                 referenceDose = NaN;
             end
