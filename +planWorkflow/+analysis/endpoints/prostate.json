@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "description": "prostate",
+  "endpoints": [
+    {
+      "structureNames": ["BLADDER"],
+      "metric": "V60",
+      "kind": "V",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 60,
+      "thresholdUnit": "Gy",
+      "thresholdMode": "totalDose",
+      "unit": "%"
+    },
+    {
+      "structureNames": ["RECTUM"],
+      "metric": "V40",
+      "kind": "V",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 40,
+      "thresholdUnit": "Gy",
+      "thresholdMode": "totalDose",
+      "unit": "%"
+    },
+    {
+      "structureNames": ["RECTUM"],
+      "metric": "V50",
+      "kind": "V",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 50,
+      "thresholdUnit": "Gy",
+      "thresholdMode": "totalDose",
+      "unit": "%"
+    }
+  ]
+}

@@ -1,90 +1,142 @@
-function [cst] = normalizeNames(cst,run_config)
+function [cst,report] = normalizeNames(cst,runConfig,ct)
 
-description=run_config.description;
+if nargin < 3
+    ct = [];
+end
 
-switch description
-    case 'prostate'
-
-        for  it = size(cst,1):-1:1
-            switch cst{it,2}
-                case {'Skin','BODY'}
-                    cst{it,2}='BODY';
-                case {'PTV','PTV 60'}
-                    cst{it,2}='PTV';
-                case {'PROSTATA','CTV'}
-                    cst{it,2}='CTV';
-                case {'RECTO','RECTUM'}
-                    cst{it,2}='RECTUM';
-                case {'VEJIGA','BLADDER'}
-                    cst{it,2}='BLADDER';
-                case {'BULBO','BULBO PENEANO','BULB'}
-                    cst{it,2}='BULB';
-                case {'CFI','CAB FEM IZQ','LEFT REMORAL HEAD'}
-                    cst{it,2}='LEFT REMORAL HEAD';
-                case {'CFD','CAB FEM DER','RIGHT REMORAL HEAD'}
-                    cst{it,2}='RIGHT REMORAL HEAD';
-                otherwise
-                    fprintf(' %s is an empty structure. \n',cst{it,2});
-                    fprintf('Deleting %s structure. \n',cst{it,2});
-                    cst(it,:) = [];
-            end
-        end
-
-    case 'breast'
-
-        skin_flag = true;
-        ixPTV=0;
-        ixCTV=0;
-
-        for  it = size(cst,1):-1:1
-            switch cst{it,2}
-                case 'Skin'
-                    cst{it,2}='BODY';
-                case 'Piel'
-                    skin_flag = false;
-                    cst{it,2}='SKIN';
-                case {'PTV','PTV M'}
-                    cst{it,2}='PTV';
-                case {'SENO IZQUIERDO','CTV'}
-                    cst{it,2}='CTV';
-                case 'CORAZON'
-                    cst{it,2}='HEART';
-                case 'PULMON IZQUIERDO'
-                    cst{it,2}='LEFT LUNG';
-                case 'PULMON DERECHO'
-                    cst{it,2}='RIGTH LUNG';
-                case 'SENO CONTRALATERAL'
-                    cst{it,2}='CONTRALATERAL BREAST';
-                case 'MEDULA'
-                    cst{it,2}='SPINAL CORD';
-                otherwise
-                    fprintf(' %s is an empty structure. \n',cst{it,2});
-                    fprintf('Deleting %s structure. \n',cst{it,2});
-                    cst(it,:) = [];
-            end
-        end
-
-        for  it = size(cst,1):-1:1
-            switch cst{it,2}
-                case {'PTV'}
-                    ixPTV=it;
-                case {'CTV'}
-                    ixCTV=it;
-            end
-        end
-
-        if(skin_flag && ixPTV~=0 && ixCTV~=0)
-            metadata.name='SKIN';
-            metadata.type='OAR';
-            metadata.visibleColor=[1,0.501960784313726,1];
-            [cst,~] = matRad_createSkin(ixPTV,ixCTV,cst,metadata);
-            clear metadata;
-        end
+normalizationConfig = ...
+    planWorkflow.structures.loadNormalizationConfig(runConfig.description);
+report = emptyReport(normalizationConfig.description);
+[cst,report] = applyNormalizationConfig(cst,normalizationConfig,report);
+cst = applyDerivedStructures(cst,normalizationConfig,runConfig,ct);
+cst = reindexCst(cst);
 
 end
 
-for  it = 1:size(cst,1)
+function [cst,report] = applyNormalizationConfig( ...
+    cst,normalizationConfig,report)
+for it = size(cst,1):-1:1
+    originalName = char(cst{it,2});
+    lookupKey = planWorkflow.structures.normalizationKey(originalName);
+
+    if isKey(normalizationConfig.aliasMap,lookupKey)
+        normalizedName = normalizationConfig.aliasMap(lookupKey);
+        if ~strcmp(originalName,normalizedName)
+            report.renamed(end + 1,1) = struct( ...
+                'row',it, ...
+                'originalName',originalName, ...
+                'normalizedName',normalizedName);
+        end
+        cst{it,2} = normalizedName;
+    elseif normalizationConfig.dropUnsupported
+        report.dropped(end + 1,1) = struct( ...
+            'row',it, ...
+            'name',originalName, ...
+            'reason',sprintf('unsupported %s structure', ...
+            normalizationConfig.description));
+        cst(it,:) = [];
+    end
+end
+end
+
+function report = emptyReport(description)
+report = struct();
+report.description = char(description);
+report.renamed = repmat(struct( ...
+    'row',[],'originalName','','normalizedName',''),0,1);
+report.dropped = repmat(struct( ...
+    'row',[],'name','','reason',''),0,1);
+end
+
+function cst = applyDerivedStructures(cst,normalizationConfig,runConfig,ct)
+for derivedIx = 1:numel(normalizationConfig.derivedStructures)
+    derivedSpec = normalizationConfig.derivedStructures(derivedIx);
+    switch char(derivedSpec.kind)
+        case 'skinFromBody'
+            cst = applySkinFromBody(cst,derivedSpec,runConfig,ct);
+        otherwise
+            error('planWorkflow:structures:normalizeNames:UnknownDerivedStructure', ...
+                'Unknown derived structure kind "%s".', ...
+                char(derivedSpec.kind));
+    end
+end
+end
+
+function cst = applySkinFromBody(cst,derivedSpec,runConfig,ct)
+if isempty(ct)
+    return;
+end
+
+skinName = char(derivedSpec.name);
+if any(strcmp(cst(:,2),skinName))
+    return;
+end
+
+sourceName = char(derivedSpec.source);
+ixSource = find(strcmp(cst(:,2),sourceName),1);
+if isempty(ixSource)
+    return;
+end
+
+metadata.name = skinName;
+metadata.type = char(derivedSpec.type);
+metadata.visibleColor = double(derivedSpec.visibleColor(:)');
+
+skinArgs = {'mode',getRunConfigValue(runConfig, ...
+    char(derivedSpec.modeField),char(derivedSpec.defaultMode))};
+skinThicknessMm = getRunConfigValue(runConfig, ...
+    char(derivedSpec.thicknessField),[]);
+if ~isempty(skinThicknessMm)
+    skinArgs = [skinArgs {'thicknessMm',skinThicknessMm}];
+end
+
+if strcmp(char(skinArgs{2}),'targetRegion')
+    targetIndex = getSkinTargetIndex(cst,runConfig,derivedSpec);
+    skinArgs = [skinArgs {'targetIndex',targetIndex, ...
+        'targetDistanceMm',getRunConfigValue(runConfig, ...
+        char(derivedSpec.targetDistanceField), ...
+        derivedSpec.defaultTargetDistanceMm)}];
+end
+
+[cst,~] = planWorkflow.structures.createSkin( ...
+    ixSource,cst,ct,metadata,skinArgs{:});
+end
+
+function targetIndex = getSkinTargetIndex(cst,runConfig,derivedSpec)
+targetName = getPlanTargetName(runConfig,derivedSpec);
+targetIndex = find(strcmp(cst(:,2),targetName),1);
+
+if isempty(targetIndex)
+    error('planWorkflow:structures:normalizeNames:MissingSkinTarget', ...
+        'A valid target structure is required when skinMode is targetRegion.');
+end
+end
+
+function targetName = getPlanTargetName(runConfig,derivedSpec)
+targetName = char(getRunConfigValue(runConfig, ...
+    char(derivedSpec.targetField),''));
+if ~isempty(targetName)
+    return;
+end
+
+try
+    template = planWorkflow.templates.PlanTemplate.resolve(runConfig);
+    targetName = char(template.primaryTarget);
+catch
+    targetName = char(derivedSpec.defaultTarget);
+end
+end
+
+function value = getRunConfigValue(runConfig,fieldName,defaultValue)
+if isstruct(runConfig) && isfield(runConfig,fieldName)
+    value = runConfig.(fieldName);
+else
+    value = defaultValue;
+end
+end
+
+function cst = reindexCst(cst)
+for it = 1:size(cst,1)
     cst{it,1}=it-1;
 end
-
 end

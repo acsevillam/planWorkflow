@@ -1,0 +1,75 @@
+{
+  "structures": [
+    {
+      "name": "BODY",
+      "role": "OAR",
+      "priority": 5,
+      "visibleColor": [0, 1, 0],
+      "operation": ""
+    },
+    {
+      "name": "CTVT",
+      "role": "TARGET",
+      "priority": 1,
+      "visibleColor": [1, 0.25, 0.25],
+      "operation": ""
+    },
+    {
+      "name": "CTVN",
+      "role": "TARGET",
+      "priority": 1,
+      "visibleColor": [1, 0.45, 0.1],
+      "operation": ""
+    },
+    {
+      "name": "CTV",
+      "role": "TARGET",
+      "priority": 1,
+      "visibleColor": [1, 0, 0],
+      "operation": ""
+    },
+    {
+      "name": "PTV",
+      "role": "TARGET",
+      "priority": 2,
+      "visibleColor": [0, 0.816, 1],
+      "operation": ""
+    },
+    {
+      "name": "LEFT PAROTID",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [1, 0.7, 0.2],
+      "operation": ""
+    },
+    {
+      "name": "RIGHT PAROTID",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [1, 0.55, 0],
+      "operation": ""
+    },
+    {
+      "name": "SPINAL CORD",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [0.8, 0.2, 1],
+      "operation": ""
+    },
+    {
+      "name": "BRAINSTEM",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [0.45, 0.2, 0.85],
+      "operation": ""
+    },
+    {
+      "name": "MANDIBLE",
+      "role": "OAR",
+      "priority": 4,
+      "visibleColor": [0.85, 0.85, 0.55],
+      "operation": ""
+    }
+  ],
+  "rings": []
+}

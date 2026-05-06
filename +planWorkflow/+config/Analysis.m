@@ -4,7 +4,7 @@ classdef Analysis
     methods (Static)
         function analysis = defaults()
             analysis = struct();
-            analysis.displayDoseMode = 'perFraction';
+            analysis.evaluationMode = 'perFraction';
             analysis.doseWindow = [];
             analysis.doseWindowDvh = [];
             analysis.doseWindowUncertainty = [];
@@ -14,6 +14,10 @@ classdef Analysis
             analysis.gammaWindow = [0 1];
             analysis.gammaCriteria = [3 3];
             analysis.robustnessCriteria = [5 5];
+            analysis.robustnessTargetMode = 'all';
+            analysis.robustnessTargets = [];
+            analysis.endpoints = [];
+            analysis.endpointsFile = '';
         end
 
         function analysis = normalize(analysis)
@@ -31,16 +35,18 @@ classdef Analysis
                     analysis.(fieldName) = defaults.(fieldName);
                 end
             end
+            analysis.endpointsFile = ...
+                planWorkflow.analysis.ClinicalEndpointCatalog.normalizeFileSelection( ...
+                analysis.endpointsFile);
 
-            [~,analysis.displayDoseMode] = matRad_getDisplayDoseScale( ...
-                struct('numOfFractions',1),analysis.displayDoseMode);
+            [~,analysis.evaluationMode] = matRad_convertToEvaluationMode( ...
+                [],struct('numOfFractions',1),analysis.evaluationMode);
         end
 
         function analysis = applyPrescriptionDefaults(analysis,prescriptionDose,pln)
             analysis = planWorkflow.config.Analysis.normalize(analysis);
-            displayDoseScale = matRad_getDisplayDoseScale( ...
-                pln,analysis.displayDoseMode);
-            prescriptionDose = prescriptionDose/pln.numOfFractions * displayDoseScale;
+            prescriptionDose = matRad_convertToEvaluationMode( ...
+                prescriptionDose/pln.numOfFractions,pln,analysis.evaluationMode);
 
             if isempty(analysis.doseWindow)
                 analysis.doseWindow = [0 prescriptionDose * 1.25];

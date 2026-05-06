@@ -15,7 +15,6 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             runConfig = struct();
             runConfig.description = 'synthetic';
             runConfig.caseID = 'case';
-            runConfig.robustness = 'none';
             runConfig.runId = 'synthetic-run';
             runConfig.outputRootPath = tempdir;
             runConfig.cacheRootPath = fullfile(tempdir,'planWorkflow-cache');
@@ -24,20 +23,9 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
         function runConfig = normalizeRunConfig(~,runConfig)
             runConfig.description = char(runConfig.description);
             runConfig.caseID = char(runConfig.caseID);
-            runConfig.robustness = char(runConfig.robustness);
             runConfig.runId = char(runConfig.runId);
             runConfig.outputRootPath = char(runConfig.outputRootPath);
             runConfig.cacheRootPath = char(runConfig.cacheRootPath);
-        end
-
-        function strategy = resolveStrategy(~,strategyName)
-            switch char(strategyName)
-                case 'none'
-                    strategy = planWorkflow.robustness.NoneStrategy();
-                otherwise
-                    error('planWorkflowTest:SyntheticWorkflow:UnknownStrategy', ...
-                        'Unsupported synthetic strategy "%s".',strategyName);
-            end
         end
 
         function configurePaths(obj)
@@ -64,15 +52,26 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
         end
 
         function doOptimize(obj)
-            obj.data.optimizedValue = obj.data.dosePulledValue + 1;
+            obj.data.optimizedValue = obj.runMeasuredPlanTask( ...
+                'optimize','reference','Reference', ...
+                'syntheticOptimization','','', ...
+                @() obj.data.dosePulledValue + 1);
         end
 
         function doSampling(obj)
+            obj.reportGuiStageProgress('sample',0.5, ...
+                'Synthetic sampling progress.');
             obj.data.sampledValue = obj.data.optimizedValue + 1;
         end
 
         function doAnalyze(obj)
-            obj.data.results = struct('score',obj.data.sampledValue + 1);
+            if ~isfield(obj.data,'analysisCount')
+                obj.data.analysisCount = 0;
+            end
+            obj.data.analysisCount = obj.data.analysisCount + 1;
+            obj.data.results = struct( ...
+                'score',obj.data.sampledValue + 1, ...
+                'analysisCount',obj.data.analysisCount);
         end
     end
 end

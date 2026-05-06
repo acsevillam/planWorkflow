@@ -2,7 +2,7 @@ classdef (Abstract) WorkflowBase < handle
     % WorkflowBase Base class for staged planWorkflow workflows.
     %
     % Subclasses implement the clinical/domain-specific steps while this
-    % class owns the common lifecycle, state persistence, cache handling,
+    % class owns the common lifecycle, state persistence, artifact paths,
     % resume support, and console output.
 
     properties
@@ -10,7 +10,7 @@ classdef (Abstract) WorkflowBase < handle
         stageConfig
         data
         state
-        strategy
+        guiProgressReporter = []
     end
 
     properties (SetAccess = protected)
@@ -35,14 +35,6 @@ classdef (Abstract) WorkflowBase < handle
             obj.state = obj.defaultState();
             obj.stageConfig = obj.defaultStageConfig();
             obj.runConfig = obj.parseRunConfig(config);
-
-            if isfield(obj.runConfig,'robustness')
-                strategyName = obj.runConfig.robustness;
-            else
-                strategyName = 'none';
-            end
-
-            obj.strategy = obj.resolveStrategy(strategyName);
             obj.configurePaths();
         end
 
@@ -53,9 +45,9 @@ classdef (Abstract) WorkflowBase < handle
 
             previousRunConfig = obj.runConfig;
             patch = obj.parseConfigArguments(varargin{:});
+            patch = obj.expandRunConfig(patch);
             obj.runConfig = obj.mergeStruct(obj.runConfig,patch);
             obj.runConfig = obj.normalizeRunConfig(obj.runConfig);
-            obj.strategy = obj.resolveStrategy(obj.runConfig.robustness);
             obj.configurePaths();
 
             if ~isequaln(previousRunConfig,obj.runConfig)
@@ -65,105 +57,162 @@ classdef (Abstract) WorkflowBase < handle
         end
 
         function prepare(obj,varargin)
-            obj.configureStage('prepare',varargin{:});
+            stageName = 'prepare';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
 
-            if obj.isStageComplete('prepared')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow is already prepared.');
                 return;
             end
 
+            obj.beforePrepareStage();
             obj.ensureFolders();
-            obj.runMeasuredStage('prepare','prepared',@() obj.doPrepare());
-            obj.markStageComplete('prepared');
+            obj.runMeasuredStage(stageName,completedName,@() obj.doPrepare());
+            obj.markStageComplete(completedName);
             obj.saveState();
         end
 
-        function precompute(obj,varargin)
-            obj.configureStage('precompute',varargin{:});
+        function gui(obj,varargin)
+            if ~isempty(varargin)
+                if obj.isStageComplete(obj.completedNameForStage('prepare'))
+                    error('planWorkflow:WorkflowBase:GuiReadOnlyConfig', ...
+                        ['workflow.gui() can only edit configuration before ' ...
+                         'prepare(). Open it without arguments to inspect or ' ...
+                         'resume an existing workflow.']);
+                end
+                obj.configure(varargin{:});
+            end
 
-            if ~obj.isStageComplete('prepared')
+            if ~obj.hasInteractiveGuiSupport()
+                obj.guiProgressReporter = [];
+                obj.log('Interactive plan editor skipped because MATLAB UI is unavailable.');
+                return;
+            end
+
+            obj.guiProgressReporter = obj.doGui();
+            obj.configureGuiProgressReporter();
+            if isempty(obj.state.completedStages)
+                obj.markStateChange('gui');
+            end
+        end
+
+        function precompute(obj,varargin)
+            stageName = 'precompute';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
+
+            if ~obj.isStageComplete(obj.completedNameForStage('prepare'))
                 obj.prepare();
             end
 
-            if obj.isStageComplete('precomputed')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow is already precomputed.');
                 return;
             end
 
             obj.ensureFolders();
-            obj.runMeasuredStage('precompute','precomputed',@() obj.doPrecompute());
-            obj.markStageComplete('precomputed');
+            obj.runMeasuredStage(stageName,completedName,@() obj.doPrecompute());
+            obj.markStageComplete(completedName);
             obj.saveState();
         end
 
         function optimize(obj,varargin)
-            obj.configureStage('optimize',varargin{:});
+            stageName = 'optimize';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
 
-            if ~obj.isStageComplete('dose_pulled')
+            if ~obj.isStageComplete(obj.completedNameForStage('pullDose'))
                 obj.pullDose();
             end
 
-            if obj.isStageComplete('optimized')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow is already optimized.');
                 return;
             end
 
-            obj.runMeasuredStage('optimize','optimized',@() obj.doOptimize());
-            obj.markStageComplete('optimized');
+            obj.runMeasuredStage(stageName,completedName,@() obj.doOptimize());
+            obj.markStageComplete(completedName);
             obj.saveState();
         end
 
         function pullDose(obj,varargin)
-            obj.configureStage('pullDose',varargin{:});
+            stageName = 'pullDose';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
 
-            if ~obj.isStageComplete('precomputed')
+            if ~obj.isStageComplete(obj.completedNameForStage('precompute'))
                 obj.precompute();
             end
 
-            if obj.isStageComplete('dose_pulled')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow dose pulling is already complete.');
                 return;
             end
 
-            obj.runMeasuredStage('pullDose','dose_pulled',@() obj.doDosePulling());
-            obj.invalidateStages({'optimized','sampled','analyzed'});
-            obj.markStageComplete('dose_pulled');
+            obj.runMeasuredStage(stageName,completedName, ...
+                @() obj.doDosePulling());
+            obj.invalidateStages(obj.stageCompletedNames('optimize'));
+            obj.markStageComplete(completedName);
             obj.saveState();
         end
 
         function sample(obj,varargin)
-            obj.configureStage('sample',varargin{:});
+            stageName = 'sample';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
 
-            if ~obj.isStageComplete('optimized')
+            if ~obj.isStageComplete(obj.completedNameForStage('optimize'))
                 obj.optimize();
             end
 
-            if obj.isStageComplete('sampled')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow is already sampled.');
                 return;
             end
 
-            obj.runMeasuredStage('sample','sampled',@() obj.doSampling());
-            obj.invalidateStages({'analyzed'});
-            obj.markStageComplete('sampled');
+            obj.runMeasuredStage(stageName,completedName,@() obj.doSampling());
+            obj.invalidateStages(obj.stageCompletedNames('analyze'));
+            obj.markStageComplete(completedName);
             obj.saveState();
         end
 
         function analyze(obj,varargin)
-            obj.configureStage('analyze',varargin{:});
+            stageName = 'analyze';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
 
-            if ~obj.isStageComplete('optimized')
+            if ~obj.isStageComplete(obj.completedNameForStage('optimize'))
                 obj.optimize();
             end
 
-            if obj.isStageComplete('analyzed')
+            if obj.isStageComplete(completedName)
                 obj.log('Workflow is already analyzed.');
+                obj.reportGuiResults();
                 return;
             end
 
-            obj.runMeasuredStage('analyze','analyzed',@() obj.doAnalyze());
-            obj.markStageComplete('analyzed');
+            obj.runMeasuredStage(stageName,completedName,@() obj.doAnalyze());
+            obj.markStageComplete(completedName);
             obj.saveState();
+            obj.reportGuiResults();
+        end
+
+        function recalculateAnalysis(obj,varargin)
+            obj.ensureWorkflowDataLoadedForReanalysis();
+            stageName = 'analyze';
+            completedName = obj.completedNameForStage(stageName);
+            obj.configureStage(stageName,varargin{:});
+
+            if ~obj.isStageComplete(obj.completedNameForStage('optimize'))
+                error('planWorkflow:WorkflowBase:AnalysisRecalculationNeedsOptimization', ...
+                    'Analysis can only be recalculated after optimization is complete.');
+            end
+
+            obj.runMeasuredStage(stageName,completedName,@() obj.doAnalyze());
+            obj.markStageComplete(completedName);
+            obj.saveState();
+            obj.reportGuiResults();
         end
 
         function save(obj)
@@ -177,24 +226,6 @@ classdef (Abstract) WorkflowBase < handle
 
             obj.loadState(stateFile);
             obj.log(sprintf('Workflow resumed from %s.',stateFile));
-        end
-
-        function setStrategy(obj,strategyName)
-            obj.runConfig.robustness = char(strategyName);
-            obj.strategy = obj.resolveStrategy(obj.runConfig.robustness);
-            obj.invalidateStages({'precomputed','dose_pulled','optimized','sampled','analyzed'});
-            obj.configurePaths();
-            obj.markStateChange(sprintf('strategy:%s',obj.strategy.name));
-            obj.saveState();
-        end
-
-        function cacheFile = getCacheFile(obj,tag)
-            cacheKey = obj.buildCacheKey(tag);
-            cacheFile = fullfile(obj.cachePath,[cacheKey '.mat']);
-        end
-
-        function tf = hasCache(obj,tag)
-            tf = isfile(obj.getCacheFile(tag));
         end
 
         function releaseMemory(obj)
@@ -233,6 +264,7 @@ classdef (Abstract) WorkflowBase < handle
                     'Use a workflow config struct.');
             end
 
+            runConfig = obj.expandRunConfig(runConfig);
             runConfig = obj.mergeDefaults(runConfig,obj.defaultRunConfig());
             runConfig = obj.normalizeRunConfig(runConfig);
         end
@@ -258,7 +290,8 @@ classdef (Abstract) WorkflowBase < handle
         end
 
         function configureStage(obj,stageName,varargin)
-            stageName = char(stageName);
+            stageName = planWorkflow.config.StageConfigSchema.engineStageName( ...
+                stageName);
             if isempty(varargin)
                 return;
             end
@@ -276,7 +309,6 @@ classdef (Abstract) WorkflowBase < handle
             runPatch = obj.stageConfigToRunConfig(stageName,stagePatch);
             obj.runConfig = obj.mergeStruct(obj.runConfig,runPatch);
             obj.runConfig = obj.normalizeRunConfig(obj.runConfig);
-            obj.strategy = obj.resolveStrategy(obj.runConfig.robustness);
             obj.configurePaths();
 
             if ~isequaln(previousRunConfig,obj.runConfig) || ...
@@ -320,6 +352,58 @@ classdef (Abstract) WorkflowBase < handle
         function stageConfig = normalizeStageConfig(~,~,stageConfig)
         end
 
+        function runConfig = expandRunConfig(~,runConfig)
+        end
+
+        function beforePrepareStage(~)
+        end
+
+        function reporter = doGui(~)
+            reporter = [];
+        end
+
+        function configureGuiProgressReporter(obj)
+            reporter = obj.guiProgressReporter;
+            if isempty(reporter)
+                return;
+            end
+
+            try
+                if isa(reporter,'handle') && ~isvalid(reporter)
+                    return;
+                end
+            catch
+            end
+
+            try
+                if ismethod(reporter,'setRecalculateAnalysisCallback')
+                    reporter.setRecalculateAnalysisCallback( ...
+                        @() obj.recalculateAnalysis());
+                end
+            catch
+            end
+        end
+
+        function ensureWorkflowDataLoadedForReanalysis(obj)
+            if isstruct(obj.data) && ~isempty(fieldnames(obj.data))
+                return;
+            end
+
+            if isempty(obj.stateFile) || ~isfile(obj.stateFile)
+                error('planWorkflow:WorkflowBase:MissingAnalysisState', ...
+                    ['Analysis cannot be recalculated because no in-memory ' ...
+                     'workflow data or saved workflow state is available.']);
+            end
+
+            obj.loadState(obj.stateFile);
+            obj.log(sprintf(['Workflow data reloaded from %s for analysis ' ...
+                'recalculation.'],obj.stateFile));
+        end
+
+        function tf = hasInteractiveGuiSupport(~)
+            tf = usejava('desktop');
+        end
+
         function runConfig = stageConfigToRunConfig(~,~,stageConfig)
             runConfig = stageConfig;
         end
@@ -341,41 +425,36 @@ classdef (Abstract) WorkflowBase < handle
         end
 
         function stages = stageOrder(obj) %#ok<MANU>
-            stages = {'prepare','precompute','pullDose','optimize', ...
-                'sample','analyze'};
+            stages = planWorkflow.config.StageConfigSchema.engineStageNames();
         end
 
         function stageNames = stageCompletedNames(obj,stageName)
-            stages = obj.stageOrder();
-            completed = {'prepared','precomputed','dose_pulled','optimized', ...
-                'sampled','analyzed'};
-            stageIx = find(strcmp(stageName,stages),1);
-            stageNames = completed(stageIx:end);
+            stageNames = ...
+                planWorkflow.config.StageConfigSchema.completedNamesFrom( ...
+                stageName);
         end
 
         function completedStageName = completedNameForStage(obj,stageName) %#ok<INUSD>
-            stages = {'prepare','precompute','pullDose','optimize', ...
-                'sample','analyze'};
-            completed = {'prepared','precomputed','dose_pulled','optimized', ...
-                'sampled','analyzed'};
-            stageIx = find(strcmp(stageName,stages),1);
-            if isempty(stageIx)
-                error('planWorkflow:WorkflowBase:UnknownStage', ...
-                    'Unknown workflow stage "%s".',stageName);
-            end
-            completedStageName = completed{stageIx};
+            completedStageName = ...
+                planWorkflow.config.StageConfigSchema.completedName( ...
+                stageName);
         end
 
         function stageName = stageNameFromCompleted(obj,completedStageName) %#ok<INUSD>
-            stages = {'prepare','precompute','pullDose','optimize', ...
-                'sample','analyze'};
-            completed = {'prepared','precomputed','dose_pulled','optimized', ...
-                'sampled','analyzed'};
-            completedIx = find(strcmp(completedStageName,completed),1);
-            if isempty(completedIx)
-                stageName = '';
-            else
-                stageName = stages{completedIx};
+            stageName = ...
+                planWorkflow.config.StageConfigSchema.stageNameFromCompleted( ...
+                completedStageName);
+        end
+
+        function stageName = nextIncompleteStage(obj)
+            stageName = 'complete';
+            stages = obj.stageOrder();
+            for i = 1:numel(stages)
+                completedStageName = obj.completedNameForStage(stages{i});
+                if ~obj.isStageComplete(completedStageName)
+                    stageName = stages{i};
+                    return;
+                end
             end
         end
 
@@ -449,21 +528,69 @@ classdef (Abstract) WorkflowBase < handle
             startCpuTime = cputime;
             startProcessMemory = obj.processMemorySnapshot();
             startDataMemoryBytes = obj.matlabVariableBytes(obj.data);
+            obj.reportGuiStageStarted(stageName);
 
             try
+                obj.assertGuiExecutionNotStopped();
                 stageFunction();
+                obj.assertGuiExecutionNotStopped();
+                wallTimeSeconds = toc(wallTimer);
+                cpuTimeSeconds = cputime - startCpuTime;
                 memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
                     startDataMemoryBytes);
                 obj.recordStageTiming(stageName,completedStageName,startTime, ...
-                    toc(wallTimer),cputime - startCpuTime,'completed','', ...
+                    wallTimeSeconds,cpuTimeSeconds,'completed','', ...
                     memoryRecord);
+                obj.reportGuiStageCompleted(stageName,wallTimeSeconds);
             catch ME
+                wallTimeSeconds = toc(wallTimer);
+                cpuTimeSeconds = cputime - startCpuTime;
                 memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
                     startDataMemoryBytes);
                 obj.recordStageTiming(stageName,completedStageName,startTime, ...
-                    toc(wallTimer),cputime - startCpuTime,'failed', ...
+                    wallTimeSeconds,cpuTimeSeconds,'failed', ...
                     ME.message,memoryRecord);
+                obj.reportGuiStageFailed(stageName,ME.message);
                 obj.trySaveFailedStageState(stageName);
+                rethrow(ME);
+            end
+        end
+
+        function varargout = runMeasuredPlanTask(obj,stageName,role, ...
+                label,taskName,robustPlanId,variantId,taskFunction)
+            startTime = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
+            wallTimer = tic;
+            startCpuTime = cputime;
+            startProcessMemory = obj.processMemorySnapshot();
+            startDataMemoryBytes = obj.matlabVariableBytes(obj.data);
+            taskOutputs = {};
+
+            try
+                obj.assertGuiExecutionNotStopped();
+                if nargout > 0
+                    [varargout{1:nargout}] = taskFunction();
+                    taskOutputs = varargout;
+                else
+                    taskFunction();
+                end
+                obj.assertGuiExecutionNotStopped();
+                wallTimeSeconds = toc(wallTimer);
+                cpuTimeSeconds = cputime - startCpuTime;
+                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                    startDataMemoryBytes);
+                detail = obj.planTaskResourceDetail(stageName,role,label, ...
+                    taskName,robustPlanId,variantId,taskOutputs);
+                obj.recordPlanTiming(stageName,role,label,taskName, ...
+                    robustPlanId,variantId,startTime,wallTimeSeconds, ...
+                    cpuTimeSeconds,'completed','',memoryRecord,detail);
+            catch ME
+                wallTimeSeconds = toc(wallTimer);
+                cpuTimeSeconds = cputime - startCpuTime;
+                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                    startDataMemoryBytes);
+                obj.recordPlanTiming(stageName,role,label,taskName, ...
+                    robustPlanId,variantId,startTime,wallTimeSeconds, ...
+                    cpuTimeSeconds,'failed',ME.message,memoryRecord,'');
                 rethrow(ME);
             end
         end
@@ -608,17 +735,151 @@ classdef (Abstract) WorkflowBase < handle
             end
         end
 
-        function computationalResources = stageTimingSummary(obj)
+        function stageSummary = stageTimingSummary(obj)
             obj.state = obj.normalizeState(obj.state);
-            computationalResources = struct();
-            computationalResources.wallTimeUnit = 'seconds';
-            computationalResources.cpuTimeUnit = 'seconds';
-            computationalResources.memoryUnit = 'bytes';
-            computationalResources.processMemoryMetric = ...
+            stageSummary = struct();
+            stageSummary.wallTimeUnit = 'seconds';
+            stageSummary.cpuTimeUnit = 'seconds';
+            stageSummary.memoryUnit = 'bytes';
+            stageSummary.processMemoryMetric = ...
                 'MATLAB process resident set size';
-            computationalResources.dataMemoryMetric = ...
+            stageSummary.dataMemoryMetric = ...
                 'MATLAB bytes reported by whos for obj.data';
-            computationalResources.stageTimings = obj.state.stageTimings;
+            stageSummary.stageTimings = obj.state.stageTimings;
+        end
+
+        function performance = performanceSummary(obj)
+            performance = obj.stageTimingSummary();
+            performance.planTimings = obj.planTimingSummary();
+        end
+
+        function planTimings = planTimingSummary(obj)
+            planTimings = obj.emptyPlanTiming();
+            planTimings(:) = [];
+            if ~isstruct(obj.data) || ~isfield(obj.data,'performance') || ...
+                    ~isstruct(obj.data.performance) || ...
+                    ~isfield(obj.data.performance,'planTimings') || ...
+                    ~isstruct(obj.data.performance.planTimings)
+                return;
+            end
+
+            planTimings = obj.normalizePlanTimingArray( ...
+                obj.data.performance.planTimings);
+        end
+
+        function detail = planTaskResourceDetail(obj,stageName,role,label, ...
+                taskName,robustPlanId,variantId,taskOutputs) %#ok<INUSD>
+            if nargin < 8
+                taskOutputs = {};
+            end
+            detail = planWorkflow.performance.ResourceDetails.planTask( ...
+                stageName,taskName,taskOutputs);
+        end
+
+        function label = planTimingLabel(obj,label,role,robustPlanId, ...
+                variantId) %#ok<INUSD>
+            label = char(label);
+        end
+
+        function attachResultsPerformance(obj)
+            if isstruct(obj.data) && isfield(obj.data,'results') && ...
+                    isstruct(obj.data.results)
+                obj.data.results.performance = obj.performanceSummary();
+            end
+        end
+
+        function recordPlanTiming(obj,stageName,role,label,taskName, ...
+                robustPlanId,variantId,startTime,wallTimeSeconds, ...
+                cpuTimeSeconds,status,errorMessage,memoryRecord,detail)
+            if nargin < 14
+                detail = '';
+            end
+            if ~isstruct(obj.data)
+                obj.data = struct();
+            end
+            if ~isfield(obj.data,'performance') || ...
+                    ~isstruct(obj.data.performance)
+                obj.data.performance = struct();
+            end
+            if ~isfield(obj.data.performance,'planTimings') || ...
+                    ~isstruct(obj.data.performance.planTimings)
+                obj.data.performance.planTimings = obj.emptyPlanTiming();
+                obj.data.performance.planTimings(:) = [];
+            else
+                obj.data.performance.planTimings = ...
+                    obj.normalizePlanTimingArray( ...
+                    obj.data.performance.planTimings);
+            end
+
+            record = obj.emptyPlanTiming();
+            record.stage = char(stageName);
+            record.role = char(role);
+            record.label = char(obj.planTimingLabel(label,role, ...
+                robustPlanId,variantId));
+            record.task = char(taskName);
+            record.robustPlanId = char(robustPlanId);
+            record.variantId = char(variantId);
+            record.status = char(status);
+            record.startTime = char(startTime);
+            record.endTime = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
+            record.wallTimeSeconds = wallTimeSeconds;
+            record.cpuTimeSeconds = cpuTimeSeconds;
+            record.detail = char(detail);
+            record.errorMessage = char(errorMessage);
+            record.startProcessMemoryBytes = memoryRecord.startProcessMemoryBytes;
+            record.endProcessMemoryBytes = memoryRecord.endProcessMemoryBytes;
+            record.processMemoryDeltaBytes = ...
+                memoryRecord.processMemoryDeltaBytes;
+            record.maxObservedProcessMemoryBytes = ...
+                memoryRecord.maxObservedProcessMemoryBytes;
+            record.startDataMemoryBytes = memoryRecord.startDataMemoryBytes;
+            record.endDataMemoryBytes = memoryRecord.endDataMemoryBytes;
+            record.dataMemoryDeltaBytes = memoryRecord.dataMemoryDeltaBytes;
+            record.memorySource = memoryRecord.memorySource;
+
+            obj.data.performance.planTimings(end + 1) = record;
+        end
+
+        function timing = emptyPlanTiming(obj) %#ok<MANU>
+            timing = struct();
+            timing.stage = '';
+            timing.role = '';
+            timing.label = '';
+            timing.task = '';
+            timing.robustPlanId = '';
+            timing.variantId = '';
+            timing.status = '';
+            timing.startTime = '';
+            timing.endTime = '';
+            timing.wallTimeSeconds = NaN;
+            timing.cpuTimeSeconds = NaN;
+            timing.detail = '';
+            timing.startProcessMemoryBytes = NaN;
+            timing.endProcessMemoryBytes = NaN;
+            timing.processMemoryDeltaBytes = NaN;
+            timing.maxObservedProcessMemoryBytes = NaN;
+            timing.startDataMemoryBytes = NaN;
+            timing.endDataMemoryBytes = NaN;
+            timing.dataMemoryDeltaBytes = NaN;
+            timing.memorySource = '';
+            timing.errorMessage = '';
+        end
+
+        function timings = normalizePlanTimingArray(obj,timings)
+            defaultTiming = obj.emptyPlanTiming();
+            if ~isstruct(timings)
+                timings = defaultTiming;
+                timings(:) = [];
+                return;
+            end
+            normalizedTimings = repmat(defaultTiming,size(timings));
+            for timingIx = 1:numel(timings)
+                mergedTiming = obj.mergeDefaults( ...
+                    timings(timingIx),defaultTiming);
+                normalizedTimings(timingIx) = orderfields( ...
+                    mergedTiming,defaultTiming);
+            end
+            timings = normalizedTimings;
         end
 
         function runConfig = mergeDefaults(obj,runConfig,defaults) %#ok<INUSD>
@@ -646,61 +907,6 @@ classdef (Abstract) WorkflowBase < handle
             if ~isfolder(obj.cachePath)
                 mkdir(obj.cachePath);
             end
-        end
-
-        function dij = getOrCreateDoseInfluence(obj,tag,ct,cst,stf,pln)
-            cacheFile = obj.getCacheFile(tag);
-            if obj.runConfig.useCache && isfile(cacheFile)
-                cached = load(cacheFile,'dij');
-                if isfield(cached,'dij')
-                    obj.log(sprintf('Loaded cached dij: %s.',cacheFile));
-                    dij = cached.dij;
-                    return;
-                end
-            end
-
-            dij = matRad_calcDoseInfluence(ct,cst,stf,pln);
-            if obj.runConfig.writeCache
-                obj.ensureFolders();
-                cacheMetadata = obj.cacheMetadata(tag,pln); %#ok<NASGU>
-                builtin('save',cacheFile,'dij','cacheMetadata','-v7.3');
-                obj.log(sprintf('Cached dij: %s.',cacheFile));
-            end
-        end
-
-        function cacheKey = buildCacheKey(obj,tag)
-            cacheParts = {tag};
-            optionalFields = {'radiationMode','description','caseID','plan_target', ...
-                'plan_beams','robustness','scen_mode'};
-            for i = 1:numel(optionalFields)
-                fieldName = optionalFields{i};
-                if isfield(obj.runConfig,fieldName)
-                    cacheParts{end + 1} = char(string(obj.runConfig.(fieldName))); %#ok<AGROW>
-                end
-            end
-            numericFields = {'doseResolution','shiftSD','wcSigma', ...
-                'rangeAbsSD','rangeRelSD','numOfRangeGridPoints'};
-            for i = 1:numel(numericFields)
-                fieldName = numericFields{i};
-                if isfield(obj.runConfig,fieldName)
-                    cacheParts{end + 1} = obj.formatNumericKey(obj.runConfig.(fieldName)); %#ok<AGROW>
-                end
-            end
-
-            cacheKey = strjoin(cacheParts,'_');
-            cacheKey = regexprep(cacheKey,'[^a-zA-Z0-9_-]','_');
-        end
-
-        function metadata = cacheMetadata(obj,tag,pln)
-            metadata = struct();
-            metadata.tag = tag;
-            metadata.createdAt = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
-            metadata.runConfig = obj.runConfig;
-            metadata.strategy = obj.strategy;
-            if isfield(pln,'machine')
-                metadata.machine = pln.machine;
-            end
-            metadata.className = class(obj);
         end
 
         function state = defaultState(obj)
@@ -746,6 +952,7 @@ classdef (Abstract) WorkflowBase < handle
         function saveState(obj)
             obj.ensureFolders();
             obj.state = obj.normalizeState(obj.state);
+            obj.attachResultsPerformance();
             artifactFiles = obj.workflowArtifactFiles();
             paths = obj.workflowPaths();
 
@@ -759,7 +966,7 @@ classdef (Abstract) WorkflowBase < handle
             obj.saveStructArtifact(obj.resultsFile,resultsArtifact);
 
             performanceArtifact = struct( ...
-                'computationalResources',obj.stageTimingSummary(), ...
+                'performance',obj.performanceSummary(), ...
                 'stageTimings',obj.state.stageTimings, ...
                 'performanceMetadata',obj.artifactMetadata('performance'));
             obj.saveStructArtifact(obj.performanceFile,performanceArtifact);
@@ -769,7 +976,6 @@ classdef (Abstract) WorkflowBase < handle
                 'runConfig',obj.runConfig, ...
                 'stageConfig',obj.stageConfig, ...
                 'state',stateSnapshot, ...
-                'strategy',obj.strategy, ...
                 'paths',paths, ...
                 'className',class(obj), ...
                 'artifactFiles',artifactFiles);
@@ -783,10 +989,9 @@ classdef (Abstract) WorkflowBase < handle
 
         function loadState(obj,stateFile)
             snapshot = load(stateFile,'runConfig','stageConfig','state', ...
-                'strategy','paths','className','artifactFiles');
+                'paths','className','artifactFiles');
             obj.runConfig = snapshot.runConfig;
             obj.stageConfig = snapshot.stageConfig;
-            obj.strategy = snapshot.strategy;
             obj.applyWorkflowPaths(snapshot.paths,snapshot.artifactFiles);
             obj.state = obj.loadWorkflowState(snapshot.state);
             obj.data = obj.loadWorkflowData();
@@ -880,13 +1085,136 @@ classdef (Abstract) WorkflowBase < handle
             catch
                 fprintf('%s\n',message);
             end
+            obj.reportGuiLog(message);
+        end
+
+        function logConsoleOnly(obj,message)
+            try
+                obj.matRadCfg.dispInfo('%s\n',message);
+            catch
+                fprintf('%s\n',message);
+            end
+        end
+
+        function reportGuiStageStarted(obj,stageName)
+            [stageIx,numStages] = obj.guiProgressStageIndex(stageName);
+            if isempty(stageIx)
+                return;
+            end
+            obj.callGuiProgressReporter('stageStarted',stageName, ...
+                stageIx,numStages);
+        end
+
+        function reportGuiStageProgress(obj,stageName,fraction,message)
+            obj.callGuiProgressReporter('stageProgress',stageName, ...
+                fraction,message);
+            obj.assertGuiExecutionNotStopped();
+        end
+
+        function reportGuiStageCompleted(obj,stageName,wallTimeSeconds)
+            [stageIx,numStages] = obj.guiProgressStageIndex(stageName);
+            if isempty(stageIx)
+                return;
+            end
+            obj.callGuiProgressReporter('stageCompleted',stageName, ...
+                stageIx,numStages,wallTimeSeconds);
+        end
+
+        function reportGuiStageFailed(obj,stageName,message)
+            [stageIx,numStages] = obj.guiProgressStageIndex(stageName);
+            if isempty(stageIx)
+                return;
+            end
+            obj.callGuiProgressReporter('stageFailed',stageName, ...
+                stageIx,numStages,message);
+        end
+
+        function reportGuiLog(obj,message)
+            obj.callGuiProgressReporter('log',message);
+        end
+
+        function reportGuiResults(obj)
+            if isfield(obj.data,'results')
+                obj.configureGuiProgressReporter();
+                obj.attachResultsPerformance();
+                results = obj.data.results;
+                obj.callGuiProgressReporter('showResults',results);
+                obj.callGuiProgressReporter('saveGuiSnapshot', ...
+                    obj.rootPath);
+            end
+        end
+
+        function [stageIx,numStages] = guiProgressStageIndex(obj,stageName)
+            stages = obj.stageOrder();
+            stageIx = find(strcmp(stageName,stages),1);
+            numStages = numel(stages);
+        end
+
+        function callGuiProgressReporter(obj,action,varargin)
+            reporter = obj.guiProgressReporter;
+            if isempty(reporter)
+                return;
+            end
+
+            try
+                if isa(reporter,'handle') && ~isvalid(reporter)
+                    return;
+                end
+            catch
+            end
+
+            try
+                switch action
+                    case 'stageStarted'
+                        reporter.stageStarted(varargin{:});
+                    case 'stageProgress'
+                        reporter.stageProgress(varargin{:});
+                    case 'stageCompleted'
+                        reporter.stageCompleted(varargin{:});
+                    case 'stageFailed'
+                        reporter.stageFailed(varargin{:});
+                    case 'log'
+                        reporter.log(varargin{:});
+                    case 'showResults'
+                        reporter.showResults(varargin{:});
+                    case 'saveGuiSnapshot'
+                        reporter.saveGuiSnapshot(varargin{:});
+                end
+            catch
+            end
+        end
+
+        function assertGuiExecutionNotStopped(obj)
+            reporter = obj.guiProgressReporter;
+            if isempty(reporter)
+                return;
+            end
+
+            try
+                if isa(reporter,'handle') && ~isvalid(reporter)
+                    return;
+                end
+            catch
+            end
+
+            try
+                if ismethod(reporter,'isStopRequested') && ...
+                        reporter.isStopRequested()
+                    error('planWorkflow:gui:PlanProgressReporter:Stopped', ...
+                        'Workflow execution was stopped from the interactive GUI.');
+                end
+            catch ME
+                if strcmp(ME.identifier, ...
+                        'planWorkflow:gui:PlanProgressReporter:Stopped')
+                    rethrow(ME);
+                end
+            end
         end
     end
 
     methods (Abstract, Access = protected)
         runConfig = defaultRunConfig(obj)
         runConfig = normalizeRunConfig(obj,runConfig)
-        strategy = resolveStrategy(obj,strategyName)
         configurePaths(obj)
         doPrepare(obj)
         doPrecompute(obj)

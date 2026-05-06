@@ -1,0 +1,151 @@
+{
+  "structureObjectives": [
+    {
+      "name": "BODY",
+      "objectives": []
+    },
+    {
+      "name": "CTVT",
+      "objectives": []
+    },
+    {
+      "name": "CTVN",
+      "objectives": []
+    },
+    {
+      "name": "CTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MinDVH",
+          "parameters": {
+            "penalty": 30,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMinPercent": 98
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 54,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MinDVH",
+          "parameters": {
+            "penalty": 30,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMinPercent": 95
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 54,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "LEFT PAROTID",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MeanDose",
+          "parameters": {
+            "penalty": 10,
+            "dMeanRef": 11,
+            "fDiff": "Quadratic"
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RIGHT PAROTID",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MeanDose",
+          "parameters": {
+            "penalty": 10,
+            "dMeanRef": 11,
+            "fDiff": "Quadratic"
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SPINAL CORD",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 32,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BRAINSTEM",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 39,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "MANDIBLE",
+      "objectives": []
+    }
+  ],
+  "ringObjectives": []
+}

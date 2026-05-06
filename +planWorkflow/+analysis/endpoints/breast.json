@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "description": "breast",
+  "endpoints": [
+    {
+      "structureNames": ["RIGHT LUNG"],
+      "metric": "V50",
+      "kind": "V",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 50,
+      "thresholdUnit": "Gy",
+      "thresholdMode": "totalDose",
+      "unit": "%"
+    },
+    {
+      "structureNames": ["RIGHT LUNG"],
+      "metric": "D5",
+      "kind": "D",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 5,
+      "thresholdUnit": "%",
+      "thresholdMode": "volumePercent",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["LEFT LUNG"],
+      "metric": "V20",
+      "kind": "V",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 20,
+      "thresholdUnit": "Gy",
+      "thresholdMode": "totalDose",
+      "unit": "%"
+    },
+    {
+      "structureNames": ["LEFT LUNG"],
+      "metric": "D20",
+      "kind": "D",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 20,
+      "thresholdUnit": "%",
+      "thresholdMode": "volumePercent",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["HEART"],
+      "metric": "Dmean",
+      "kind": "mean",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["CONTRALATERAL BREAST"],
+      "metric": "Dmax",
+      "kind": "max",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    }
+  ]
+}

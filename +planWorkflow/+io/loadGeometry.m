@@ -21,11 +21,11 @@ end
 switch AcquisitionType
     case 'mat'
         % Import 3D CT
-        load(fullfile(patientRoot,[caseID '.mat']),'ct','cst');
+        load(planWorkflow.io.geometryMatFile(run_config,mode),'ct','cst');
 
     case 'dicom'
         % Import 4D CT
-        metadata.resolution = run_config.resolution;
+        metadata = planWorkflow.io.createDicomMetadata(run_config,mode);
         dicomPath = fullfile(patientRoot,caseID,'dicom');
         [ct,cst] = matRad_importMultipleDicomCt(dicomPath,metadata);
         clear 'metadata';

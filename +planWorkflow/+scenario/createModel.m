@@ -17,44 +17,67 @@ if ~any(strcmp(workflowStage,validWorkflowStages))
         workflowStage);
 end
 
-shiftSD = getConfigValue(runConfig,'shiftSD',[2.25 2.25 2.25]);
-wcSigma = getConfigValue(runConfig,'wcSigma',1.0);
-rangeAbsSD = getConfigValue(runConfig,'rangeAbsSD',0);
-rangeRelSD = getConfigValue(runConfig,'rangeRelSD',0);
-rangeGridPoints = getConfigValue(runConfig,'numOfRangeGridPoints',1);
-[rangeAbsSD,rangeRelSD] = ensurePositiveRangeUncertainty(rangeAbsSD,rangeRelSD);
+rawRunConfig = runConfig;
+runConfig = canonicalScenarioConfig(rawRunConfig,scenarioMode);
+scenarioMode = runConfig.scen_mode;
+shiftSD = runConfig.shiftSD;
+wcSigma = runConfig.wcSigma;
+rangeAbsSD = runConfig.rangeAbsSD;
+rangeRelSD = runConfig.rangeRelSD;
+gantryAngleSD = runConfig.gantryAngleSD;
+couchAngleSD = runConfig.couchAngleSD;
+rangeGridPoints = runConfig.numOfRangeGridPoints;
+randomSize = runConfig.random_size;
+randomSeed = runConfig.randomSeed;
+numOfBeams = getConfigValue(rawRunConfig,'numOfBeams',0);
+activeDimensionNames = planWorkflow.scenario.activeDimensionNames( ...
+    runConfig);
 
 if strcmp(workflowStage,'sampling')
-    wcSigma = getConfigValue(runConfig,'sampling_wcSigma',wcSigma);
+    wcSigma = getConfigValue(rawRunConfig,'sampling_wcSigma',wcSigma);
+    randomSize = getConfigValue(rawRunConfig,'sampling_size',randomSize);
+    runConfig.ctScenProb = getConfigValue(rawRunConfig, ...
+        'sampling_ctScenProb',runConfig.ctScenProb);
 end
+
+validateAngularDimensionSupport(scenarioMode,activeDimensionNames, ...
+    numOfBeams);
 
 switch scenarioMode
     case 'nomScen'
-        multScen = matRad_NominalScenario(ct);
+        multScen = matRad_createScenarioModel(ct,'nomScen');
+        multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
+            shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
+            numOfBeams);
+        planWorkflow.scenario.applyCtScenarioSelection( ...
+            multScen,ct,runConfig);
 
     case 'wcScen'
-        multScen = matRad_WorstCaseScenarios(ct);
+        multScen = matRad_createScenarioModel(ct,'wcScen');
+        multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
+            shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
+            numOfBeams);
+        planWorkflow.scenario.applyCtScenarioSelection( ...
+            multScen,ct,runConfig);
         multScen.wcSigma = wcSigma;
-        multScen.shiftSD = shiftSD;
-        multScen.rangeAbsSD = rangeAbsSD;
-        multScen.rangeRelSD = rangeRelSD;
         multScen.numOfRangeGridPoints = rangeGridPoints;
         multScen.combinations = 'none';
         multScen.combineRange = true;
         multScen.updateScenarios();
 
     case {'impScen','impScen5','impScen7','impScen_permuted5','impScen_permuted7', ...
-          'impScen_truncated','impScen5_truncated','impScen7_truncated', ...
           'impScen_permuted5_truncated','impScen_permuted7_truncated'}
         if isTruncatedImportanceMode(scenarioMode)
-            multScen = matRad_TruncatedImportanceScenarios(ct);
+            multScen = matRad_createScenarioModel(ct,'truncatedImpScen');
         else
-            multScen = matRad_ImportanceScenarios(ct);
+            multScen = matRad_createScenarioModel(ct,'impScen');
         end
+        multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
+            shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
+            numOfBeams);
+        planWorkflow.scenario.applyCtScenarioSelection( ...
+            multScen,ct,runConfig);
         multScen.wcSigma = wcSigma;
-        multScen.shiftSD = shiftSD;
-        multScen.rangeAbsSD = rangeAbsSD;
-        multScen.rangeRelSD = rangeRelSD;
         [setupGridPoints,combinations] = importanceScenarioSettings(scenarioMode);
         multScen.numOfSetupGridPoints = setupGridPoints;
         multScen.numOfRangeGridPoints = rangeGridPoints;
@@ -63,32 +86,98 @@ switch scenarioMode
         multScen.updateScenarios();
 
     case 'random'
-        multScen = matRad_RandomScenarios(ct);
-        multScen.shiftSD = shiftSD;
-        multScen.rangeAbsSD = rangeAbsSD;
-        multScen.rangeRelSD = rangeRelSD;
-        multScen.nSamples = getConfigValue(runConfig,'sampling_size',50);
+        multScen = matRad_createScenarioModel(ct,'random');
+        multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
+            shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
+            numOfBeams);
+        planWorkflow.scenario.applyCtScenarioSelection( ...
+            multScen,ct,runConfig);
+        multScen.nSamples = randomSize;
         multScen.includeNominalScenario = true;
+        applyRandomSeed(multScen,randomSeed);
 
     otherwise
         error('planWorkflow:scenario:createModel:UnsupportedScenarioMode', ...
             ['Unsupported scenario mode "%s". Use nomScen, wcScen, ' ...
              'impScen, impScen5, impScen7, impScen_permuted5, ' ...
-             'impScen_permuted7, their *_truncated variants, or random.'], ...
+             'impScen_permuted7, permuted *_truncated variants, or random.'], ...
              scenarioMode);
 end
 end
 
-function [rangeAbsSD,rangeRelSD] = ensurePositiveRangeUncertainty(rangeAbsSD,rangeRelSD)
-% Scenario probability calculation uses a Cholesky factor. Keep the
-% covariance positive definite while one range grid point keeps range shifts
-% nominal.
-if rangeAbsSD == 0
-    rangeAbsSD = eps;
+function applyRandomSeed(multScen,randomSeed)
+if isempty(randomSeed)
+    return;
 end
 
-if rangeRelSD == 0
-    rangeRelSD = eps;
+if ~isprop(multScen,'randomSeed')
+    error('planWorkflow:scenario:createModel:MissingRandomSeedApi', ...
+        ['The loaded matRad random scenario model does not expose ' ...
+         'randomSeed. Update matRad before using reproducible random ' ...
+         'scenario generation.']);
+end
+
+multScen.randomSeed = randomSeed;
+end
+
+function multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
+        shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
+        numOfBeams)
+if ~isprop(multScen,'scenarioDimensionActive')
+    error('planWorkflow:scenario:createModel:MissingScenarioDimensionApi', ...
+        ['The loaded matRad scenario model does not expose ' ...
+         'scenarioDimensionActive. Update matRad before using planWorkflow.']);
+end
+
+if any(strcmp(activeDimensionNames,'gantry')) || ...
+        any(strcmp(activeDimensionNames,'couch'))
+    requiredProperties = {'numOfBeams','gantryAngleSD','couchAngleSD'};
+    for i = 1:numel(requiredProperties)
+        if ~isprop(multScen,requiredProperties{i})
+            error('planWorkflow:scenario:createModel:MissingAngularDimensionApi', ...
+                ['The loaded matRad scenario model does not expose %s. ' ...
+                 'Update matRad before using gantry/couch uncertainty.'], ...
+                 requiredProperties{i});
+        end
+    end
+end
+
+if isprop(multScen,'numOfBeams')
+    multScen.numOfBeams = numOfBeams;
+end
+multScen.scenarioDimensionActive = activeDimensionNames;
+if isprop(multScen,'gantryAngleSD')
+    multScen.gantryAngleSD = gantryAngleSD;
+end
+if isprop(multScen,'couchAngleSD')
+    multScen.couchAngleSD = couchAngleSD;
+end
+multScen.shiftSD = shiftSD;
+multScen.rangeAbsSD = rangeAbsSD;
+multScen.rangeRelSD = rangeRelSD;
+end
+
+function validateAngularDimensionSupport(scenarioMode,activeDimensionNames, ...
+        numOfBeams)
+angularActive = any(strcmp(activeDimensionNames,'gantry')) || ...
+    any(strcmp(activeDimensionNames,'couch'));
+if ~angularActive
+    return;
+end
+
+if ~strcmp(char(scenarioMode),'random')
+    error('planWorkflow:scenario:createModel:AngularDimensionsRequireRandom', ...
+        ['gantry/couch uncertainty dimensions are currently supported only ' ...
+         'for the random scenario model.']);
+end
+
+validNumOfBeams = isnumeric(numOfBeams) && isscalar(numOfBeams) && ...
+    isfinite(numOfBeams) && round(numOfBeams) == numOfBeams && ...
+    numOfBeams >= 1;
+if ~validNumOfBeams
+    error('planWorkflow:scenario:createModel:MissingBeamCount', ...
+        ['Active gantry/couch uncertainty dimensions require numOfBeams ' ...
+         'to be a positive integer.']);
 end
 end
 
@@ -98,6 +187,28 @@ if isfield(config,fieldName) && ~isempty(config.(fieldName))
 else
     value = defaultValue;
 end
+end
+
+function config = canonicalScenarioConfig(config,scenarioMode)
+if ~isempty(scenarioMode)
+    config.mode = scenarioMode;
+elseif isfield(config,'scen_mode')
+    config.mode = config.scen_mode;
+elseif ~isfield(config,'mode')
+    config.mode = 'wcScen';
+end
+defaults = planWorkflow.config.ScenarioSpec.defaults(config.mode);
+scenarioFields = planWorkflow.config.ScenarioSpec.fields();
+scenario = struct();
+for fieldIx = 1:numel(scenarioFields)
+    fieldName = scenarioFields{fieldIx};
+    if isfield(config,fieldName)
+        scenario.(fieldName) = config.(fieldName);
+    end
+end
+scenario = planWorkflow.config.ScenarioSpec.normalize( ...
+    scenario,defaults,'scenario');
+config = planWorkflow.config.ScenarioSpec.matRadScenario(scenario);
 end
 
 function isTruncated = isTruncatedImportanceMode(scenarioMode)

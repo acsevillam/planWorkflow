@@ -1,18 +1,22 @@
 classdef PlanAnalysis
-    % PlanAnalysis Nominal/robust plan indicator and DVH evaluation.
+    % PlanAnalysis Reference/robust plan indicator and DVH evaluation.
 
     methods (Static)
         function [resultGUI,dvh,qi] = run(analysisConfig,ct,cst,stf,pln, ...
-                resultGUI,showFigures)
+                resultGUI,showFigures,optimizationQuantity)
             if nargin < 7
                 showFigures = true;
             end
+            if nargin < 8
+                optimizationQuantity = '';
+            end
 
-            quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,resultGUI);
+            quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity( ...
+                pln,optimizationQuantity);
             if showFigures
                 resultGUI = matRad_planAnalysis(resultGUI,ct,cst,stf,pln, ...
                     'quantity',quantity, ...
-                    'displayDoseMode',analysisConfig.displayDoseMode, ...
+                    'evaluationMode',analysisConfig.evaluationMode, ...
                     'refGy',[], ...
                     'refVol',[], ...
                     'doseWindow',analysisConfig.doseWindowDvh);
@@ -23,26 +27,40 @@ classdef PlanAnalysis
                     cst,pln,resultGUI,quantity);
                 resultGUI.dvh = dvh;
                 resultGUI.qi = qi;
-                resultGUI.analysisQuantity = quantity;
-                resultGUI.analysisDoseMode = 'perFraction';
             end
+            endpointQuantity = ...
+                planWorkflow.plan.DoseQuantityResolver.visualFromPlan( ...
+                pln,quantity);
+            resultGUI.endpointQuantity = endpointQuantity;
+            if ~strcmp(endpointQuantity,quantity) && ...
+                    isfield(resultGUI,endpointQuantity)
+                resultGUI.endpointDvh = matRad_calcDVH( ...
+                    cst,resultGUI.(endpointQuantity),'cum');
+            end
+            resultGUI.analysisQuantity = quantity;
+            resultGUI.evaluationModeBase = 'perFraction';
+            if isfield(pln,'numOfFractions') && ~isempty(pln.numOfFractions)
+                resultGUI.numOfFractions = pln.numOfFractions;
+            end
+            [resultGUI.evaluationScale,resultGUI.evaluationMode] = ...
+                matRad_convertToEvaluationMode( ...
+                1,pln,analysisConfig.evaluationMode);
         end
 
-        function quantity = resolveQuantity(pln,resultGUI)
-            if isfield(pln,'bioParam') && isobject(pln.bioParam) && ...
-                    isprop(pln.bioParam,'quantityVis')
-                quantity = pln.bioParam.quantityVis;
-            elseif isfield(pln,'bioParam') && isstruct(pln.bioParam) && ...
-                    isfield(pln.bioParam,'quantityVis')
-                quantity = pln.bioParam.quantityVis;
-            elseif isfield(resultGUI,'RBExD')
-                quantity = 'RBExD';
-            else
-                quantity = 'physicalDose';
+        function quantity = resolveQuantity(pln,optimizationQuantity)
+            if nargin < 2
+                optimizationQuantity = '';
             end
-
-            if isstring(quantity)
-                quantity = char(quantity);
+            try
+                quantity = planWorkflow.plan.DoseQuantityResolver.fromPlan( ...
+                    pln,optimizationQuantity);
+            catch ME
+                if strcmp(ME.identifier, ...
+                        'planWorkflow:plan:DoseQuantityResolver:MissingQuantity')
+                    error(['planWorkflow:analysis:PlanAnalysis:' ...
+                        'MissingOptimizationQuantity'],ME.message);
+                end
+                rethrow(ME);
             end
         end
 

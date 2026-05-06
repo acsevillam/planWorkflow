@@ -1,0 +1,13 @@
+classdef DosePullingAnalyzer
+    % DosePullingAnalyzer Production analysis dependency for dose pulling.
+
+    methods (Static)
+        function [resultGUI,dvh,qi] = run( ...
+                runConfig,ct,cst,stf,pln,resultGUI,showFigures)
+            [resultGUI,dvh,qi] = ...
+                planWorkflow.analysis.AnalysisService.runPlanAnalysis( ...
+                runConfig.analysis,ct,cst,stf,pln,resultGUI, ...
+                showFigures);
+        end
+    end
+end

@@ -1,0 +1,154 @@
+{
+  "structureObjectives": [
+    {
+      "name": "BODY",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_SquaredOverdosing",
+          "parameters": {
+            "penalty": 10,
+            "dMax": {
+              "ref": "prescriptionDose",
+              "scale": 0.5
+            }
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_SquaredBertoluzzaDeviation",
+          "parameters": {
+            "penalty": 30,
+            "dRef": {
+              "ref": "prescriptionDose"
+            }
+          },
+          "properties": {
+            "robustness": "INTERVAL3"
+          },
+          "dosePulling": {
+            "channel": "dose_pulling_2",
+            "rates": {
+              "penalty": 10
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PTV",
+      "objectives": []
+    },
+    {
+      "name": "BLADDER",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 2,
+            "dRef": 60,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL3"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL3"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RECTUM",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 2,
+            "dRef": 40,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL3"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL3"
+          }
+        }
+      ]
+    }
+  ],
+  "ringObjectives": [
+    {
+      "name": "RING 0 - 20 mm",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose",
+              "scale": 1.1
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RING 20 - 50 mm",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    }
+  ]
+}

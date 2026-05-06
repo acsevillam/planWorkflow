@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "description": "h&n",
+  "endpoints": [
+    {
+      "structureNames": ["SPINAL CORD"],
+      "metric": "Dmax",
+      "kind": "max",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["BRAINSTEM"],
+      "metric": "Dmax",
+      "kind": "max",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["LEFT PAROTID"],
+      "metric": "Dmean",
+      "kind": "mean",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["RIGHT PAROTID"],
+      "metric": "Dmean",
+      "kind": "mean",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    },
+    {
+      "structureNames": ["MANDIBLE"],
+      "metric": "Dmax",
+      "kind": "max",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
+    }
+  ]
+}

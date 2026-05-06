@@ -31,21 +31,63 @@ addpath('/path/to/external/planWorkflow');
 
 ## Example
 
+The example below assumes the matRad checkout contains a prostate patient with
+case id `3482` under its configured patient-data folder. Replace `caseID`,
+`rootPath`, and the patient paths with local values when running on a different
+dataset.
+
 ```matlab
 config = struct();
-config.radiationMode = 'photons';
-config.description = 'prostate';
-config.caseID = '3482';
-config.robustness = 'COWC';
-config.scen_mode = 'wcScen';
-config.wcSigma = 1.0;
-config.sampling_scen_mode = 'impScen_permuted5';
-config.sampling_wcSigma = 1.5;
-config.analysis = struct('doseWindowDvh',[],'gammaCriteria',[3 3], ...
-    'robustnessCriteria',[5 5]);
+config.rootPath = '/path/to/matRad/userdata';
+config.outputRootPath = fullfile(config.rootPath,'output');
+config.patientDataPath = fullfile(config.rootPath,'patients');
+config.cacheRootPath = fullfile(config.outputRootPath,'cache');
 
-workflow = planWorkflow.PhotonWorkflow(config);
+config.prepare.radiationMode = 'photons';
+config.prepare.description = 'prostate';
+config.prepare.plan_template = 'interval2_001';
+config.prepare.caseID = '3482';
+config.prepare.plan_beams = '9F';
 
+config.precompute.doseResolution = [3 3 3];
+config.precompute.reference.label = 'Nominal';
+config.precompute.reference.strategy = 'none';
+config.precompute.reference.scenario.mode = 'nomScen';
+config.precompute.reference.scenario.ctActive = false;
+config.precompute.reference.scenario.ctReferenceScenId = 1;
+
+config.precompute.robustPlans.robust_1.label = 'INTERVAL2';
+config.precompute.robustPlans.robust_1.objectiveSetName = 'robust_1';
+config.precompute.robustPlans.robust_1.strategy = 'INTERVAL2';
+config.precompute.robustPlans.robust_1.scenario.mode = 'wcScen';
+config.precompute.robustPlans.robust_1.scenario.ctActive = true;
+config.precompute.robustPlans.robust_1.scenario.ctScenProb = [];
+config.precompute.robustPlans.robust_1.scenario.setupActive = true;
+config.precompute.robustPlans.robust_1.scenario.shiftSD = [5 10 5];
+config.precompute.robustPlans.robust_1.scenario.wcSigma = 1.0;
+config.precompute.robustPlans.robust_1.variants(1).id = 'theta_5';
+config.precompute.robustPlans.robust_1.variants(1).label = 'theta1=5';
+config.precompute.robustPlans.robust_1.variants(1).theta1 = 5;
+
+
+config.sampling.sampling_linkToOptimization = true;
+config.sampling.sampling_scen_mode = 'impScen_permuted5';
+config.sampling.sampling_ctActive = true;
+config.sampling.sampling_ctScenProb = [];
+config.sampling.sampling_setupActive = true;
+config.sampling.sampling_shiftSD = [5 10 5];
+config.sampling.sampling_wcSigma = 1.5;
+
+config.analysis.evaluationMode = 'total';
+config.analysis.gammaWindow = [0 1];
+config.analysis.gammaCriteria = [3 3];
+config.analysis.robustnessCriteria = [5 5];
+config.analysis.robustnessTargetMode = 'include';
+config.analysis.robustnessTargets = {'CTV'};
+
+workflow = planWorkflow.Workflow(config);
+
+workflow.gui();
 workflow.prepare();
 workflow.precompute();
 workflow.pullDose();
@@ -54,6 +96,22 @@ workflow.sample();
 workflow.analyze();
 workflow.save();
 ```
+
+To inspect and edit the effective plan settings for a single run, call
+`workflow.gui()` before `prepare()`. The editor opens only when MATLAB is
+running with desktop UI support; in batch mode the call is skipped.
+
+```matlab
+workflow.gui();
+workflow.prepare();
+```
+
+The editor modifies only the in-memory settings used by that workflow run. The
+versioned JSON template files are not rewritten. Its tabs match the workflow
+stages: `Prepare`, `Precompute`, `Dose pulling`, `Optimize`, `Sampling`, and
+`Analysis`. Each tab edits the parameters consumed by that stage; the `Prepare`
+tab also exposes the objective-defined target, beam set parameters, dose grid
+resolution, and a single objective table with a `Structure` column.
 
 ## Tests
 
@@ -65,10 +123,22 @@ setupPlanWorkflow('/path/to/matRad');
 planWorkflow.runTests('/path/to/matRad');
 ```
 
-The tests cover strict config validation, dose scaling, robustness strategies,
-and workflow artifact persistence with synthetic data.
+The tests cover strict config validation, patient-surface skin generation, dose
+scaling and pulling, JSON treatment-plan templates, robustness strategies, and
+workflow artifact persistence with synthetic data.
 
 ## Notes
 
 Patient data, generated workflow output, dose influence matrix caches, and
 machine-specific binaries are intentionally not part of this repository.
+
+Plan templates live as component folders under `+planWorkflow/+templates/json`.
+Templates are organized by anatomical location. With
+`description = 'prostate'`, `plan_template = 'interval2_001'` selects the
+`json/prostate/interval2_001` component folder. The initial template is split into
+`metadata.json`,
+`beams.json`, `objectives.json`, and `structures.json`. The prescription,
+dose-pulling channels, target selection, and all structure/ring objective specs live in
+`objectives.json`; `structures.json` defines selectors, structure roles,
+priorities, and derived ring geometry/display metadata. Templates are not tied
+to a radiation mode; `radiationMode` is a prepare-stage workflow parameter.

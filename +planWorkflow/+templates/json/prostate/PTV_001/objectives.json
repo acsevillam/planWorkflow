@@ -1,0 +1,26 @@
+{
+  "target": "CTV",
+  "prescriptionDose": 78,
+  "dosePulling": {
+    "dose_pulling_1": {
+      "step": 1,
+      "startConfig": "dose_pulling1_start"
+    },
+    "dose_pulling_2": {
+      "step": 2,
+      "startConfig": "dose_pulling2_start"
+    }
+  },
+  "objectiveSets": {
+    "reference": {
+      "ref": "shared/objectives_reference_base.json"
+    },
+    "robustPlans": [
+      {
+        "ref": "shared/objectives_PTV_base.json",
+        "id": "robust_1",
+        "label": "Robust 1"
+      }
+    ]
+  }
+}

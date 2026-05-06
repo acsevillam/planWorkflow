@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "description": "h&n",
+  "dropUnsupported": true,
+  "outputStructures": [
+    "BODY",
+    "CTVT",
+    "CTVN",
+    "CTV",
+    "PTV",
+    "LEFT PAROTID",
+    "RIGHT PAROTID",
+    "SPINAL CORD",
+    "BRAINSTEM",
+    "MANDIBLE"
+  ],
+  "aliases": [
+    {
+      "structure": "BODY",
+      "values": ["External", "BODY", "Skin"]
+    },
+    {
+      "structure": "CTVT",
+      "values": ["CTVT"]
+    },
+    {
+      "structure": "CTVN",
+      "values": ["CTVN"]
+    },
+    {
+      "structure": "CTV",
+      "values": ["CTV", "CTV50"]
+    },
+    {
+      "structure": "PTV",
+      "values": ["PTV", "PTV50"]
+    },
+    {
+      "structure": "LEFT PAROTID",
+      "values": [
+        "ParotidGland (Left)",
+        "LEFT PAROTID",
+        "PAROTIDA IZQUIERDA"
+      ]
+    },
+    {
+      "structure": "RIGHT PAROTID",
+      "values": [
+        "ParotidGland (Right)",
+        "RIGHT PAROTID",
+        "PAROTIDA DERECHA"
+      ]
+    },
+    {
+      "structure": "SPINAL CORD",
+      "values": ["SpinalCord", "SPINAL CORD", "MEDULA", "MEDULA ESPINAL"]
+    },
+    {
+      "structure": "BRAINSTEM",
+      "values": ["Brainstem", "BRAINSTEM", "TALLO CEREBRAL"]
+    },
+    {
+      "structure": "MANDIBLE",
+      "values": ["Mandible", "MANDIBLE", "MANDIBULA"]
+    }
+  ],
+  "derivedStructures": []
+}

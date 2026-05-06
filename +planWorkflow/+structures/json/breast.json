@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "description": "breast",
+  "dropUnsupported": true,
+  "outputStructures": [
+    "BODY",
+    "SKIN",
+    "CTV",
+    "PTV",
+    "HEART",
+    "LEFT LUNG",
+    "RIGHT LUNG",
+    "CONTRALATERAL BREAST",
+    "SPINAL CORD"
+  ],
+  "aliases": [
+    {
+      "structure": "BODY",
+      "values": ["Skin", "BODY", "External", "Piel"]
+    },
+    {
+      "structure": "CTV",
+      "values": ["SENO IZQUIERDO", "LEFT BREAST", "CTV"]
+    },
+    {
+      "structure": "PTV",
+      "values": ["PTV", "PTV M"]
+    },
+    {
+      "structure": "HEART",
+      "values": ["CORAZON", "HEART"]
+    },
+    {
+      "structure": "LEFT LUNG",
+      "values": ["PULMON IZQUIERDO", "LEFT LUNG"]
+    },
+    {
+      "structure": "RIGHT LUNG",
+      "values": ["PULMON DERECHO", "RIGHT LUNG"]
+    },
+    {
+      "structure": "CONTRALATERAL BREAST",
+      "values": ["SENO CONTRALATERAL", "CONTRALATERAL BREAST"]
+    },
+    {
+      "structure": "SPINAL CORD",
+      "values": ["MEDULA", "SPINAL CORD"]
+    }
+  ],
+  "derivedStructures": [
+    {
+      "kind": "skinFromBody",
+      "name": "SKIN",
+      "source": "BODY",
+      "type": "OAR",
+      "visibleColor": [1, 0.501960784313726, 1],
+      "modeField": "skinMode",
+      "defaultMode": "full",
+      "thicknessField": "skinThicknessMm",
+      "targetField": "plan_target",
+      "defaultTarget": "CTV",
+      "targetDistanceField": "skinTargetDistanceMm",
+      "defaultTargetDistanceMm": 30
+    }
+  ]
+}

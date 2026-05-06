@@ -30,15 +30,21 @@ verifyFalse(testCase,isfield(dataSnapshot.data,'results'));
 
 resultsSnapshot = load(workflow.resultsFile,'results');
 verifyEqual(testCase,resultsSnapshot.results.score,47);
+verifyTrue(testCase,isfield(resultsSnapshot.results,'performance'));
+verifyTrue(testCase,isfield(resultsSnapshot.results.performance,'stageTimings'));
+verifyTrue(testCase,isfield(resultsSnapshot.results.performance,'planTimings'));
 
-performanceSnapshot = load(workflow.performanceFile,'computationalResources');
-resources = performanceSnapshot.computationalResources;
+performanceSnapshot = load(workflow.performanceFile,'performance');
+resources = performanceSnapshot.performance;
 verifyEqual(testCase,resources.wallTimeUnit,'seconds');
 verifyEqual(testCase,resources.memoryUnit,'bytes');
 verifyEqual(testCase, ...
     resources.stageTimings.prepare.lastStatus,'completed');
 verifyGreaterThanOrEqual(testCase, ...
     resources.stageTimings.prepare.attempts,1);
+verifyEqual(testCase,resources.planTimings(1).role,'reference');
+verifyEqual(testCase,resources.planTimings(1).task, ...
+    'syntheticOptimization');
 end
 
 function testResumeLoadsDataAndResultsArtifacts(testCase)
@@ -70,6 +76,79 @@ workflow.releaseMemory();
 
 verifyEqual(testCase,fieldnames(workflow.data),cell(0,1));
 verifyTrue(testCase,isfile(workflow.stateFile));
+end
+
+function testGuiProgressReporterReceivesStageEvents(testCase)
+workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
+reporter = planWorkflowTest.ProgressReporterProbe();
+workflow.guiProgressReporter = reporter;
+
+workflow.prepare();
+workflow.precompute();
+workflow.pullDose();
+workflow.optimize();
+workflow.sample();
+workflow.analyze();
+
+verifyGreaterThanOrEqual(testCase,numel(reporter.Events),12);
+verifyEqual(testCase,reporter.Events{1}{1},'stageStarted');
+verifyEqual(testCase,reporter.Events{1}{2},'prepare');
+verifyEqual(testCase,reporter.Events{end - 2}{1},'stageCompleted');
+verifyEqual(testCase,reporter.Events{end - 2}{2},'analyze');
+verifyEqual(testCase,reporter.Events{end - 1}{1},'showResults');
+verifyEqual(testCase,reporter.Events{end}{1},'saveGuiSnapshot');
+verifyEqual(testCase,reporter.SavedGuiFolder,workflow.rootPath);
+verifyEqual(testCase,reporter.Results.score,47);
+verifyTrue(testCase,isfield(reporter.Results,'performance'));
+verifyEqual(testCase, ...
+    reporter.Results.performance.stageTimings.analyze.lastStatus, ...
+    'completed');
+verifyTrue(testCase,isfield(reporter.Results.performance,'planTimings'));
+verifyEqual(testCase,reporter.Results.performance.planTimings(1).task, ...
+    'syntheticOptimization');
+verifyEqual(testCase,reporter.LastFraction,1);
+verifyTrue(testCase,any(cellfun(@(event) ...
+    strcmp(event{1},'stageProgress') && strcmp(event{2},'sample'), ...
+    reporter.Events)));
+verifyTrue(testCase,any(contains(reporter.Messages, ...
+    'Workflow state saved')));
+end
+
+function testRecalculateAnalysisRunsCompletedAnalysisAgain(testCase)
+workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
+reporter = planWorkflowTest.ProgressReporterProbe();
+workflow.guiProgressReporter = reporter;
+
+workflow.prepare();
+workflow.precompute();
+workflow.pullDose();
+workflow.optimize();
+workflow.sample();
+workflow.analyze();
+workflow.releaseMemory();
+workflow.recalculateAnalysis();
+
+verifyEqual(testCase,workflow.data.results.analysisCount,2);
+verifyTrue(testCase,any(strcmp(workflow.state.completedStages,'analyzed')));
+verifyGreaterThanOrEqual(testCase, ...
+    workflow.state.stageTimings.analyze.attempts,2);
+showResultCount = sum(cellfun(@(event) ...
+    strcmp(event{1},'showResults'),reporter.Events));
+verifyEqual(testCase,showResultCount,2);
+verifyEqual(testCase,reporter.Results.analysisCount,2);
+end
+
+function testGuiProgressReporterCanStopWorkflow(testCase)
+workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
+reporter = planWorkflowTest.ProgressReporterProbe();
+workflow.guiProgressReporter = reporter;
+reporter.requestStop();
+
+verifyError(testCase,@() workflow.prepare(), ...
+    'planWorkflow:gui:PlanProgressReporter:Stopped');
+verifyTrue(testCase,any(cellfun(@(event) ...
+    strcmp(event{1},'stageFailed') && strcmp(event{2},'prepare'), ...
+    reporter.Events)));
 end
 
 function config = baseSyntheticConfig(testCase)

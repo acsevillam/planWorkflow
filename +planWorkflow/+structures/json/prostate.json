@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "description": "prostate",
+  "dropUnsupported": true,
+  "outputStructures": [
+    "BODY",
+    "CTV",
+    "PTV",
+    "BLADDER",
+    "RECTUM",
+    "BULB",
+    "LEFT FEMORAL HEAD",
+    "RIGHT FEMORAL HEAD"
+  ],
+  "aliases": [
+    {
+      "structure": "BODY",
+      "values": ["Skin", "BODY", "External"]
+    },
+    {
+      "structure": "CTV",
+      "values": ["PROSTATA", "PROSTATE", "CTV"]
+    },
+    {
+      "structure": "PTV",
+      "values": ["PTV", "PTV 60"]
+    },
+    {
+      "structure": "BLADDER",
+      "values": ["VEJIGA", "BLADDER"]
+    },
+    {
+      "structure": "RECTUM",
+      "values": ["RECTO", "RECTUM"]
+    },
+    {
+      "structure": "BULB",
+      "values": ["BULBO", "BULBO PENEANO", "BULB"]
+    },
+    {
+      "structure": "LEFT FEMORAL HEAD",
+      "values": [
+        "CFI",
+        "CAB FEM IZQ",
+        "LEFT FEMORAL HEAD",
+        "LEFT REMORAL HEAD"
+      ]
+    },
+    {
+      "structure": "RIGHT FEMORAL HEAD",
+      "values": [
+        "CFD",
+        "CAB FEM DER",
+        "RIGHT FEMORAL HEAD",
+        "RIGHT REMORAL HEAD"
+      ]
+    }
+  ],
+  "derivedStructures": []
+}

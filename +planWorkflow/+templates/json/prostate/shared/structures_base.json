@@ -1,0 +1,85 @@
+{
+  "structures": [
+    {
+      "name": "BODY",
+      "role": "OAR",
+      "priority": 5,
+      "visibleColor": [
+        0,
+        1,
+        0
+      ],
+      "operation": ""
+    },
+    {
+      "name": "CTV",
+      "role": "TARGET",
+      "priority": 1,
+      "visibleColor": [
+        1,
+        0,
+        0
+      ],
+      "operation": ""
+    },
+    {
+      "name": "PTV",
+      "role": "TARGET",
+      "priority": 2,
+      "visibleColor": [
+        0,
+        0.816,
+        1
+      ],
+      "operation": ""
+    },
+    {
+      "name": "BLADDER",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [
+        1,
+        1,
+        0
+      ],
+      "operation": ""
+    },
+    {
+      "name": "RECTUM",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [
+        0.502,
+        0.251,
+        0.251
+      ],
+      "operation": ""
+    }
+  ],
+  "rings": [
+    {
+      "name": "RING 0 - 20 mm",
+      "role": "OAR",
+      "visibleColor": [
+        0,
+        1,
+        0.502
+      ],
+      "innerMarginMm": 0,
+      "outerMarginMm": 20,
+      "priority": 4
+    },
+    {
+      "name": "RING 20 - 50 mm",
+      "role": "OAR",
+      "visibleColor": [
+        0,
+        1,
+        0.502
+      ],
+      "innerMarginMm": 20,
+      "outerMarginMm": 50,
+      "priority": 4
+    }
+  ]
+}

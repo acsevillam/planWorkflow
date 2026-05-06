@@ -6,9 +6,13 @@ if nargin < 1
 end
 
 planWorkflowFolder = fileparts(mfilename('fullpath'));
+toolboxFolder = fileparts(planWorkflowFolder);
 testFolder = fullfile(planWorkflowFolder,'tests');
 
 initializeMatRad(planWorkflowFolder,pathToMatRadRoot);
+if ~any(strcmp(strsplit(path,pathsep),toolboxFolder))
+    addpath(toolboxFolder);
+end
 if ~any(strcmp(strsplit(path,pathsep),testFolder))
     addpath(testFolder);
     cleanupObj = onCleanup(@() rmpath(testFolder));
@@ -32,7 +36,7 @@ end
 
 function initializeMatRad(planWorkflowFolder,pathToMatRadRoot)
 
-if exist('matRad_getDisplayDoseScale','file') == 2 && ...
+if exist('matRad_convertToEvaluationMode','file') == 2 && ...
         exist('MatRad_Config','class') == 8
     return;
 end

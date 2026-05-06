@@ -1,0 +1,138 @@
+{
+  "structureObjectives": [
+    {
+      "name": "BODY",
+      "objectives": []
+    },
+    {
+      "name": "CTVT",
+      "objectives": []
+    },
+    {
+      "name": "CTVN",
+      "objectives": []
+    },
+    {
+      "name": "CTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_SquaredBertoluzzaDeviation",
+          "parameters": {
+            "penalty": 50,
+            "dRef": {
+              "ref": "prescriptionDose"
+            }
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MinDVH",
+          "parameters": {
+            "penalty": 30,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMinPercent": 95
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 54,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "LEFT PAROTID",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MeanDose",
+          "parameters": {
+            "penalty": 10,
+            "dMeanRef": 11,
+            "fDiff": "Quadratic"
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RIGHT PAROTID",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MeanDose",
+          "parameters": {
+            "penalty": 10,
+            "dMeanRef": 11,
+            "fDiff": "Quadratic"
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SPINAL CORD",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 32,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BRAINSTEM",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": 39,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "INTERVAL2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "MANDIBLE",
+      "objectives": []
+    }
+  ],
+  "ringObjectives": []
+}

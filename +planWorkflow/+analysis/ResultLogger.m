@@ -8,6 +8,8 @@ classdef ResultLogger
             if isfield(results,'runConfig')
                 runConfig = results.runConfig;
             end
+            planWorkflow.analysis.ResultLogger.logStructureNormalizationReports( ...
+                logFn,results);
 
             loggedExpectedSamplingQi = false;
             if isfield(results,'sampling')
@@ -22,23 +24,63 @@ classdef ResultLogger
                 return;
             end
 
-            if isfield(results,'nominal') && isfield(results.nominal,'qi')
+            if isfield(results,'reference') && isfield(results.reference,'qi')
+                label = planWorkflow.analysis.ResultLogger.planLabel( ...
+                    results.reference,'reference');
                 planWorkflow.analysis.ResultLogger.logQiResults( ...
-                    logFn,'nominal',results.nominal.qi);
+                    logFn,label,results.reference);
+                planWorkflow.analysis.ResultLogger.logClinicalEndpointResults( ...
+                    logFn,label,results.reference,runConfig, ...
+                    results.reference);
             end
 
             if isfield(results,'robust')
                 for planIx = 1:numel(results.robust)
                     if isfield(results.robust{planIx},'qi')
+                        label = sprintf('robust plan %d',planIx);
+                        if isfield(results.robust{planIx},'label') && ...
+                                ~isempty(results.robust{planIx}.label)
+                            label = char(results.robust{planIx}.label);
+                        end
                         planWorkflow.analysis.ResultLogger.logQiResults( ...
-                            logFn,sprintf('robust plan %d',planIx), ...
-                            results.robust{planIx}.qi);
+                            logFn,label,results.robust{planIx});
+                        referencePlan = [];
+                        if isfield(results,'reference')
+                            referencePlan = results.reference;
+                        end
+                        planWorkflow.analysis.ResultLogger.logClinicalEndpointResults( ...
+                            logFn,label,results.robust{planIx},runConfig, ...
+                            referencePlan);
                     end
                 end
             end
         end
 
-        function logQiResults(logFn,label,qi)
+        function logStructureNormalizationReports(logFn,results)
+            if isfield(results,'structureNormalizationReport')
+                planWorkflow.structures.NormalizationReportLogger.log( ...
+                    logFn,'Optimization structure normalization', ...
+                    results.structureNormalizationReport);
+            end
+            if isfield(results,'sampling') && isstruct(results.sampling) && ...
+                    isfield(results.sampling,'structureNormalizationReport')
+                planWorkflow.structures.NormalizationReportLogger.log( ...
+                    logFn,'Sampling structure normalization', ...
+                    results.sampling.structureNormalizationReport);
+            end
+        end
+
+        function logQiResults(logFn,label,planResults)
+            if isstruct(planResults) && isfield(planResults,'qi')
+                qi = planResults.qi;
+                context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults( ...
+                    planResults);
+            else
+                qi = planResults;
+                context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults( ...
+                    struct());
+                planResults = struct();
+            end
             if isempty(qi)
                 planWorkflow.analysis.ResultLogger.emit(logFn, ...
                     sprintf('Analysis results %s QI: empty.',label));
@@ -47,7 +89,9 @@ classdef ResultLogger
 
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
                 sprintf('Analysis results %s QI:',label));
-            planWorkflow.analysis.ResultLogger.logQiTable(logFn,qi);
+            planWorkflow.analysis.ResultLogger.logEvaluationContext(logFn,context);
+            planWorkflow.analysis.ResultLogger.logQiTable( ...
+                logFn,qi,context,planResults);
         end
 
         function loggedAny = logSamplingExpectedQiResults(logFn,samplingResults,runConfig)
@@ -59,12 +103,16 @@ classdef ResultLogger
             labels = cell(1,maxPlans);
             plans = cell(1,maxPlans);
             numPlans = 0;
-            if isfield(samplingResults,'nominal') && ...
+            referencePlan = [];
+            if isfield(samplingResults,'reference') && ...
                     planWorkflow.analysis.ResultLogger.hasExpectedQi( ...
-                    samplingResults.nominal)
+                    samplingResults.reference)
                 numPlans = numPlans + 1;
-                labels{numPlans} = 'nominal plan';
-                plans{numPlans} = samplingResults.nominal;
+                labels{numPlans} = ...
+                    planWorkflow.analysis.ResultLogger.planLabel( ...
+                    samplingResults.reference,'reference plan');
+                plans{numPlans} = samplingResults.reference;
+                referencePlan = samplingResults.reference;
             end
 
             if isfield(samplingResults,'robust')
@@ -72,7 +120,10 @@ classdef ResultLogger
                     if planWorkflow.analysis.ResultLogger.hasExpectedQi( ...
                             samplingResults.robust{planIx})
                         numPlans = numPlans + 1;
-                        labels{numPlans} = sprintf('robust plan %d',planIx);
+                        labels{numPlans} = ...
+                            planWorkflow.analysis.ResultLogger.planLabel( ...
+                            samplingResults.robust{planIx}, ...
+                            sprintf('robust plan %d',planIx));
                         plans{numPlans} = samplingResults.robust{planIx};
                     end
                 end
@@ -95,7 +146,8 @@ classdef ResultLogger
                 loggedAny = planWorkflow.analysis.ResultLogger.logExpectedQiResults( ...
                     logFn,labels{planIx},plans{planIx}) || loggedAny;
                 planWorkflow.analysis.ResultLogger.logClinicalEndpointResults( ...
-                    logFn,labels{planIx},plans{planIx},runConfig);
+                    logFn,labels{planIx},plans{planIx},runConfig, ...
+                    referencePlan);
             end
         end
 
@@ -104,58 +156,121 @@ classdef ResultLogger
                 ~isempty(planResults.expectedQi);
         end
 
+        function label = planLabel(planResults,defaultLabel)
+            label = defaultLabel;
+            if isstruct(planResults) && isfield(planResults,'label') && ...
+                    ~isempty(planResults.label)
+                label = char(planResults.label);
+            end
+        end
+
         function logged = logExpectedQiResults(logFn,label,planResults)
             logged = false;
             if ~isfield(planResults,'expectedQi') || isempty(planResults.expectedQi)
                 return;
             end
+            context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults(planResults);
 
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
                 sprintf('Analysis results %s QI from expected DVH:',label));
-            planWorkflow.analysis.ResultLogger.logQiTable(logFn,planResults.expectedQi);
+            planWorkflow.analysis.ResultLogger.logEvaluationContext(logFn,context);
+            planWorkflow.analysis.ResultLogger.logQiTable( ...
+                logFn,planResults.expectedQi,context,planResults);
             logged = true;
         end
 
-        function logClinicalEndpointResults(logFn,label,planResults,runConfig)
+        function logClinicalEndpointResults(logFn,label,planResults, ...
+                runConfig,referencePlanResults)
+            if nargin < 5
+                referencePlanResults = [];
+            end
             if ~isstruct(planResults) || ~isfield(planResults,'cstStat') || ...
                     isempty(planResults.cstStat)
                 return;
             end
 
-            endpoints = planWorkflow.analysis.ResultLogger.clinicalEndpoints(runConfig);
+            context = ...
+                planWorkflow.analysis.PlanEvaluationContext.fromPlanResults( ...
+                planResults);
+            endpoints = ...
+                planWorkflow.analysis.EndpointStructureContract.endpoints( ...
+                runConfig,context.endpointQuantity);
             if isempty(endpoints)
+                planWorkflow.analysis.ResultLogger.logNoClinicalEndpoints( ...
+                    logFn,label,context);
                 return;
             end
 
-            rows = planWorkflow.analysis.ResultLogger.clinicalEndpointRows( ...
-                planResults.cstStat,endpoints);
+            [rows,missingEndpoints] = ...
+                planWorkflow.analysis.ClinicalEndpointEvaluator.evaluatePlan( ...
+                planResults,endpoints,referencePlanResults);
+            planWorkflow.analysis.ResultLogger.logMissingClinicalEndpoints( ...
+                logFn,label,missingEndpoints);
             if isempty(rows)
                 return;
             end
 
+            sourceLabel = 'DVH';
+            if isfield(planResults,'expectedQi')
+                sourceLabel = 'expected DVH';
+            end
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
-                sprintf('Analysis clinical endpoints %s from expected DVH:',label));
-            headers = {'Structure','Metric','Mean','Min','Max','Unit'};
-            widths = [24 10 10 10 10 8];
+                sprintf('Analysis clinical endpoints %s from %s:', ...
+                label,sourceLabel));
+            planWorkflow.analysis.ResultLogger.logEvaluationContext(logFn,context);
+            headers = {'Structure','Metric','Mean','UncertHW','Min','Max', ...
+                'Delta','Goal','PoR','Unit'};
+            widths = [24 10 10 10 10 10 10 14 10 8];
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
                 ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
                 headers,widths)]);
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
                 ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
                 {'------------------------','----------','----------', ...
-                 '----------','----------','--------'},widths)]);
+                     '----------','----------','----------','----------', ...
+                     '--------------','----------', ...
+                     '--------'},widths)]);
             for i = 1:numel(rows)
                 planWorkflow.analysis.ResultLogger.emit(logFn, ...
                     ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
                     {rows(i).structure,rows(i).metric, ...
                      planWorkflow.analysis.ResultLogger.formatNumber(rows(i).mean), ...
+                     planWorkflow.analysis.ResultLogger.formatNumber( ...
+                     rows(i).uncertaintyHalfWidth), ...
                      planWorkflow.analysis.ResultLogger.formatNumber(rows(i).min), ...
                      planWorkflow.analysis.ResultLogger.formatNumber(rows(i).max), ...
+                     planWorkflow.analysis.ResultLogger.formatNumber( ...
+                     rows(i).deltaFromReference), ...
+                     rows(i).goal, ...
+                     planWorkflow.analysis.ResultLogger.formatNumber(rows(i).por), ...
                      rows(i).unit},widths)]);
             end
         end
 
-        function logQiTable(logFn,qi)
+        function logNoClinicalEndpoints(logFn,label,context)
+            quantityText = 'unknown';
+            if isstruct(context) && isfield(context,'analysisQuantity') && ...
+                    ~isempty(context.analysisQuantity)
+                quantityText = char(context.analysisQuantity);
+            end
+            if isstruct(context) && isfield(context,'endpointQuantity') && ...
+                    ~isempty(context.endpointQuantity)
+                quantityText = char(context.endpointQuantity);
+            end
+            planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                sprintf(['Analysis clinical endpoints %s: no endpoints ' ...
+                'configured for endpointQuantity "%s"; skipping.'], ...
+                char(label),quantityText));
+        end
+
+        function logQiTable(logFn,qi,context,planResults)
+            if nargin < 3 || isempty(context)
+                context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults(struct());
+            end
+            if nargin < 4
+                planResults = struct();
+            end
+
             [fields,headers] = planWorkflow.analysis.ResultLogger.qiSummaryColumns();
             widths = [24 repmat(8,1,numel(headers))];
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
@@ -173,165 +288,108 @@ classdef ResultLogger
                     ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
                     [{structureName} ...
                     planWorkflow.analysis.ResultLogger.formatMetricList( ...
-                    qi(i),fields)],widths)]);
+                    qi(i),fields,context,planResults,i)],widths)]);
             end
         end
 
         function [fields,headers] = qiSummaryColumns()
-            fields = {'COV1','COV_95','COV_98','COV_99','mean','std','min','max', ...
-                'D_95','D_98','D_2','D_50','V_17_1Gy','V_34_3Gy'};
-            headers = {'COV1','COV95','COV98','COV99','Mean','Std','Min','Max', ...
-                'D95','D98','D2','D50','V17.1','V34.3'};
+            fields = {'COV1','COV_95','COV_98','COV_99','mean', ...
+                'spatialStdDose','uncertaintyHalfWidth','min','max', ...
+                'D_95','D_98','D_2','D_50'};
+            headers = {'COV1','COV95','COV98','COV99','Mean', ...
+                'SpatialSD','UncertHW','Min','Max', ...
+                'D95','D98','D2','D50'};
         end
 
-        function endpoints = clinicalEndpoints(runConfig)
-            endpoints = struct([]);
-            if ~isstruct(runConfig) || ~isfield(runConfig,'description')
-                return;
-            end
-
-            switch char(runConfig.description)
-                case 'prostate'
-                    endpoints = [ ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'BLADDER'},'V60','V',60,'%'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'RECTUM'},'V40','V',40,'%'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'RECTUM'},'V50','V',50,'%')];
-                case 'breast'
-                    endpoints = [ ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'CONTRALATERAL LUNG','RIGHT LUNG','RIGTH LUNG'}, ...
-                        'V50','V',50,'%'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'CONTRALATERAL LUNG','RIGHT LUNG','RIGTH LUNG'}, ...
-                        'D5','D',5,'Gy'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'LEFT LUNG'},'V20','V',20,'%'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'LEFT LUNG'},'D20','D',20,'Gy'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'HEART'},'Dmean','mean',NaN,'Gy'), ...
-                        planWorkflow.analysis.ResultLogger.endpoint( ...
-                        {'CONTRALATERAL BREAST'},'Dmax','max',NaN,'Gy')];
-            end
-        end
-
-        function endpoint = endpoint(structureNames,metric,kind,threshold,unit)
-            endpoint = struct();
-            endpoint.structureNames = structureNames;
-            endpoint.metric = metric;
-            endpoint.kind = kind;
-            endpoint.threshold = threshold;
-            endpoint.unit = unit;
-        end
-
-        function rows = clinicalEndpointRows(cstStat,endpoints)
-            rows = struct([]);
-            for endpointIx = 1:numel(endpoints)
-                cstIx = planWorkflow.analysis.ResultLogger.findCstStat( ...
-                    cstStat,endpoints(endpointIx).structureNames);
-                if isempty(cstIx)
-                    continue;
+        function logMissingClinicalEndpoints(logFn,label,missingEndpoints)
+            for i = 1:numel(missingEndpoints)
+                requiredText = 'required';
+                if isfield(missingEndpoints(i),'required') && ...
+                        ~missingEndpoints(i).required
+                    requiredText = 'optional';
                 end
-
-                row = planWorkflow.analysis.ResultLogger.evaluateClinicalEndpoint( ...
-                    cstStat(cstIx),endpoints(endpointIx));
-                if isempty(row)
-                    continue;
-                end
-
-                if isempty(rows)
-                    rows = row;
-                else
-                    rows(end + 1) = row; %#ok<AGROW>
-                end
+                planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                    sprintf(['  missing %s endpoint %s (%s) for %s: ' ...
+                    'none of {%s} found in cstStat.'], ...
+                    requiredText, ...
+                    char(missingEndpoints(i).metric), ...
+                    char(missingEndpoints(i).kind),char(label), ...
+                    strjoin(missingEndpoints(i).structureNames,', ')));
             end
         end
 
-        function ix = findCstStat(cstStat,structureNames)
-            ix = [];
-            for i = 1:numel(cstStat)
-                structureName = planWorkflow.analysis.ExpectedQi.structTextField( ...
-                    cstStat(i),{'name','VOIname'},'');
-                for nameIx = 1:numel(structureNames)
-                    if strcmpi(structureName,structureNames{nameIx})
-                        ix = i;
-                        return;
-                    end
-                end
+        function values = formatMetricList(source,fields,context,planResults,structureIx)
+            if nargin < 3 || isempty(context)
+                context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults(struct());
             end
-        end
-
-        function row = evaluateClinicalEndpoint(cstStat,endpoint)
-            row = struct([]);
-            if ~isfield(cstStat,'dvhStat')
-                return;
+            if nargin < 4
+                planResults = struct();
+            end
+            if nargin < 5
+                structureIx = [];
             end
 
-            statNames = {'mean','min','max'};
-            values = NaN(1,numel(statNames));
-            for statIx = 1:numel(statNames)
-                statName = statNames{statIx};
-                if ~isfield(cstStat.dvhStat,statName)
-                    continue;
-                end
-
-                values(statIx) = planWorkflow.analysis.ResultLogger.evaluateDvhEndpoint( ...
-                    cstStat.dvhStat.(statName),endpoint);
-            end
-
-            row = struct();
-            row.structure = planWorkflow.analysis.ExpectedQi.structTextField( ...
-                cstStat,{'name','VOIname'},endpoint.structureNames{1});
-            row.metric = endpoint.metric;
-            row.mean = values(1);
-            row.min = values(2);
-            row.max = values(3);
-            row.unit = endpoint.unit;
-        end
-
-        function value = evaluateDvhEndpoint(dvh,endpoint)
-            value = NaN;
-            if ~isfield(dvh,'doseGrid') || ~isfield(dvh,'volumePoints')
-                return;
-            end
-
-            doseGrid = dvh.doseGrid(:);
-            volumePoints = dvh.volumePoints(:);
-            switch endpoint.kind
-                case 'V'
-                    value = 100 * planWorkflow.analysis.ExpectedQi.dvhVolumeAtDose( ...
-                        doseGrid,volumePoints,endpoint.threshold);
-                case 'D'
-                    value = planWorkflow.analysis.ExpectedQi.dvhDoseAtVolume( ...
-                        doseGrid,volumePoints,endpoint.threshold);
-                case 'mean'
-                    value = planWorkflow.analysis.ExpectedQi.meanDoseFromDvh( ...
-                        doseGrid,volumePoints);
-                case 'max'
-                    value = planWorkflow.analysis.ExpectedQi.maxDoseFromDvh( ...
-                        doseGrid,volumePoints);
-            end
-        end
-
-        function values = formatMetricList(source,fields)
             values = cell(1,numel(fields));
             for i = 1:numel(fields)
                 values{i} = planWorkflow.analysis.ResultLogger.formatMetricValue( ...
-                    source,fields{i});
+                    source,fields{i},context,planResults,structureIx);
             end
         end
 
-        function text = formatMetricValue(source,fieldName)
+        function text = formatMetricValue(source,fieldName,context,planResults,structureIx)
+            if nargin < 3 || isempty(context)
+                context = planWorkflow.analysis.PlanEvaluationContext.fromPlanResults(struct());
+            end
+            if nargin < 4
+                planResults = struct();
+            end
+            if nargin < 5
+                structureIx = [];
+            end
+
+            value = NaN;
             if isfield(source,fieldName) && ...
                     planWorkflow.analysis.ResultLogger.isNumericScalar(source.(fieldName))
-                text = planWorkflow.analysis.ResultLogger.formatNumber( ...
-                    source.(fieldName));
+                value = source.(fieldName);
+                if planWorkflow.analysis.ResultLogger.isDoseMetric(fieldName)
+                    value = value * context.evaluationScale;
+                end
+            end
+
+            if isfinite(value)
+                text = planWorkflow.analysis.ResultLogger.formatNumber(value);
             else
                 text = '-';
             end
+        end
+
+        function logEvaluationContext(logFn,context)
+            planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                sprintf('  evaluationMode: %s',context.evaluationMode));
+            planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                sprintf('  evaluationModeBase: %s',context.evaluationModeBase));
+            if ~isempty(context.numOfFractions)
+                planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                    sprintf('  numOfFractions: %g',context.numOfFractions));
+            end
+            planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                sprintf('  analysisQuantity: %s', ...
+                char(context.analysisQuantity)));
+            if isfield(context,'endpointQuantity') && ...
+                    ~isempty(context.endpointQuantity) && ...
+                    ~strcmp(context.endpointQuantity, ...
+                    context.analysisQuantity)
+                planWorkflow.analysis.ResultLogger.emit(logFn, ...
+                    sprintf('  endpointQuantity: %s', ...
+                    char(context.endpointQuantity)));
+            end
+        end
+
+        function tf = isDoseMetric(fieldName)
+            tf = any(strcmp(fieldName,{'mean','spatialStdDose', ...
+                'uncertaintyHalfWidth','trustbandHalfWidth','min','max', ...
+                'referenceDose'})) || ...
+                strncmp(fieldName,'D_',2);
         end
 
         function text = formatFixedWidthRow(values,widths)
@@ -361,6 +419,18 @@ classdef ResultLogger
             end
         end
 
+        function text = formatSignificantNumber(value,numSig)
+            if nargin < 2
+                numSig = 3;
+            end
+            if ~isfinite(value)
+                text = '-';
+            else
+                format = sprintf('%%.%dg',numSig);
+                text = sprintf(format,double(value));
+            end
+        end
+
         function logSamplingResults(logFn,samplingResults)
             planWorkflow.analysis.ResultLogger.emit(logFn,'Analysis results sampling:');
             if isfield(samplingResults,'scenarioMode')
@@ -369,7 +439,7 @@ classdef ResultLogger
                     char(samplingResults.scenarioMode)));
             end
 
-            headers = {'Plan','Gamma','Rob1','Rob2','MeanMax','StdMax','Figures'};
+            headers = {'Plan','Gamma','RI1','RI2','MeanMax','StdMax','Figures'};
             widths = [24 repmat(9,1,numel(headers) - 1)];
             planWorkflow.analysis.ResultLogger.emit(logFn, ...
                 ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
@@ -378,18 +448,22 @@ classdef ResultLogger
                 ['  ' planWorkflow.analysis.ResultLogger.formatFixedWidthRow( ...
                 [{'------------------------'} ...
                 repmat({'---------'},1,numel(headers) - 1)],widths)]);
-            if isfield(samplingResults,'nominal')
+            if isfield(samplingResults,'reference')
+                label = planWorkflow.analysis.ResultLogger.planLabel( ...
+                    samplingResults.reference,'reference');
                 planWorkflow.analysis.ResultLogger.emit(logFn, ...
                     ['  ' planWorkflow.analysis.ResultLogger.formatSamplingPlanRow( ...
-                    'nominal',samplingResults.nominal,widths)]);
+                    label,samplingResults.reference,widths)]);
             end
 
             if isfield(samplingResults,'robust')
                 for planIx = 1:numel(samplingResults.robust)
+                    label = planWorkflow.analysis.ResultLogger.planLabel( ...
+                        samplingResults.robust{planIx}, ...
+                        sprintf('robust plan %d',planIx));
                     planWorkflow.analysis.ResultLogger.emit(logFn, ...
                         ['  ' planWorkflow.analysis.ResultLogger.formatSamplingPlanRow( ...
-                        sprintf('robust plan %d',planIx), ...
-                        samplingResults.robust{planIx},widths)]);
+                        label,samplingResults.robust{planIx},widths)]);
                 end
             end
         end
@@ -407,17 +481,19 @@ classdef ResultLogger
                 end
                 if isfield(doseStat,'robustnessAnalysis')
                     robustness = doseStat.robustnessAnalysis;
-                    if isfield(robustness,'robPassRate1') && ...
+                    if isfield(robustness,'index1') && ...
+                            isfield(robustness.index1,'robustnessIndex') && ...
                             planWorkflow.analysis.ResultLogger.isNumericScalar( ...
-                            robustness.robPassRate1)
-                        values{2} = planWorkflow.analysis.ResultLogger.formatNumber( ...
-                            robustness.robPassRate1);
+                            robustness.index1.robustnessIndex)
+                        values{2} = planWorkflow.analysis.ResultLogger.formatSignificantNumber( ...
+                            robustness.index1.robustnessIndex,3);
                     end
-                    if isfield(robustness,'robPassRate2') && ...
+                    if isfield(robustness,'index2') && ...
+                            isfield(robustness.index2,'robustnessIndex') && ...
                             planWorkflow.analysis.ResultLogger.isNumericScalar( ...
-                            robustness.robPassRate2)
-                        values{3} = planWorkflow.analysis.ResultLogger.formatNumber( ...
-                            robustness.robPassRate2);
+                            robustness.index2.robustnessIndex)
+                        values{3} = planWorkflow.analysis.ResultLogger.formatSignificantNumber( ...
+                            robustness.index2.robustnessIndex,3);
                     end
                 end
                 if isfield(doseStat,'meanCubeW')

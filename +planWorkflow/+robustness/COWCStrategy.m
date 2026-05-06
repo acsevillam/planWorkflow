@@ -7,6 +7,10 @@ classdef COWCStrategy < planWorkflow.robustness.AbstractStrategy
 
     methods
         function obj = COWCStrategy(name,includeOAR)
+            if ~strcmp(char(name),'COWC')
+                error('planWorkflow:robustness:COWCStrategy:UnsupportedMode', ...
+                    'Unsupported COWC robustness mode "%s".',char(name));
+            end
             obj.name = name;
             obj.includeOAR = includeOAR;
         end
@@ -15,7 +19,8 @@ classdef COWCStrategy < planWorkflow.robustness.AbstractStrategy
             pln.propOpt.useMaxApprox = 'logsumexp';
             cst = obj.setTargetRobustness(cst,objectiveInfo.ixTarget,'COWC');
             if obj.includeOAR
-                cst = obj.setOARRobustness(cst,objectiveInfo.oarStructSel,'COWC');
+                cst = obj.setOARRobustness(cst, ...
+                    objectiveInfo.robustOarNames,'COWC');
             end
         end
     end

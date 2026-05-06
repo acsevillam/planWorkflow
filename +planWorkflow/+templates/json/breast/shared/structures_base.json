@@ -1,0 +1,54 @@
+{
+  "structures": [
+    {
+      "name": "BODY",
+      "role": "OAR",
+      "priority": 5,
+      "visibleColor": [0, 1, 0],
+      "operation": ""
+    },
+    {
+      "name": "CTV",
+      "role": "TARGET",
+      "priority": 1,
+      "visibleColor": [1, 0, 0],
+      "operation": ""
+    },
+    {
+      "name": "PTV",
+      "role": "TARGET",
+      "priority": 2,
+      "visibleColor": [0, 0.816, 1],
+      "operation": ""
+    },
+    {
+      "name": "HEART",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [1, 0, 1],
+      "operation": ""
+    },
+    {
+      "name": "LEFT LUNG",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [0.4, 0.8, 1],
+      "operation": ""
+    },
+    {
+      "name": "RIGHT LUNG",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [0.2, 0.6, 1],
+      "operation": ""
+    },
+    {
+      "name": "CONTRALATERAL BREAST",
+      "role": "OAR",
+      "priority": 3,
+      "visibleColor": [1, 0.7, 0.8],
+      "operation": ""
+    }
+  ],
+  "rings": []
+}

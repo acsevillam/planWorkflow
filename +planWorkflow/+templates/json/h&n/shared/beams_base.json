@@ -1,0 +1,51 @@
+{
+  "radiationModes": [
+    {
+      "id": "photons",
+      "defaultBeamSet": "7F",
+      "machine": "Generic",
+      "bioModel": "none"
+    },
+    {
+      "id": "protons",
+      "defaultBeamSet": "2F",
+      "machine": "Generic",
+      "bioModel": "constRBE"
+    },
+    {
+      "id": "helium",
+      "defaultBeamSet": "2F",
+      "machine": "Generic",
+      "bioModel": "HEL"
+    },
+    {
+      "id": "carbon",
+      "defaultBeamSet": "2F",
+      "machine": "Generic",
+      "bioModel": "LEM"
+    }
+  ],
+  "beamSets": [
+    {
+      "id": "2F",
+      "numOfFractions": 25,
+      "gantryAngles": [90, 270],
+      "couchAngles": [0, 0],
+      "bixelWidth": 5
+    },
+    {
+      "id": "5F",
+      "numOfFractions": 25,
+      "gantryAngles": [0, 72, 144, 216, 288],
+      "couchAngles": [0, 0, 0, 0, 0],
+      "bixelWidth": 5
+    },
+    {
+      "id": "7F",
+      "numOfFractions": 25,
+      "gantryAngles": [0, 50, 100, 150, 210, 260, 310],
+      "couchAngles": [0, 0, 0, 0, 0, 0, 0],
+      "bixelWidth": 5
+    }
+  ]
+}

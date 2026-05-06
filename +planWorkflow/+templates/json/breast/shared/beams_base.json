@@ -1,0 +1,26 @@
+{
+  "radiationModes": [
+    {
+      "id": "photons",
+      "defaultBeamSet": "7F",
+      "machine": "Generic",
+      "bioModel": "none"
+    }
+  ],
+  "beamSets": [
+    {
+      "id": "5F",
+      "numOfFractions": 16,
+      "gantryAngles": [357, 43, 89, 135, 311],
+      "couchAngles": [0, 0, 0, 0, 0],
+      "bixelWidth": 5
+    },
+    {
+      "id": "7F",
+      "numOfFractions": 16,
+      "gantryAngles": [11, 42, 73, 104, 135, 309, 340],
+      "couchAngles": [0, 0, 0, 0, 0, 0, 0],
+      "bixelWidth": 5
+    }
+  ]
+}
