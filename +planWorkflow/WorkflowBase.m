@@ -362,7 +362,10 @@ classdef (Abstract) WorkflowBase < handle
             reporter = [];
         end
 
-        function configureGuiProgressReporter(obj)
+        function configureGuiProgressReporter(obj,reporter)
+            if nargin >= 2 && ~isempty(reporter)
+                obj.guiProgressReporter = reporter;
+            end
             reporter = obj.guiProgressReporter;
             if isempty(reporter)
                 return;
@@ -378,7 +381,7 @@ classdef (Abstract) WorkflowBase < handle
             try
                 if ismethod(reporter,'setRecalculateAnalysisCallback')
                     reporter.setRecalculateAnalysisCallback( ...
-                        @() obj.recalculateAnalysis());
+                        @(varargin) obj.recalculateAnalysis(varargin{:}));
                 end
             catch
             end

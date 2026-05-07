@@ -22,6 +22,37 @@ verifyEqual(testCase,numel(robustPlans),1);
 verifyEqual(testCase,robustPlans(1).robustnessMode,'INTERVAL2');
 end
 
+function testGuiAcceptedRunConfigReplacesStaleRobustVariantFields(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2 plan','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_10','Theta 10',1,1,10,1));
+workflow = planWorkflowTest.EngineProbe(config);
+
+editedRunConfig = workflow.runConfig;
+editedRunConfig.precompute.robustPlans(1).robustnessMode = 'none';
+editedRunConfig.precompute.robustPlans(1).robustnessOptions = struct();
+editedRunConfig.precompute.robustPlans(1).variants = ...
+    planWorkflow.config.RobustPlanConfig.defaultVariants('none');
+template = workflow.activePlanTemplatePublic();
+nominalTemplate = ...
+    planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','comparison_001');
+nominalObjectiveSet = ...
+    planWorkflow.templates.PlanTemplate.objectiveSet( ...
+    nominalTemplate,'robust_1');
+template = ...
+    planWorkflow.templates.PlanTemplate.setObjectiveSet( ...
+    template,'robust_1',nominalObjectiveSet);
+workflow.setEditorResponse(template,editedRunConfig,true,[],'');
+
+workflow.gui();
+
+robustPlan = workflow.runConfig.precompute.robustPlans(1);
+verifyEqual(testCase,robustPlan.robustnessMode,'none');
+verifyFalse(testCase,isfield(robustPlan.variants,'theta1'));
+end
+
 function testUnknownRobustPlanRobustnessModeIsRejected(testCase)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.robustnessMode = 'COWC2';
@@ -742,6 +773,102 @@ verifyEqual(testCase,workflow.runConfig.sampling_shiftSD,[2 3 4]);
 verifyEqual(testCase,workflow.runConfig.sampling_rangeAbsSD,0.8);
 verifyEqual(testCase,workflow.runConfig.sampling_rangeRelSD,2.5);
 verifyEqual(testCase,workflow.runConfig.sampling_numOfRangeGridPoints,3);
+end
+
+function testGuiAcceptedRunConfigDefaultsHiddenSamplingScenarioFields(testCase)
+workflow = planWorkflowTest.EngineProbe(baseEngineConfig(testCase));
+editedRunConfig = workflow.runConfig;
+editedRunConfig.sampling_scen_mode = 'random';
+editedRunConfig.sampling_ctActive = false;
+editedRunConfig.sampling_ctReferenceScenId = 1;
+editedRunConfig.sampling_setupActive = true;
+editedRunConfig.sampling_rangeActive = false;
+editedRunConfig.sampling_gantryActive = true;
+editedRunConfig.sampling_couchActive = true;
+editedRunConfig.sampling_gantryAngleSD = 1;
+editedRunConfig.sampling_couchAngleSD = 1;
+editedRunConfig = rmfield(editedRunConfig,{ ...
+    'sampling_ctScenProb','sampling_wcSigma', ...
+    'sampling_numOfRangeGridPoints'});
+workflow.setEditorResponse( ...
+    workflow.activePlanTemplatePublic(),editedRunConfig,true,[],'');
+
+workflow.gui();
+
+verifyEqual(testCase,workflow.runConfig.sampling_scen_mode,'random');
+verifyFalse(testCase,workflow.runConfig.sampling_ctActive);
+verifyEqual(testCase,workflow.runConfig.sampling_ctReferenceScenId,1);
+verifyEqual(testCase,workflow.runConfig.sampling_ctScenProb,[]);
+verifyEqual(testCase,workflow.runConfig.sampling_wcSigma,1.0);
+verifyEqual(testCase,workflow.runConfig.sampling_numOfRangeGridPoints,1);
+end
+
+function testGuiAcceptedRunConfigDefaultsHiddenDosePullingFields(testCase)
+config = baseEngineConfig(testCase);
+config.dose_pulling1 = true;
+config.dose_pulling1_target = {'PTV'};
+config.dose_pulling1_criteria = {'D99'};
+config.dose_pulling1_limit = 0.91;
+config.dose_pulling1_start = 12;
+config.dose_pulling2 = true;
+config.dose_pulling2_target = {'Bladder'};
+config.dose_pulling2_criteria = 'meanQiOAR';
+config.dose_pulling2_limit = 0.33;
+config.dose_pulling2_start = 14;
+config.dose_pulling_strategy = 'heuristicMultiObjective';
+config.dose_pulling_local_window = 3;
+config.dose_pulling_patience = 7;
+config.dose_pulling_target_tol = 2e-3;
+config.dose_pulling_selection_policy = 'weightedSum';
+config.dose_pulling_target_weight = 5;
+config.dose_pulling_oar_weight = 6;
+config.dose_pulling_step_weight = 7e-6;
+config.dose_pulling_max_vmax_percent = 80;
+config.dose_pulling_use_warm_start = false;
+workflow = planWorkflowTest.EngineProbe(config);
+
+editedRunConfig = workflow.runConfig;
+editedRunConfig.dose_pulling1 = false;
+editedRunConfig.dose_pulling2 = false;
+editedRunConfig.dose_pulling_strategy = 'Threshold';
+hiddenFields = {'dose_pulling1_target','dose_pulling1_criteria', ...
+    'dose_pulling1_limit','dose_pulling1_start', ...
+    'dose_pulling2_target','dose_pulling2_criteria', ...
+    'dose_pulling2_limit','dose_pulling2_start', ...
+    'dose_pulling_search_schedule','dose_pulling_local_window', ...
+    'dose_pulling_patience','dose_pulling_target_tol', ...
+    'dose_pulling_selection_policy','dose_pulling_target_weight', ...
+    'dose_pulling_oar_weight','dose_pulling_step_weight', ...
+    'dose_pulling_max_vmax_percent','dose_pulling_use_warm_start'};
+editedRunConfig = rmfield( ...
+    editedRunConfig,hiddenFields(isfield(editedRunConfig,hiddenFields)));
+workflow.setEditorResponse( ...
+    workflow.activePlanTemplatePublic(),editedRunConfig,true,[],'');
+
+workflow.gui();
+
+verifyFalse(testCase,workflow.runConfig.dose_pulling1);
+verifyFalse(testCase,workflow.runConfig.dose_pulling2);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_strategy,'Threshold');
+verifyEqual(testCase,workflow.runConfig.dose_pulling1_target,{'CTV'});
+verifyEqual(testCase,workflow.runConfig.dose_pulling1_criteria,{'COV1'});
+verifyEqual(testCase,workflow.runConfig.dose_pulling1_limit,0.98);
+verifyEqual(testCase,workflow.runConfig.dose_pulling1_start,0);
+verifyEqual(testCase,workflow.runConfig.dose_pulling2_target,{'CTV'});
+verifyEqual(testCase,workflow.runConfig.dose_pulling2_criteria, ...
+    'meanQiTarget');
+verifyEqual(testCase,workflow.runConfig.dose_pulling2_limit,0.80);
+verifyEqual(testCase,workflow.runConfig.dose_pulling2_start,0);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_local_window,8);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_patience,3);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_target_tol,1e-3);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_selection_policy, ...
+    'normalizedKnee');
+verifyEqual(testCase,workflow.runConfig.dose_pulling_target_weight,1);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_oar_weight,1);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_step_weight,1e-6);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_max_vmax_percent,100);
+verifyTrue(testCase,workflow.runConfig.dose_pulling_use_warm_start);
 end
 
 function testSamplingLinksToOptimizationByDefault(testCase)

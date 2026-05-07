@@ -161,7 +161,17 @@ classdef ScenarioSpec
             scenario = rmfield(scenario,'mode');
         end
 
-        function scenario = fromRunConfig(runConfig,prefix)
+        function scenario = fromRunConfig(runConfig,prefix,defaults)
+            if nargin < 3 || isempty(defaults)
+                mode = [];
+                modeField = ...
+                    planWorkflow.config.ScenarioSpec.runFieldName( ...
+                    prefix,'mode');
+                if isstruct(runConfig) && isfield(runConfig,modeField)
+                    mode = runConfig.(modeField);
+                end
+                defaults = planWorkflow.config.ScenarioSpec.defaults(mode);
+            end
             scenario = struct();
             fields = planWorkflow.config.ScenarioSpec.fields();
             for i = 1:numel(fields)
@@ -169,7 +179,11 @@ classdef ScenarioSpec
                 runFieldName = ...
                     planWorkflow.config.ScenarioSpec.runFieldName( ...
                     prefix,fieldName);
-                scenario.(fieldName) = runConfig.(runFieldName);
+                if isstruct(runConfig) && isfield(runConfig,runFieldName)
+                    scenario.(fieldName) = runConfig.(runFieldName);
+                else
+                    scenario.(fieldName) = defaults.(fieldName);
+                end
             end
         end
 

@@ -15,6 +15,7 @@ classdef PlanProgressReporter < handle
         CurrentStageIndex = 0
         CurrentStageTotal = 1
         RecalculateAnalysisCallback = []
+        RecalculateAnalysisConfigProvider = []
         RecalculateAnalysisButtonHandle = []
         IsRecalculatingAnalysis = false
     end
@@ -160,6 +161,20 @@ classdef PlanProgressReporter < handle
 
             obj.RecalculateAnalysisCallback = callback;
             obj.updateRecalculateAnalysisButton();
+        end
+
+        function setRecalculateAnalysisConfigProvider(obj,callback)
+            if nargin < 2 || isempty(callback)
+                obj.RecalculateAnalysisConfigProvider = [];
+                return;
+            end
+
+            if ~isa(callback,'function_handle')
+                error('planWorkflow:gui:PlanProgressReporter:InvalidCallback', ...
+                    'Recalculate analysis config provider must be a function handle.');
+            end
+
+            obj.RecalculateAnalysisConfigProvider = callback;
         end
 
         function filePath = saveGuiSnapshot(obj,outputFolder)
@@ -465,11 +480,24 @@ classdef PlanProgressReporter < handle
             obj.flushImmediate();
 
             try
-                obj.RecalculateAnalysisCallback();
+                callbackArgs = {};
+                if ~isempty(obj.RecalculateAnalysisConfigProvider)
+                    callbackArgs = {obj.RecalculateAnalysisConfigProvider()};
+                end
+                obj.invokeRecalculateAnalysisCallback(callbackArgs{:});
             catch ME
                 obj.log(sprintf('Analysis recalculation failed: %s', ...
                     ME.message));
                 rethrow(ME);
+            end
+        end
+
+        function invokeRecalculateAnalysisCallback(obj,varargin)
+            callbackInputCount = nargin(obj.RecalculateAnalysisCallback);
+            if isempty(varargin) || callbackInputCount == 0
+                obj.RecalculateAnalysisCallback();
+            else
+                obj.RecalculateAnalysisCallback(varargin{:});
             end
         end
 

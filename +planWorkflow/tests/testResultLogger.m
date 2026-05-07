@@ -131,8 +131,18 @@ rows = planWorkflow.analysis.ClinicalEndpointEvaluator.evaluatePlan( ...
     planResults,endpoints,referenceResults);
 
 verifyGreaterThan(testCase,rows.deltaFromReference,0);
-verifyLessThan(testCase,rows.por,0);
+verifyGreaterThan(testCase,rows.por,0);
 verifyEqual(testCase,rows.goal,'lowerIsBetter');
+
+endpoint.goal = 'higherIsBetter';
+endpoints = planWorkflow.analysis.ClinicalEndpointCatalog.normalize( ...
+    endpoint,'testEndpoint');
+rows = planWorkflow.analysis.ClinicalEndpointEvaluator.evaluatePlan( ...
+    planResults,endpoints,referenceResults);
+
+verifyGreaterThan(testCase,rows.deltaFromReference,0);
+verifyLessThan(testCase,rows.por,0);
+verifyEqual(testCase,rows.goal,'higherIsBetter');
 end
 
 function testClinicalVEndpointAboveDvhGridReportsZero(testCase)

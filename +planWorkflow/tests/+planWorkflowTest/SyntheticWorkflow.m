@@ -18,6 +18,7 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             runConfig.runId = 'synthetic-run';
             runConfig.outputRootPath = tempdir;
             runConfig.cacheRootPath = fullfile(tempdir,'planWorkflow-cache');
+            runConfig.analysis = planWorkflow.config.Analysis.defaults();
         end
 
         function runConfig = normalizeRunConfig(~,runConfig,varargin)
@@ -26,6 +27,32 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             runConfig.runId = char(runConfig.runId);
             runConfig.outputRootPath = char(runConfig.outputRootPath);
             runConfig.cacheRootPath = char(runConfig.cacheRootPath);
+            runConfig.analysis = ...
+                planWorkflow.config.Analysis.normalize(runConfig.analysis);
+        end
+
+        function fields = stageConfigFields(~,stageName)
+            if strcmp(stageName,'analyze')
+                defaults = planWorkflow.config.Analysis.defaults();
+                fields = fieldnames(defaults)';
+            else
+                fields = {};
+            end
+        end
+
+        function stageConfig = normalizeStageConfig(~,stageName,stageConfig)
+            if strcmp(stageName,'analyze')
+                stageConfig = planWorkflow.config.Analysis.normalize( ...
+                    stageConfig);
+            end
+        end
+
+        function runConfig = stageConfigToRunConfig(~,stageName,stageConfig)
+            if strcmp(stageName,'analyze')
+                runConfig = struct('analysis',stageConfig);
+            else
+                runConfig = stageConfig;
+            end
         end
 
         function configurePaths(obj)
@@ -71,7 +98,8 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             obj.data.analysisCount = obj.data.analysisCount + 1;
             obj.data.results = struct( ...
                 'score',obj.data.sampledValue + 1, ...
-                'analysisCount',obj.data.analysisCount);
+                'analysisCount',obj.data.analysisCount, ...
+                'analysis',obj.runConfig.analysis);
         end
     end
 end

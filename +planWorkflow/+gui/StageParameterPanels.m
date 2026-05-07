@@ -159,6 +159,11 @@ classdef StageParameterPanels
                 panels.analysis]);
         end
 
+        function controls = analysisControls(panels)
+            controls = planWorkflow.gui.ParameterPanelRenderer.controls( ...
+                panels.analysis);
+        end
+
         function callbacks = addDefault(callbacks,defaults,fieldName)
             if isfield(defaults,fieldName) && ~isempty(defaults.(fieldName))
                 callbacks.defaultCallback = defaults.(fieldName);

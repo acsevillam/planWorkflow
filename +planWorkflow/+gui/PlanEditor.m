@@ -86,6 +86,7 @@ classdef PlanEditor
             stopButton = frame.stopButton;
             cancelButton = frame.cancelButton;
             progressReporter = frame.progressReporter;
+            configureProgressReporterForReanalysis();
 
             beamCallbacks = struct( ...
                 'radiationMode',@beamRadiationModeChanged, ...
@@ -152,6 +153,7 @@ classdef PlanEditor
             if options.readOnly
                 lockEditorControls(false);
             end
+            showInitialResults();
             uiwait(fig);
 
             if ~accepted
@@ -1010,6 +1012,48 @@ classdef PlanEditor
                 end
             end
 
+            function configureProgressReporterForReanalysis()
+                if ~isempty(options.progressReporterReadyCallback)
+                    options.progressReporterReadyCallback(progressReporter);
+                end
+                if ismethod(progressReporter, ...
+                        'setRecalculateAnalysisConfigProvider')
+                    progressReporter.setRecalculateAnalysisConfigProvider( ...
+                        @currentAnalysisConfigFromEditor);
+                end
+                if ~isempty(options.recalculateAnalysisCallback) && ...
+                        ismethod(progressReporter, ...
+                        'setRecalculateAnalysisCallback')
+                    progressReporter.setRecalculateAnalysisCallback( ...
+                        options.recalculateAnalysisCallback);
+                end
+            end
+
+            function analysis = currentAnalysisConfigFromEditor()
+                previousRunConfig = runConfig;
+                try
+                    stageController.setRunConfig(runConfig);
+                    updatedRunConfig = ...
+                        stageController.syncAnalysisStrict(runConfig);
+                    updatedRunConfig = ...
+                        options.validateRunConfig(updatedRunConfig,template);
+                    runConfig = updatedRunConfig;
+                    stageController.setRunConfig(runConfig);
+                    analysis = runConfig.analysis;
+                catch ME
+                    runConfig = previousRunConfig;
+                    stageController.setRunConfig(runConfig);
+                    rethrow(ME);
+                end
+            end
+
+            function showInitialResults()
+                if isstruct(options.initialResults) && ...
+                        ~isempty(fieldnames(options.initialResults))
+                    progressReporter.showResults(options.initialResults);
+                end
+            end
+
             function settingsActionCallback(~,~)
                 try
                     if ~options.readOnly
@@ -1068,6 +1112,10 @@ classdef PlanEditor
                 end
                 planWorkflow.gui.PlanEditor.setControlsEnabled( ...
                     controlHandles,'inactive');
+                if options.readOnly || accepted
+                    planWorkflow.gui.PlanEditor.setControlsEnabled( ...
+                        stageController.analysisControls(),'on');
+                end
 
                 tableHandles = preparePanel.tableHandlesForLock();
                 planWorkflow.gui.PlanEditor.setTablesEditable( ...
@@ -1095,6 +1143,9 @@ classdef PlanEditor
             defaults.completedStages = {};
             defaults.nextStage = 'prepare';
             defaults.validateRunConfig = @(runConfig,template) runConfig;
+            defaults.recalculateAnalysisCallback = [];
+            defaults.progressReporterReadyCallback = [];
+            defaults.initialResults = struct();
 
             fields = fieldnames(defaults);
             for i = 1:numel(fields)
@@ -1119,6 +1170,20 @@ classdef PlanEditor
                 error('planWorkflow:gui:PlanEditor:InvalidEditorOptions', ...
                     ['options.validateRunConfig must accept runConfig ' ...
                     'and template inputs.']);
+            end
+            if ~isempty(options.recalculateAnalysisCallback) && ...
+                    ~isa(options.recalculateAnalysisCallback,'function_handle')
+                error('planWorkflow:gui:PlanEditor:InvalidEditorOptions', ...
+                    'options.recalculateAnalysisCallback must be a function handle.');
+            end
+            if ~isempty(options.progressReporterReadyCallback) && ...
+                    ~isa(options.progressReporterReadyCallback,'function_handle')
+                error('planWorkflow:gui:PlanEditor:InvalidEditorOptions', ...
+                    ['options.progressReporterReadyCallback must be a ' ...
+                     'function handle.']);
+            end
+            if isempty(options.initialResults)
+                options.initialResults = struct();
             end
         end
 

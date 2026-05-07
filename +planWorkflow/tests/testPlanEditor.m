@@ -102,6 +102,29 @@ options = planWorkflow.gui.PlanEditor.normalizeEditorOptions(options);
 verifyEqual(testCase,nargin(options.validateRunConfig),2);
 end
 
+function testAnalyzedWorkflowGuiProvidesInitialResultsAndRecalculateCallback(testCase)
+workflow = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+workflow.data.results = struct('analysisCount',1, ...
+    'runConfig',workflow.runConfig);
+workflow.state.completedStages = {'prepared','precomputed', ...
+    'dose_pulled','optimized','sampled','analyzed'};
+workflow.setEditorResponse(template,workflow.runConfig,true);
+
+workflow.gui();
+
+verifyTrue(testCase,workflow.editorOptions.readOnly);
+verifyTrue(testCase,isa( ...
+    workflow.editorOptions.recalculateAnalysisCallback,'function_handle'));
+verifyTrue(testCase,isa( ...
+    workflow.editorOptions.progressReporterReadyCallback, ...
+    'function_handle'));
+verifyEqual(testCase,workflow.editorOptions.initialResults.analysisCount,1);
+verifyTrue(testCase,isfield(workflow.editorOptions.initialResults, ...
+    'performance'));
+end
+
 function testHiddenParameterPanelFieldsAreRemovedFromConfig(testCase)
 fig = figure('Visible','off');
 cleanupFig = onCleanup(@() close(fig));
@@ -402,6 +425,31 @@ endpointsFileIx = find(strcmp(fields,'endpointsFile'),1);
 
 verifyEqual(testCase,get(tableHandle.controls(endpointsFileIx),'Style'), ...
     'popupmenu');
+end
+
+function testStageParameterControllerExposesAnalysisControlsForUnlock(testCase)
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+workflow = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
+runConfig = workflow.runConfig;
+template = struct('structures',struct('name','CTV','role','TARGET'), ...
+    'rings',[]);
+parents = struct( ...
+    'dosePulling',uipanel('Parent',fig), ...
+    'optimize',uipanel('Parent',fig), ...
+    'sampling',uipanel('Parent',fig), ...
+    'analysis',uipanel('Parent',fig));
+controller = planWorkflow.gui.StageParameterPanelController.create( ...
+    parents,runConfig,template,@(~) [],@(~,~) []);
+
+allControls = controller.controls();
+analysisControls = controller.analysisControls();
+
+verifyNotEmpty(testCase,analysisControls);
+verifyLessThan(testCase,numel(analysisControls),numel(allControls));
+for i = 1:numel(analysisControls)
+    verifyTrue(testCase,any(analysisControls(i) == allControls));
+end
 end
 
 function testSelectionControlRequiresOptionSet(testCase)

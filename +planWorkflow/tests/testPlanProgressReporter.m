@@ -402,7 +402,7 @@ robustClinicalData = get(robustClinicalTables(1),'Data');
 verifyEqual(testCase,robustClinicalData(1,1:2),{'BLADDER','V60'});
 verifyEqual(testCase,robustClinicalData{1,3},65);
 verifyEqual(testCase,robustClinicalData{1,7},15);
-verifyEqual(testCase,robustClinicalData{1,9},-15);
+verifyEqual(testCase,robustClinicalData{1,9},15);
 
 robustSummaryTabs = findall(robustSamplingTabs(1),'Type','uitab', ...
     'Title','Summary');
@@ -417,7 +417,7 @@ porEndpointLabels = findall(robustSummaryPanels(1),'Style','text', ...
     'String','BLADDER - V60');
 verifyNotEmpty(testCase,porEndpointLabels);
 porValues = findall(robustSummaryPanels(1),'Style','edit', ...
-    'String','-15 %');
+    'String','15 %');
 verifyNotEmpty(testCase,porValues);
 performanceSections = findall(robustSummaryPanels(1),'Style','text', ...
     'String','Performance');
@@ -621,6 +621,39 @@ verifyTrue(testCase,any(contains(messages, ...
 
     function recalculateAnalysis()
         callbackCount = callbackCount + 1;
+    end
+end
+
+function testResultsTabRecalculateAnalysisButtonPassesAnalysisConfig(testCase)
+guiFig = figure('Visible','off');
+cleanupGui = onCleanup(@() closeFigure(guiFig));
+fill = uipanel('Parent',guiFig,'Position',[0 0 0 1]);
+status = uicontrol('Parent',guiFig,'Style','text');
+details = uicontrol('Parent',guiFig,'Style','listbox');
+stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
+tabGroup = uitabgroup('Parent',guiFig);
+reporter = planWorkflow.gui.PlanProgressReporter( ...
+    guiFig,fill,status,details,stopButton,tabGroup);
+
+analysisConfig = struct('evaluationMode','total', ...
+    'gammaCriteria',[2 2]);
+receivedConfig = [];
+reporter.setRecalculateAnalysisConfigProvider(@() analysisConfig);
+reporter.setRecalculateAnalysisCallback(@recalculateAnalysis);
+results = struct();
+results.reference.expectedQi = struct('name','CTV','expectedValue',1);
+
+reporter.showResults(results);
+
+buttons = findall(guiFig,'Style','pushbutton', ...
+    'Tag','planWorkflowRecalculateAnalysisButton');
+buttonCallback = get(buttons(1),'Callback');
+buttonCallback(buttons(1),[]);
+
+verifyEqual(testCase,receivedConfig,analysisConfig);
+
+    function recalculateAnalysis(config)
+        receivedConfig = config;
     end
 end
 

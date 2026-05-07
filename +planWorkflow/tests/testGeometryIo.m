@@ -40,12 +40,58 @@ verifyFalse(testCase,isfile(fullfile(runConfig.patientDataPath, ...
     runConfig.description,'case.mat')));
 end
 
+function testLoadGeometryRejectsMissingDicomFolder(testCase)
+fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = baseRunConfig(fixture.Folder);
+runConfig.AcquisitionType = 'dicom';
+
+verifyError(testCase,@() planWorkflow.io.loadGeometry( ...
+    runConfig,"optimization"), ...
+    'planWorkflow:io:MissingDicomFolder');
+end
+
+function testLoadGeometryRejectsEmptyDicomFolder(testCase)
+fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = baseRunConfig(fixture.Folder);
+runConfig.AcquisitionType = 'dicom';
+mkdir(dicomFolder(runConfig));
+
+verifyError(testCase,@() planWorkflow.io.loadGeometry( ...
+    runConfig,"optimization"), ...
+    'planWorkflow:io:EmptyDicomFolder');
+end
+
+function testLoadGeometryRejectsGitLfsDicomPointers(testCase)
+fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = baseRunConfig(fixture.Folder);
+runConfig.AcquisitionType = 'dicom';
+dicomPath = dicomFolder(runConfig);
+mkdir(dicomPath);
+fid = fopen(fullfile(dicomPath,'CT1.dcm'),'w');
+assertGreaterThan(testCase,fid,0);
+cleanup = onCleanup(@() fclose(fid));
+fprintf(fid,'version https://git-lfs.github.com/spec/v1\n');
+fprintf(fid,'oid sha256:%s\n',repmat('0',1,64));
+fprintf(fid,'size 528610\n');
+delete(cleanup);
+
+verifyError(testCase,@() planWorkflow.io.loadGeometry( ...
+    runConfig,"optimization"), ...
+    'planWorkflow:io:DicomFolderContainsGitLfsPointers');
+end
+
 function runConfig = baseRunConfig(rootFolder)
 runConfig = struct();
 runConfig.description = 'synthetic';
 runConfig.caseID = 'case';
 runConfig.AcquisitionType = 'mat';
+runConfig.resolution = [1 1 1];
 runConfig.sampling_caseID = 'case';
 runConfig.sampling_AcquisitionType = 'mat';
 runConfig.patientDataPath = fullfile(rootFolder,'patients');
+end
+
+function path = dicomFolder(runConfig)
+path = fullfile(runConfig.patientDataPath,runConfig.description, ...
+    runConfig.caseID,'dicom');
 end

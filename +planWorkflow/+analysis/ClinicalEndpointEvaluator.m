@@ -121,9 +121,9 @@ classdef ClinicalEndpointEvaluator
         function por = goalAdjustedPor(delta,goal)
             switch char(goal)
                 case 'higherIsBetter'
-                    por = delta;
-                case 'lowerIsBetter'
                     por = -delta;
+                case 'lowerIsBetter'
+                    por = delta;
                 case 'reportOnly'
                     por = NaN;
                 otherwise

@@ -33,28 +33,13 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.skinThicknessMm = [];
             runConfig.skinTargetDistanceMm = 30;
             runConfig.optimizer = 'IPOPT';
-            runConfig.dose_pulling1 = false;
-            runConfig.dose_pulling1_target = {'CTV'};
-            runConfig.dose_pulling1_criteria = {'COV1'};
-            runConfig.dose_pulling1_limit = 0.98;
-            runConfig.dose_pulling1_start = 0;
-            runConfig.dose_pulling2 = false;
-            runConfig.dose_pulling2_target = {'CTV'};
-            runConfig.dose_pulling2_criteria = 'meanQiTarget';
-            runConfig.dose_pulling2_limit = 0.80;
-            runConfig.dose_pulling2_start = 0;
-            runConfig.dose_pulling_max_iter = 100;
-            runConfig.dose_pulling_strategy = 'heuristicMultiObjective';
-            runConfig.dose_pulling_search_schedule = 'exponential';
-            runConfig.dose_pulling_local_window = 8;
-            runConfig.dose_pulling_patience = 3;
-            runConfig.dose_pulling_target_tol = 1e-3;
-            runConfig.dose_pulling_selection_policy = 'normalizedKnee';
-            runConfig.dose_pulling_target_weight = 1.0;
-            runConfig.dose_pulling_oar_weight = 1.0;
-            runConfig.dose_pulling_step_weight = 1e-6;
-            runConfig.dose_pulling_max_vmax_percent = 100;
-            runConfig.dose_pulling_use_warm_start = true;
+            dosePullingDefaults = ...
+                planWorkflow.config.DosePullingConfig.defaults();
+            dosePullingFields = fieldnames(dosePullingDefaults);
+            for i = 1:numel(dosePullingFields)
+                fieldName = dosePullingFields{i};
+                runConfig.(fieldName) = dosePullingDefaults.(fieldName);
+            end
             runConfig.sampling_caseID = 'none';
             runConfig.sampling_AcquisitionType = 'none';
             runConfig.sampling_dicomMetadata = struct();
@@ -200,6 +185,9 @@ classdef Engine < planWorkflow.WorkflowBase
             end
             runConfig.analysis = ...
                 planWorkflow.config.Analysis.normalize(runConfig.analysis);
+            runConfig = ...
+                planWorkflow.config.DosePullingConfig.applyDefaults( ...
+                runConfig);
             runConfig.dose_pulling1_target = obj.asCellstr(runConfig.dose_pulling1_target);
             runConfig.dose_pulling1_criteria = obj.asCellstr(runConfig.dose_pulling1_criteria);
             runConfig.dose_pulling2_target = obj.asCellstr(runConfig.dose_pulling2_target);
@@ -685,8 +673,7 @@ classdef Engine < planWorkflow.WorkflowBase
                 return;
             end
 
-            obj.runConfig = obj.mergeStruct(obj.runConfig,runConfig);
-            obj.runConfig = obj.normalizeRunConfig(obj.runConfig,template);
+            obj.runConfig = obj.normalizeRunConfig(runConfig,template);
             obj.setEffectivePlanTemplate(template);
         end
 
@@ -699,8 +686,20 @@ classdef Engine < planWorkflow.WorkflowBase
             options.completedStages = obj.state.completedStages;
             options.nextStage = obj.nextIncompleteStage();
             options.validateRunConfig = @(editedRunConfig,editedTemplate) ...
-                obj.normalizeRunConfig(obj.mergeStruct( ...
-                obj.runConfig,editedRunConfig),editedTemplate);
+                obj.normalizeRunConfig(editedRunConfig,editedTemplate);
+            options.recalculateAnalysisCallback = ...
+                @(varargin) obj.recalculateAnalysis(varargin{:});
+            options.progressReporterReadyCallback = ...
+                @(progressReporter) obj.configureGuiProgressReporter( ...
+                progressReporter);
+            if obj.isStageComplete(obj.completedNameForStage('analyze')) && ...
+                    isstruct(obj.data) && isfield(obj.data,'results')
+                initialResults = obj.data.results;
+                if isstruct(initialResults)
+                    initialResults.performance = obj.performanceSummary();
+                end
+                options.initialResults = initialResults;
+            end
         end
 
         function setEffectivePlanTemplate(obj,template)

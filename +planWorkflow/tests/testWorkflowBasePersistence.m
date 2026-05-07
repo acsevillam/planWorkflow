@@ -138,6 +138,32 @@ verifyEqual(testCase,showResultCount,2);
 verifyEqual(testCase,reporter.Results.analysisCount,2);
 end
 
+function testRecalculateAnalysisAppliesAnalysisStageConfig(testCase)
+workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
+
+workflow.prepare();
+workflow.precompute();
+workflow.pullDose();
+workflow.optimize();
+workflow.sample();
+workflow.analyze();
+sampleAttempts = workflow.state.stageTimings.sample.attempts;
+analysis = workflow.runConfig.analysis;
+analysis.evaluationMode = 'total';
+analysis.gammaCriteria = [2 2];
+
+workflow.recalculateAnalysis(analysis);
+
+verifyEqual(testCase,workflow.runConfig.analysis.evaluationMode,'total');
+verifyEqual(testCase,workflow.runConfig.analysis.gammaCriteria,[2 2]);
+verifyEqual(testCase,workflow.data.results.analysis.evaluationMode,'total');
+verifyEqual(testCase,workflow.data.results.analysis.gammaCriteria,[2 2]);
+verifyEqual(testCase,workflow.data.results.analysisCount,2);
+verifyEqual(testCase,workflow.state.stageTimings.sample.attempts, ...
+    sampleAttempts);
+verifyEqual(testCase,workflow.state.stageTimings.analyze.attempts,2);
+end
+
 function testGuiProgressReporterCanStopWorkflow(testCase)
 workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
 reporter = planWorkflowTest.ProgressReporterProbe();

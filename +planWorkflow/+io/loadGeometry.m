@@ -27,6 +27,7 @@ switch AcquisitionType
         % Import 4D CT
         metadata = planWorkflow.io.createDicomMetadata(run_config,mode);
         dicomPath = fullfile(patientRoot,caseID,'dicom');
+        planWorkflow.io.validateDicomImportFolder(dicomPath);
         [ct,cst] = matRad_importMultipleDicomCt(dicomPath,metadata);
         clear 'metadata';
 

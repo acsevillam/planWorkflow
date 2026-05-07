@@ -89,6 +89,11 @@ classdef StageParameterPanelController < handle
                 obj.Panels);
         end
 
+        function controls = analysisControls(obj)
+            controls = planWorkflow.gui.StageParameterPanels.analysisControls( ...
+                obj.Panels);
+        end
+
         function loadAnalysis(obj,varargin)
             planWorkflow.gui.StageParameterPanels.loadAnalysis( ...
                 obj.Panels,obj.RunConfig.analysis,obj.Template, ...
@@ -125,6 +130,14 @@ classdef StageParameterPanelController < handle
 
         function syncAnalysis(obj,varargin)
             obj.apply(@() obj.syncAnalysisInternal());
+        end
+
+        function runConfig = syncAnalysisStrict(obj,runConfig)
+            if nargin >= 2
+                obj.RunConfig = runConfig;
+            end
+            obj.syncAnalysisInternal();
+            runConfig = obj.RunConfig;
         end
     end
 
