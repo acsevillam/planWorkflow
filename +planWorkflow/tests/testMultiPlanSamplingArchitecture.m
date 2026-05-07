@@ -200,17 +200,17 @@ end
 function testSamplingPlanSetDerivesVariantPlanFromConfig(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
-data.robustPlans{1}.planConfig.variants(1).theta1 = 5;
-data.robustPlans{1}.pln.propOpt.theta1 = 1;
-data.robustPlans{1}.variantResults = ...
+data.robustPlans{2}.planConfig.variants(1).theta1 = 5;
+data.robustPlans{2}.pln.propOpt.theta1 = 1;
+data.robustPlans{2}.variantResults = ...
     planWorkflow.results.VariantResults.create( ...
-    data.robustPlans{1},1,struct('w',1));
+    data.robustPlans{2},1,struct('w',1));
 
 planSet = planWorkflow.sampling.SamplingPlanSet.fromData( ...
     runConfig,data);
 
-verifyEqual(testCase,planSet.entries(2).pln.propOpt.theta1,5);
-verifyFalse(testCase,isfield(data.robustPlans{1}.variantResults,'pln'));
+verifyEqual(testCase,planSet.entries(3).pln.propOpt.theta1,5);
+verifyFalse(testCase,isfield(data.robustPlans{2}.variantResults,'pln'));
 end
 
 function testVariantResultsAreRequiredWhenResultGUIExists(testCase)
@@ -253,7 +253,7 @@ runConfig.radiationMode = 'photons';
 runConfig.workflowType = 'test';
 runConfig.description = 'prostate';
 runConfig.caseID = 'case';
-runConfig.plan_template = 'interval2_001';
+runConfig.plan_template = 'comparison_001';
 runConfig.plan_beams = '9F';
 runConfig.runId = 'multi-plan-test';
 fixtureRoot = tempdir();
@@ -261,8 +261,8 @@ runConfig.outputRootPath = fullfile(fixtureRoot,'planWorkflowTests');
 runConfig.cacheRootPath = fullfile(fixtureRoot,'planWorkflowTests','cache');
 runConfig.precompute = planWorkflow.config.RobustPlanConfig.defaults();
 runConfig.precompute.robustPlans = [ ...
-    robustPlan('robust_1','INTERVAL2 plan','INTERVAL2',[5 10 5]); ...
-    robustPlan('robust_2','COWC plan','c-COWC',[1 2 3])];
+    robustPlan('robust_1','PTV plan','none',[5 10 5]); ...
+    robustPlan('robust_2','INTERVAL2 plan','INTERVAL2',[1 2 3])];
 runConfig.sampling_scen_mode = 'impScen_permuted5';
 runConfig.sampling_ctActive = true;
 runConfig.sampling_ctReferenceScenId = 1;
@@ -287,17 +287,17 @@ runConfig = makeRunConfig();
 runConfig.description = 'test';
 end
 
-function plan = robustPlan(id,label,strategy,shiftSD)
+function plan = robustPlan(id,label,robustnessMode,shiftSD)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;
 plan.label = label;
 plan.objectiveSetName = id;
-plan.strategy = strategy;
+plan.robustnessMode = robustnessMode;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen');
 plan.scenario.shiftSD = shiftSD;
 plan.variants = planWorkflow.config.RobustPlanConfig.defaultVariants( ...
-    strategy);
+    robustnessMode);
 end
 
 function data = samplingData(runConfig)

@@ -51,14 +51,12 @@ config.prepare.plan_beams = '9F';
 
 config.precompute.doseResolution = [3 3 3];
 config.precompute.reference.label = 'Nominal';
-config.precompute.reference.strategy = 'none';
 config.precompute.reference.scenario.mode = 'nomScen';
 config.precompute.reference.scenario.ctActive = false;
 config.precompute.reference.scenario.ctReferenceScenId = 1;
 
 config.precompute.robustPlans.robust_1.label = 'INTERVAL2';
 config.precompute.robustPlans.robust_1.objectiveSetName = 'robust_1';
-config.precompute.robustPlans.robust_1.strategy = 'INTERVAL2';
 config.precompute.robustPlans.robust_1.scenario.mode = 'wcScen';
 config.precompute.robustPlans.robust_1.scenario.ctActive = true;
 config.precompute.robustPlans.robust_1.scenario.ctScenProb = [];

@@ -47,7 +47,7 @@ verifyEqual(testCase, ...
     identityB.robustPlans(1).variants(1).parameters.p2,0.9);
 end
 
-function testStrategyOptionsAffectIdentity(testCase)
+function testRobustnessOptionsAffectIdentity(testCase)
 configA = workflowConfigWithPlan(interval3Plan(10,0.5,10));
 configB = workflowConfigWithPlan(interval3Plan(10,0.5,20));
 
@@ -55,14 +55,14 @@ identityA = planWorkflow.results.WorkflowIdentity.fromRunConfig(configA);
 identityB = planWorkflow.results.WorkflowIdentity.fromRunConfig(configB);
 
 verifyNotEqual(testCase,identityA.hash,identityB.hash);
-verifyEqual(testCase,identityA.robustPlans(1).strategyOptions.kmax,10);
-verifyEqual(testCase,identityB.robustPlans(1).strategyOptions.kmax,20);
+verifyEqual(testCase,identityA.robustPlans(1).robustnessOptions.kmax,10);
+verifyEqual(testCase,identityB.robustPlans(1).robustnessOptions.kmax,20);
 end
 
 function testFieldOrderDoesNotAffectIdentity(testCase)
 planA = interval3Plan(10,0.5,10);
 planB = planA;
-planB.strategyOptions = struct( ...
+planB.robustnessOptions = struct( ...
     'retentionThreshold',1.0, ...
     'KMode','dynamic', ...
     'kmax',10);
@@ -79,13 +79,13 @@ function config = workflowConfigWithPlan(plan)
 precompute = planWorkflow.config.RobustPlanConfig.defaults();
 precompute.robustPlans = plan;
 precompute = planWorkflow.config.RobustPlanConfig.normalizePrecompute( ...
-    precompute);
+    precompute,contract(plan.robustnessMode));
 config = struct('precompute',precompute);
 end
 
 function plan = interval3Plan(theta1,theta2,kmax)
 plan = basePlan('intervalPlan','INTERVAL3');
-plan.strategyOptions = struct( ...
+plan.robustnessOptions = struct( ...
     'KMode','dynamic', ...
     'kmax',kmax, ...
     'retentionThreshold',1.0);
@@ -105,12 +105,23 @@ plan.variants = struct( ...
     'p2',p2);
 end
 
-function plan = basePlan(id,strategy)
+function plan = basePlan(id,robustnessMode)
 plan = struct();
 plan.id = id;
 plan.label = id;
 plan.objectiveSetName = 'robust_1';
-plan.strategy = strategy;
+plan.robustnessMode = robustnessMode;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen');
+end
+
+function value = contract(robustnessMode)
+value = planWorkflow.config.RobustPlanConfig.defaultRobustnessContract();
+value.robustnessMode = robustnessMode;
+value.hasNominalObjectives = false;
+value.requiresNominalDij = strcmp(robustnessMode,'none');
+value.requiresScenarioDij = any(strcmp(robustnessMode, ...
+    {'STOCH','COWC','c-COWC'}));
+value.requiresIntervalDij = any(strcmp(robustnessMode, ...
+    {'INTERVAL2','INTERVAL3'}));
 end

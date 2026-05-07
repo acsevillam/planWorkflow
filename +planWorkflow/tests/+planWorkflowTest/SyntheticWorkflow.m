@@ -20,7 +20,7 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             runConfig.cacheRootPath = fullfile(tempdir,'planWorkflow-cache');
         end
 
-        function runConfig = normalizeRunConfig(~,runConfig)
+        function runConfig = normalizeRunConfig(~,runConfig,varargin)
             runConfig.description = char(runConfig.description);
             runConfig.caseID = char(runConfig.caseID);
             runConfig.runId = char(runConfig.runId);

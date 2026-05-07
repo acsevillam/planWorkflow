@@ -25,8 +25,8 @@ classdef PlanLabels
             variants = planConfig.variants;
             variant = variants(min(variantIx,numel(variants)));
             strategy = '';
-            if isfield(planConfig,'strategy')
-                strategy = char(planConfig.strategy);
+            if isfield(planConfig,'robustnessMode')
+                strategy = char(planConfig.robustnessMode);
             end
 
             suffix = planWorkflow.results.PlanLabels.robustVariantSuffix( ...

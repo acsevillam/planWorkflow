@@ -22,12 +22,6 @@ classdef CheapCOWCStrategy < planWorkflow.robustness.AbstractStrategy
             [p1,p2] = obj.bounds(runConfig);
             pln.propOpt.p1 = p1;
             pln.propOpt.p2 = p2;
-
-            cst = obj.setTargetRobustness(cst,objectiveInfo.ixTarget,'COWC');
-            if obj.includeOAR
-                cst = obj.setOARRobustness(cst, ...
-                    objectiveInfo.robustOarNames,'COWC');
-            end
         end
     end
 

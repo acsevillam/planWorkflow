@@ -207,10 +207,10 @@ classdef IntervalDoseInfluence
                 interval.robustOarNames = {};
             end
             if strcmp(robustData.strategy.name,'INTERVAL3')
-                interval.KMode = robustData.planConfig.strategyOptions.KMode;
-                interval.kmax = robustData.planConfig.strategyOptions.kmax;
+                interval.KMode = robustData.planConfig.robustnessOptions.KMode;
+                interval.kmax = robustData.planConfig.robustnessOptions.kmax;
                 interval.retentionThreshold = ...
-                    robustData.planConfig.strategyOptions.retentionThreshold;
+                    robustData.planConfig.robustnessOptions.retentionThreshold;
             end
             contextOut.interval = interval;
             if isfield(robustData,'stf') && ~isempty(robustData.stf)
@@ -253,11 +253,11 @@ classdef IntervalDoseInfluence
             if strcmp(robustData.strategy.name,'INTERVAL3')
                 intervalConfig.UseParallel = true;
                 intervalConfig.KMode = ...
-                    robustData.planConfig.strategyOptions.KMode;
+                    robustData.planConfig.robustnessOptions.KMode;
                 intervalConfig.KMax = ...
-                    robustData.planConfig.strategyOptions.kmax;
+                    robustData.planConfig.robustnessOptions.kmax;
                 intervalConfig.RetentionThreshold = ...
-                    robustData.planConfig.strategyOptions.retentionThreshold;
+                    robustData.planConfig.robustnessOptions.retentionThreshold;
             end
         end
 

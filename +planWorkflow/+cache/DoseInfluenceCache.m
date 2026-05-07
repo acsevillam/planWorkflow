@@ -42,7 +42,7 @@ classdef DoseInfluenceCache
         end
 
         function dij = getOrCalculateTransient(runConfig,cachePath,tag, ...
-                strategyName,ct,cst,stf,pln,logFn)
+                robustnessModeName,ct,cst,stf,pln,logFn)
             if nargin < 9 || isempty(logFn)
                 logFn = @(message) [];
             end
@@ -72,7 +72,7 @@ classdef DoseInfluenceCache
             if runConfig.writeCache
                 logFn(sprintf(['Skipping persistent robust dij cache for ' ...
                     '%s; dij_interval is the cache artifact used by ' ...
-                    'INTERVAL optimization.'],char(strategyName)));
+                    'INTERVAL optimization.'],char(robustnessModeName)));
             end
         end
 
@@ -96,16 +96,14 @@ classdef DoseInfluenceCache
                 planWorkflow.cache.CacheIdentity.artifactMetadata( ...
                 runConfig,tag);
             metadata.artifact = artifactMetadata;
-            if isfield(artifactMetadata,'strategy') && ...
-                    ~isempty(artifactMetadata.strategy)
-                metadata.strategy = artifactMetadata.strategy;
+            if isfield(artifactMetadata,'robustnessMode') && ...
+                    ~isempty(artifactMetadata.robustnessMode)
+                metadata.robustnessMode = artifactMetadata.robustnessMode;
             elseif strcmp(char(tag),'reference')
                 reference = ...
                     planWorkflow.config.RobustPlanConfig.referenceFromRunConfig( ...
                     runConfig);
-                if isfield(reference,'strategy') && ~isempty(reference.strategy)
-                    metadata.strategy = reference.strategy;
-                end
+                metadata.robustnessMode = reference.robustnessMode;
             end
             if isfield(artifactMetadata,'planId')
                 metadata.planId = artifactMetadata.planId;
@@ -115,7 +113,8 @@ classdef DoseInfluenceCache
                 metadata.objectiveSetName = ...
                     artifactMetadata.objectiveSetName;
                 metadata.scenario = artifactMetadata.scenario;
-                metadata.strategyOptions = artifactMetadata.strategyOptions;
+                metadata.robustnessMode = artifactMetadata.robustnessMode;
+                metadata.robustnessOptions = artifactMetadata.robustnessOptions;
                 metadata.optimization4D = artifactMetadata.optimization4D;
             end
             metadata.cacheIdentity = descriptor.identity;

@@ -29,7 +29,6 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.plan_beams = '';
             runConfig.precompute = ...
                 planWorkflow.config.RobustPlanConfig.defaults();
-            runConfig.scale_factor = 1.0;
             runConfig.skinMode = 'full';
             runConfig.skinThicknessMm = [];
             runConfig.skinTargetDistanceMm = 30;
@@ -45,6 +44,17 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.dose_pulling2_limit = 0.80;
             runConfig.dose_pulling2_start = 0;
             runConfig.dose_pulling_max_iter = 100;
+            runConfig.dose_pulling_strategy = 'heuristicMultiObjective';
+            runConfig.dose_pulling_search_schedule = 'exponential';
+            runConfig.dose_pulling_local_window = 8;
+            runConfig.dose_pulling_patience = 3;
+            runConfig.dose_pulling_target_tol = 1e-3;
+            runConfig.dose_pulling_selection_policy = 'normalizedKnee';
+            runConfig.dose_pulling_target_weight = 1.0;
+            runConfig.dose_pulling_oar_weight = 1.0;
+            runConfig.dose_pulling_step_weight = 1e-6;
+            runConfig.dose_pulling_max_vmax_percent = 100;
+            runConfig.dose_pulling_use_warm_start = true;
             runConfig.sampling_caseID = 'none';
             runConfig.sampling_AcquisitionType = 'none';
             runConfig.sampling_dicomMetadata = struct();
@@ -67,7 +77,10 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.n_cores = feature('numcores');
         end
 
-        function runConfig = normalizeRunConfig(obj,runConfig)
+        function runConfig = normalizeRunConfig(obj,runConfig,effectiveTemplate)
+            if nargin < 3
+                effectiveTemplate = [];
+            end
             obj.rejectUnsupportedConfigFields(runConfig);
 
             runConfig.radiationMode = char(runConfig.radiationMode);
@@ -83,16 +96,29 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.caseID = char(runConfig.caseID);
             runConfig.AcquisitionType = char(runConfig.AcquisitionType);
             runConfig.workflowType = char(runConfig.workflowType);
+            hasRawRobustPlans = isfield(runConfig.precompute,'robustPlans');
+            if hasRawRobustPlans
+                rawRobustPlans = runConfig.precompute.robustPlans;
+                runConfig.precompute = rmfield( ...
+                    runConfig.precompute,'robustPlans');
+            end
             runConfig.precompute = ...
                 planWorkflow.config.RobustPlanConfig.normalizePrecompute( ...
                 runConfig.precompute);
+            if hasRawRobustPlans
+                runConfig.precompute.robustPlans = rawRobustPlans;
+            end
             runConfig.plan_template = ...
                 planWorkflow.templates.PlanTemplate.normalizeTemplateId( ...
                 runConfig.description,runConfig.plan_template);
             runConfig.plan_template_hash = char(runConfig.plan_template_hash);
             runConfig.plan_beams = char(runConfig.plan_beams);
-            template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
-                runConfig.description,runConfig.plan_template);
+            if isempty(effectiveTemplate)
+                template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+                    runConfig.description,runConfig.plan_template);
+            else
+                template = effectiveTemplate;
+            end
             if isempty(runConfig.plan_beams)
                 runConfig.plan_beams = ...
                     planWorkflow.templates.PlanTemplate.defaultBeamSetForRadiationMode( ...
@@ -111,6 +137,9 @@ classdef Engine < planWorkflow.WorkflowBase
             end
             runConfig.bioModel = char(runConfig.bioModel);
             planWorkflow.templates.PlanTemplate.validateRunConfigSelection( ...
+                runConfig,template);
+            runConfig = ...
+                planWorkflow.config.WorkflowContractValidator.alignRobustPlansWithTemplate( ...
                 runConfig,template);
             obj.validateRadiationModeOption( ...
                 runConfig.machine, ...
@@ -175,6 +204,9 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.dose_pulling1_criteria = obj.asCellstr(runConfig.dose_pulling1_criteria);
             runConfig.dose_pulling2_target = obj.asCellstr(runConfig.dose_pulling2_target);
             runConfig.dose_pulling2_criteria = char(runConfig.dose_pulling2_criteria);
+            runConfig = ...
+                planWorkflow.config.DosePullingConfig.normalizeSearchConfig( ...
+                runConfig);
 
             if isempty(runConfig.outputRootPath)
                 runConfig.outputRootPath = fullfile(obj.matRadCfg.primaryUserFolder,'output');
@@ -288,16 +320,16 @@ classdef Engine < planWorkflow.WorkflowBase
                 'analysis.robustnessCriteria', ...
                 'analysis.robustnessTargetMode', ...
                 'analysis.robustnessTargets', ...
-                'precompute.robustPlans(i).strategy', ...
+                'objectives.properties.robustness', ...
                 'precompute.robustPlans', ...
                 'precompute.robustPlans(i).scenario.mode', ...
                 'precompute.robustPlans(i).variants(j).p1', ...
                 'precompute.robustPlans(i).variants(j).p2', ...
                 'precompute.robustPlans(i).variants(j).theta1', ...
                 'precompute.robustPlans(i).variants(j).theta2', ...
-                'precompute.robustPlans(i).strategyOptions.KMode', ...
-                'precompute.robustPlans(i).strategyOptions.kmax', ...
-                'precompute.robustPlans(i).strategyOptions.retentionThreshold'};
+                'precompute.robustPlans(i).robustnessOptions.KMode', ...
+                'precompute.robustPlans(i).robustnessOptions.kmax', ...
+                'precompute.robustPlans(i).robustnessOptions.retentionThreshold'};
 
             for i = 1:numel(unsupportedFields)
                 if isfield(runConfig,unsupportedFields{i})
@@ -340,11 +372,6 @@ classdef Engine < planWorkflow.WorkflowBase
                         stageConfig.reference = ...
                             planWorkflow.config.RobustPlanConfig.normalizeReference( ...
                             stageConfig.reference);
-                    end
-                    if isfield(stageConfig,'robustPlans')
-                        stageConfig.robustPlans = ...
-                            planWorkflow.config.RobustPlanConfig.normalizePlans( ...
-                            stageConfig.robustPlans);
                     end
                 case 'pullDose'
                     if isfield(stageConfig,'step1Target')
@@ -659,7 +686,7 @@ classdef Engine < planWorkflow.WorkflowBase
             end
 
             obj.runConfig = obj.mergeStruct(obj.runConfig,runConfig);
-            obj.runConfig = obj.normalizeRunConfig(obj.runConfig);
+            obj.runConfig = obj.normalizeRunConfig(obj.runConfig,template);
             obj.setEffectivePlanTemplate(template);
         end
 
@@ -671,9 +698,9 @@ classdef Engine < planWorkflow.WorkflowBase
             options.currentStage = obj.state.currentStage;
             options.completedStages = obj.state.completedStages;
             options.nextStage = obj.nextIncompleteStage();
-            options.validateRunConfig = @(editedRunConfig) ...
+            options.validateRunConfig = @(editedRunConfig,editedTemplate) ...
                 obj.normalizeRunConfig(obj.mergeStruct( ...
-                obj.runConfig,editedRunConfig));
+                obj.runConfig,editedRunConfig),editedTemplate);
         end
 
         function setEffectivePlanTemplate(obj,template)

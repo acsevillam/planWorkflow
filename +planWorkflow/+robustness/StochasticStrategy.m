@@ -17,11 +17,6 @@ classdef StochasticStrategy < planWorkflow.robustness.AbstractStrategy
         end
 
         function [cst,pln] = apply(obj,cst,pln,objectiveInfo,runConfig) %#ok<INUSD>
-            cst = obj.setTargetRobustness(cst,objectiveInfo.ixTarget,'STOCH');
-            if obj.includeOAR
-                cst = obj.setOARRobustness(cst, ...
-                    objectiveInfo.robustOarNames,'STOCH');
-            end
         end
     end
 end

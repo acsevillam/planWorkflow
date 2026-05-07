@@ -287,7 +287,7 @@ plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = 'robust_1';
 plan.label = 'Robust 1';
 plan.objectiveSetName = 'robust_1';
-plan.strategy = 'INTERVAL2';
+plan.robustnessMode = 'INTERVAL2';
 plan.variants = struct('id','theta_5','label','theta1=5', ...
     'theta1',5);
 plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1);

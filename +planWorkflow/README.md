@@ -18,7 +18,7 @@ toolbox repository whose root folder is on the MATLAB path.
 - `planWorkflow.templates.PlanTemplate`: strict JSON-backed treatment-plan templates for beams, structures, objectives, and derived structures.
 - `planWorkflow.plan.Plan`, `planWorkflow.plan.loadBeams`, `planWorkflow.plan.Objectives`: plan construction, beam selectors, and objective helpers.
 - `planWorkflow.scenario.createModel`: scenario-model factory using matRad scenario classes.
-- `planWorkflow.structures.normalizeNames`, `planWorkflow.structures.createSkin`, `planWorkflow.structures.scaleDoseObjectives`, `planWorkflow.structures.pullDose`: cst name normalization, patient-surface skin generation, dose-pulling objective scaling, and dose-pulling increments.
+- `planWorkflow.structures.normalizeNames`, `planWorkflow.structures.createSkin`, `planWorkflow.structures.pullDose`: cst name normalization, patient-surface skin generation, and dose-pulling increments.
 - `planWorkflow.robustness.AbstractStrategy`: common interface for robust objective strategies.
 - `planWorkflow.robustness.StochasticStrategy`, `planWorkflow.robustness.COWCStrategy`, `planWorkflow.robustness.CheapCOWCStrategy`, `planWorkflow.robustness.NoneStrategy`, `planWorkflow.robustness.IntervalStrategy`: concrete strategy implementations.
 
@@ -32,7 +32,7 @@ config.prepare.plan_template = 'interval2_001';
 config.prepare.caseID = '3482';
 config.prepare.plan_beams = '9F';
 config.precompute.reference.label = 'Nominal';
-config.precompute.reference.strategy = 'none';
+config.precompute.reference.robustnessMode = 'none';
 config.precompute.reference.scenario.mode = 'nomScen';
 config.precompute.reference.scenario.ctActive = false;
 config.precompute.reference.scenario.setupActive = false;
@@ -41,7 +41,6 @@ config.precompute.reference.scenario.gantryActive = false;
 config.precompute.reference.scenario.couchActive = false;
 config.precompute.robustPlans.robust_1.label = 'INTERVAL2 theta sweep';
 config.precompute.robustPlans.robust_1.objectiveSetName = 'robust_1';
-config.precompute.robustPlans.robust_1.strategy = 'INTERVAL2';
 config.precompute.robustPlans.robust_1.scenario.mode = 'wcScen';
 config.precompute.robustPlans.robust_1.scenario.ctActive = true;
 config.precompute.robustPlans.robust_1.scenario.ctScenProb = [];

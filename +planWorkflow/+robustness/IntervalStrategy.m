@@ -23,11 +23,6 @@ classdef IntervalStrategy < planWorkflow.robustness.AbstractStrategy
                 pln.propOpt.theta2 = obj.variantScalarValue( ...
                     runConfig,'theta2');
             end
-
-            cst = obj.setTargetRobustness(cst,objectiveInfo.ixTarget, ...
-                obj.name);
-            cst = obj.setOARRobustness(cst, ...
-                objectiveInfo.robustOarNames,obj.name);
         end
     end
 

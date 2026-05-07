@@ -21,6 +21,155 @@ verifyDosePullingVariantCount(testCase,'c-COWC', ...
     struct('id','bounds_2','label','Bounds 2','p1',2,'p2',3)]);
 end
 
+function testHeuristicStepSearchSelectsNormalizedKneeStep(testCase)
+runConfig = heuristicRunConfig();
+runConfig.dose_pulling_max_iter = 10;
+runConfig.dose_pulling_local_window = 8;
+runConfig.dose_pulling_selection_policy = 'normalizedKnee';
+initialState = struct('step',0);
+
+search = planWorkflow.precompute.DosePullingStepSearch.run( ...
+    runConfig,initialState,@evaluateStep);
+
+verifyEqual(testCase,search.best.step,5);
+verifyEqual(testCase,search.localBracket,[0 10]);
+
+    function [state,result] = evaluateStep(state,step)
+        state.step = step;
+        value = min(0.9,0.4 + 0.1 * step);
+        result = ...
+            planWorkflow.precompute.DosePullingScoring.resultFromValues( ...
+            step,value,0.9,step);
+    end
+end
+
+function testWeightedSumRespectsConfiguredWeights(testCase)
+results = repmat(planWorkflow.precompute.DosePullingScoring.emptyResult(), ...
+    1,2);
+results(1) = ...
+    planWorkflow.precompute.DosePullingScoring.resultFromValues( ...
+    1,0.0,1.0,0.0);
+results(2) = ...
+    planWorkflow.precompute.DosePullingScoring.resultFromValues( ...
+    2,0.9,1.0,10.0);
+
+runConfig = heuristicRunConfig();
+runConfig.dose_pulling_selection_policy = 'weightedSum';
+runConfig.dose_pulling_target_weight = 10;
+runConfig.dose_pulling_oar_weight = 1;
+resultsByTarget = ...
+    planWorkflow.precompute.DosePullingScoring.annotateSelectionScores( ...
+    results,1e-3,runConfig);
+bestByTarget = planWorkflow.precompute.DosePullingScoring.chooseBest( ...
+    resultsByTarget,1e-3,runConfig);
+verifyEqual(testCase,bestByTarget.step,2);
+
+runConfig.dose_pulling_target_weight = 1;
+runConfig.dose_pulling_oar_weight = 10;
+resultsByOar = ...
+    planWorkflow.precompute.DosePullingScoring.annotateSelectionScores( ...
+    results,1e-3,runConfig);
+bestByOar = planWorkflow.precompute.DosePullingScoring.chooseBest( ...
+    resultsByOar,1e-3,runConfig);
+verifyEqual(testCase,bestByOar.step,1);
+end
+
+function testOarScoreUsesTotalDoseForDoseObjectives(testCase)
+cst = scoringCst(1,0);
+doseCube = [19 20 21];
+pln = struct('numOfFractions',2);
+
+score = planWorkflow.precompute.DosePullingScoring.oarObjectiveScoreFromDose( ...
+    cst,doseCube,pln,1,{'CTV'});
+
+verifyEqual(testCase,score,2 * 100 * 2 / 3,'AbsTol',1e-10);
+end
+
+function testChannel2WithoutOarDosePullingObjectivesHasZeroOarScore(testCase)
+cst = scoringCst(1,0);
+doseCube = [19 20 21];
+pln = struct('numOfFractions',2);
+
+score = planWorkflow.precompute.DosePullingScoring.oarObjectiveScoreFromDose( ...
+    cst,doseCube,pln,2,{'CTV'});
+
+verifyEqual(testCase,score,0);
+end
+
+function testInfeasibleVmaxCandidatesAreExcluded(testCase)
+runConfig = heuristicRunConfig();
+runConfig.dose_pulling_max_vmax_percent = 100;
+verifyFalse(testCase, ...
+    planWorkflow.precompute.DosePullingScoring.oarObjectiveFeasible( ...
+    scoringCst(1,101),1,{'CTV'},runConfig));
+
+results = repmat(planWorkflow.precompute.DosePullingScoring.emptyResult(), ...
+    1,2);
+results(1) = ...
+    planWorkflow.precompute.DosePullingScoring.resultFromValues( ...
+    1,1.0,1.0,0.0);
+results(1).isFeasible = false;
+results(2) = ...
+    planWorkflow.precompute.DosePullingScoring.resultFromValues( ...
+    2,1.0,1.0,1.0);
+results = planWorkflow.precompute.DosePullingScoring.annotateSelectionScores( ...
+    results,1e-3,runConfig);
+best = planWorkflow.precompute.DosePullingScoring.chooseBest( ...
+    results,1e-3,runConfig);
+
+verifyEqual(testCase,best.step,2);
+end
+
+function testHeuristicRobustChannel2SelectsLocalStepAndLogsLabel(testCase)
+runConfig = heuristicRunConfig();
+runConfig.dose_pulling_max_iter = 40;
+runConfig.dose_pulling2 = true;
+runConfig.dose_pulling2_target = {'CTV'};
+runConfig.dose_pulling2_limit = 0.4;
+runConfig.dose_pulling2_criteria = 'meanQiTarget';
+robustData = struct();
+robustData.planConfig = cleanPlan('INTERVAL2', ...
+    struct('id','theta_1','label','Variant 1','theta1',1));
+robustData.dij = struct();
+robustData.cst = pullingCst(1);
+robustData.ctScenProb = 1;
+robustData.pln = struct('propOpt',struct());
+messages = {};
+context = planWorkflow.precompute.DosePulling.context( ...
+    runConfig,@runOptimization,@runAnalysis,@runMetrics,@runPolicy, ...
+    @captureMessage);
+
+[~,report] = planWorkflow.precompute.DosePulling.runRobust( ...
+    context,robustData);
+
+verifyEqual(testCase,report.selected.step,24);
+verifyEqual(testCase,report.selected.oarScore,0);
+verifyTrue(testCase,any(contains(messages, ...
+    'meanQiTarget(COV1)_CTV')));
+
+    function resultGUI = runOptimization(~,~,~,~)
+        resultGUI = struct('w',1,'physicalDose',0);
+    end
+
+    function metrics = runMetrics(~,~,~,~,iteration,~)
+        value = min(0.4,iteration / 60);
+        metrics = struct('step',2,'iteration',iteration, ...
+            'targetNames',{{'CTV'}},'criteria',{{'COV1'}}, ...
+            'meanQiTarget',value,'minQiTarget',value, ...
+            'selectedCriterion','meanQiTarget', ...
+            'selectedValues',value,'limits',0.4, ...
+            'isSatisfied',value >= 0.4);
+    end
+
+    function tf = runPolicy(metrics)
+        tf = ~metrics.isSatisfied;
+    end
+
+    function captureMessage(message)
+        messages{end + 1} = message; %#ok<AGROW>
+    end
+end
+
 function testRobustDosePullingWeightsUseFinalPlanCst(testCase)
 variants = [struct('id','theta_1','label','Theta 1','theta1',1) ...
     struct('id','theta_5','label','Theta 5','theta1',5)];
@@ -93,12 +242,12 @@ verifyEqual(testCase,cell2mat(robustData.initialWeights),1:numel(variants));
     end
 end
 
-function plan = cleanPlan(strategy,variants)
+function plan = cleanPlan(robustnessMode,variants)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = 'robust_1';
-plan.label = strategy;
+plan.label = robustnessMode;
 plan.objectiveSetName = 'robust_1';
-plan.strategy = strategy;
+plan.robustnessMode = robustnessMode;
 plan.variants = variants;
 plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1);
 end
@@ -132,10 +281,30 @@ end
 
 function runConfig = dosePullingRunConfig()
 runConfig = struct();
+runConfig.dose_pulling_strategy = 'Threshold';
 runConfig.dose_pulling_max_iter = 10;
 runConfig.dose_pulling2_start = 0;
 runConfig.dose_pulling2_limit = 0;
 runConfig.dose_pulling2_criteria = 'meanQiTarget';
+end
+
+function runConfig = heuristicRunConfig()
+runConfig = dosePullingRunConfig();
+runConfig.dose_pulling_strategy = 'heuristicMultiObjective';
+runConfig.dose_pulling_search_schedule = 'exponential';
+runConfig.dose_pulling_local_window = 8;
+runConfig.dose_pulling_patience = 3;
+runConfig.dose_pulling_target_tol = 1e-3;
+runConfig.dose_pulling_selection_policy = 'normalizedKnee';
+runConfig.dose_pulling_target_weight = 1.0;
+runConfig.dose_pulling_oar_weight = 1.0;
+runConfig.dose_pulling_step_weight = 1e-6;
+runConfig.dose_pulling_max_vmax_percent = 100;
+runConfig.dose_pulling_use_warm_start = true;
+runConfig.dose_pulling1_target = {'CTV'};
+runConfig.dose_pulling1_criteria = {'COV1'};
+runConfig.dose_pulling1_limit = 0.9;
+runConfig.dose_pulling2_target = {'CTV'};
 end
 
 function [resultGUI,dvh,qi] = runAnalysis( ...
@@ -168,6 +337,22 @@ objective = struct( ...
     'objectivePullingRate',{{1}}, ...
     'penaltyPullingRate',0);
 cst = cell(1,6);
+cst{1,2} = 'CTV';
 cst{1,4} = {1};
 cst{1,6} = {objective};
+end
+
+function cst = scoringCst(pullingStep,vMaxPercent)
+targetObjective = struct('className','matRad_MinDose', ...
+    'parameters',{{78}},'penalty',1,'dosePulling',false);
+oarObjective = struct('className','matRad_MaxDVH', ...
+    'parameters',{{40,vMaxPercent}},'penalty',2, ...
+    'dosePulling',true,'pullingStep',pullingStep);
+cst = cell(2,6);
+cst{1,2} = 'CTV';
+cst{1,4} = {1};
+cst{1,6} = {targetObjective};
+cst{2,2} = 'RECTUM';
+cst{2,4} = {1:3};
+cst{2,6} = {oarObjective};
 end

@@ -45,7 +45,7 @@ classdef WorkflowContractValidator
                 planWorkflow.templates.PlanTemplate.robustObjectiveSets( ...
                 template);
             existingPlans = ...
-                planWorkflow.config.RobustPlanConfig.plansFromRunConfig( ...
+                planWorkflow.config.WorkflowContractValidator.rawRobustPlansFromRunConfig( ...
                 runConfig);
             if isempty(robustObjectiveSets)
                 planWorkflow.config.WorkflowContractValidator.assertNoUnmatchedPlans( ...
@@ -59,8 +59,14 @@ classdef WorkflowContractValidator
             alignedPlans = repmat( ...
                 planWorkflow.config.RobustPlanConfig.defaultPlan(), ...
                 1,numel(robustObjectiveSets));
+            robustnessContracts = repmat( ...
+                planWorkflow.config.RobustPlanConfig.defaultRobustnessContract(), ...
+                1,numel(robustObjectiveSets));
             for planIx = 1:numel(robustObjectiveSets)
                 objectiveSet = robustObjectiveSets(planIx);
+                robustnessContracts(planIx) = ...
+                    planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( ...
+                    objectiveSet);
                 [plan,matchedPlanIx] = ...
                     planWorkflow.config.WorkflowContractValidator.matchingRobustPlan( ...
                     existingPlans,objectiveSet);
@@ -83,7 +89,7 @@ classdef WorkflowContractValidator
                 plan.objectiveSetName = char(objectiveSet.id);
                 plan = ...
                     planWorkflow.config.RobustPlanPanelAdapter.completePlan( ...
-                    plan,runConfig);
+                    plan,runConfig,robustnessContracts(planIx));
                 alignedPlans(planIx) = plan;
             end
             planWorkflow.config.WorkflowContractValidator.assertNoUnmatchedPlans( ...
@@ -95,7 +101,7 @@ classdef WorkflowContractValidator
             end
             runConfig.precompute.robustPlans = ...
                 planWorkflow.config.RobustPlanConfig.normalizePlans( ...
-                alignedPlans);
+                alignedPlans,robustnessContracts);
         end
 
         function runConfig = ensureReferencePlanLabel(runConfig)
@@ -154,6 +160,86 @@ classdef WorkflowContractValidator
     end
 
     methods (Static, Access = private)
+        function plans = rawRobustPlansFromRunConfig(runConfig)
+            plans = repmat( ...
+                planWorkflow.config.RobustPlanConfig.defaultPlan(),1,0);
+            if ~isstruct(runConfig) || ~isfield(runConfig,'precompute') || ...
+                    ~isstruct(runConfig.precompute) || ...
+                    ~isfield(runConfig.precompute,'robustPlans') || ...
+                    isempty(runConfig.precompute.robustPlans)
+                return;
+            end
+
+            rawPlans = runConfig.precompute.robustPlans;
+            if planWorkflow.config.WorkflowContractValidator.isNamedPlanStruct( ...
+                    rawPlans)
+                ids = fieldnames(rawPlans);
+                rawPlanCells = cell(1,numel(ids));
+                planFields = {};
+                for planIx = 1:numel(ids)
+                    plan = rawPlans.(ids{planIx});
+                    if isfield(plan,'id') && ~isempty(plan.id) && ...
+                            ~strcmp(char(plan.id),ids{planIx})
+                        error(['planWorkflow:config:RobustPlanConfig:' ...
+                            'RobustPlanIdMismatch'], ...
+                            ['config.precompute.robustPlans.%s.id must ' ...
+                             'match the robust plan field name.'], ...
+                            ids{planIx});
+                    end
+                    plan.id = ids{planIx};
+                    if ~isfield(plan,'objectiveSetName') || ...
+                            isempty(plan.objectiveSetName)
+                        plan.objectiveSetName = ids{planIx};
+                    end
+                    rawPlanCells{planIx} = plan;
+                    planFields = unique([planFields; fieldnames(plan)], ...
+                        'stable'); %#ok<AGROW>
+                end
+                planTemplate = cell2struct( ...
+                    cell(numel(planFields),1),planFields,1);
+                plans = repmat(planTemplate,1,numel(ids));
+                for planIx = 1:numel(ids)
+                    plan = rawPlanCells{planIx};
+                    fields = fieldnames(plan);
+                    for fieldIx = 1:numel(fields)
+                        plans(planIx).(fields{fieldIx}) = ...
+                            plan.(fields{fieldIx});
+                    end
+                end
+                return;
+            end
+
+            if ~isstruct(rawPlans)
+                error('planWorkflow:config:RobustPlanConfig:InvalidRobustPlans', ...
+                    'config.precompute.robustPlans must be a struct array.');
+            end
+            plans = rawPlans(:)';
+        end
+
+        function tf = isNamedPlanStruct(plans)
+            tf = false;
+            if ~isstruct(plans) || ~isscalar(plans)
+                return;
+            end
+            planFields = fieldnames(plans);
+            allowed = {'id','label','objectiveSetName','robustnessMode', ...
+                'hasNominalObjectives','requiresNominalDij', ...
+                'requiresScenarioDij','requiresIntervalDij', ...
+                'optimization4D','scenario','robustnessOptions', ...
+                'variants'};
+            if isempty(planFields) || all(ismember(planFields,allowed))
+                return;
+            end
+            for i = 1:numel(planFields)
+                fieldValue = plans.(planFields{i});
+                if ~isvarname(planFields{i}) || ~isstruct(fieldValue) || ...
+                        ~isscalar(fieldValue)
+                    return;
+                end
+            end
+            tf = true;
+        end
+
         function [plan,planIx] = matchingRobustPlan(plans,objectiveSet)
             plan = struct();
             planIx = 0;

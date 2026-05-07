@@ -89,7 +89,10 @@ classdef CacheIdentity
             metadata.kind = artifact.kind;
             metadata.planId = artifact.planId;
             metadata.variantId = artifact.variantId;
-            metadata.strategy = artifact.strategy;
+            metadata.robustnessMode = artifact.robustnessMode;
+            if isfield(artifact,'role') && ~isempty(artifact.role)
+                metadata.role = artifact.role;
+            end
             if any(strcmp(artifact.kind,{'robust','interval'}))
                 plan = planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
                     runConfig,artifact);
@@ -107,9 +110,13 @@ classdef CacheIdentity
     methods (Static, Access = private)
         function artifact = artifactFromTag(tag)
             artifact = struct('kind','other','planId','', ...
-                'variantId','','strategy','');
+                'variantId','','robustnessMode','','role','');
             if strcmp(tag,'reference')
                 artifact.kind = 'reference';
+            elseif startsWith(tag,'robustNominal_')
+                artifact.kind = 'robust';
+                artifact.planId = char(extractAfter(tag,'robustNominal_'));
+                artifact.role = 'nominal';
             elseif startsWith(tag,'robust_')
                 artifact.kind = 'robust';
                 artifact.planId = char(extractAfter(tag,'robust_'));
@@ -119,7 +126,8 @@ classdef CacheIdentity
             end
             artifact.planId = char(artifact.planId);
             artifact.variantId = char(artifact.variantId);
-            artifact.strategy = char(artifact.strategy);
+            artifact.robustnessMode = char(artifact.robustnessMode);
+            artifact.role = char(artifact.role);
         end
 
         function artifact = enrichArtifact(runConfig,artifact)
@@ -128,7 +136,7 @@ classdef CacheIdentity
             end
             plan = planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
                 runConfig,artifact);
-            artifact.strategy = char(plan.strategy);
+            artifact.robustnessMode = char(plan.robustnessMode);
         end
 
         function identity = identityStruct(runConfig,tag,artifact,pln,context)
@@ -304,8 +312,9 @@ classdef CacheIdentity
             artifactOut = struct();
             artifactOut.kind = planWorkflow.cache.CacheIdentity.physicalTag( ...
                 artifact);
-            if strcmp(artifact.kind,'interval') && ~isempty(artifact.strategy)
-                artifactOut.strategy = artifact.strategy;
+            if strcmp(artifact.kind,'interval') && ...
+                    ~isempty(artifact.robustnessMode)
+                artifactOut.robustnessMode = artifact.robustnessMode;
             end
         end
 
@@ -328,9 +337,9 @@ classdef CacheIdentity
                 identity.modality.bioModel, ...
                 identity.beam.plan_beams, ...
                 physicalArtifact.kind};
-            if isfield(physicalArtifact,'strategy') && ...
-                    ~isempty(physicalArtifact.strategy)
-                folderParts{end + 1} = physicalArtifact.strategy;
+            if isfield(physicalArtifact,'robustnessMode') && ...
+                    ~isempty(physicalArtifact.robustnessMode)
+                folderParts{end + 1} = physicalArtifact.robustnessMode;
             end
             folderParts = cellfun( ...
                 @planWorkflow.cache.CacheIdentity.sanitizePathPart, ...
@@ -375,6 +384,15 @@ classdef CacheIdentity
                 return;
             end
 
+            if planWorkflow.cache.CacheIdentity.isNominalRobustArtifact( ...
+                    artifact)
+                scenario = ...
+                    planWorkflow.config.RobustPlanConfig.matRadScenario( ...
+                    planWorkflow.config.RobustPlanConfig.defaultScenario( ...
+                    'nomScen'));
+                return;
+            end
+
             if any(strcmp(artifact.kind,{'robust','interval'}))
                 plan = ...
                     planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
@@ -391,11 +409,17 @@ classdef CacheIdentity
                 'wcScen'));
         end
 
+        function tf = isNominalRobustArtifact(artifact)
+            tf = strcmp(artifact.kind,'robust') && ...
+                isfield(artifact,'role') && strcmp(artifact.role,'nominal');
+        end
+
         function plan = robustPlanForArtifact(runConfig,artifact)
             if ~isfield(artifact,'planId') || isempty(artifact.planId)
                 error('planWorkflow:cache:CacheIdentity:MissingRobustPlanId', ...
                     ['Robust cache artifacts require an explicit planId. ' ...
-                     'Use tags like robust_<planId> or interval_<planId>.']);
+                     'Use tags like robust_<planId>, ' ...
+                     'robustNominal_<planId>, or interval_<planId>.']);
             end
 
             plans = ...
@@ -414,10 +438,10 @@ classdef CacheIdentity
             metadata = struct();
             metadata.planId = char(plan.id);
             metadata.label = char(plan.label);
-            metadata.strategy = char(plan.strategy);
+            metadata.robustnessMode = char(plan.robustnessMode);
             metadata.objectiveSetName = char(plan.objectiveSetName);
             metadata.scenario = plan.scenario;
-            metadata.strategyOptions = plan.strategyOptions;
+            metadata.robustnessOptions = plan.robustnessOptions;
             metadata.optimization4D = plan.optimization4D;
         end
 

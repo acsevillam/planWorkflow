@@ -1214,7 +1214,7 @@ classdef (Abstract) WorkflowBase < handle
 
     methods (Abstract, Access = protected)
         runConfig = defaultRunConfig(obj)
-        runConfig = normalizeRunConfig(obj,runConfig)
+        runConfig = normalizeRunConfig(obj,runConfig,varargin)
         configurePaths(obj)
         doPrepare(obj)
         doPrecompute(obj)

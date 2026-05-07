@@ -46,6 +46,62 @@ verifyNotEmpty(testCase,workflow.runConfig.plan_template_hash);
 verifyTrue(testCase,contains(workflow.cacheKeyPublic('reference'),'7F'));
 end
 
+function testGuiUsesEditedTemplateForCalculateNormalization(testCase)
+workflow = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+template = ...
+    planWorkflow.templates.ObjectiveRobustnessMutator.harmonizeTemplateNonNoneRobustness( ...
+    template,'robust_1','INTERVAL3');
+runConfig = workflow.runConfig;
+runConfig.precompute.robustPlans(1).label = 'INTERVAL3';
+workflow.setEditorResponse(template,runConfig,true);
+
+workflow.gui();
+
+robustPlans = workflow.runConfig.precompute.robustPlans;
+contract = ...
+    planWorkflow.templates.ObjectiveRobustnessContract.forTemplateObjectiveSet( ...
+    workflow.data.planTemplate,'robust_1');
+
+verifyEqual(testCase,workflow.runConfig.plan_template,'interval2_001');
+verifyEqual(testCase,robustPlans(1).label,'INTERVAL3');
+verifyEqual(testCase,robustPlans(1).robustnessMode,'INTERVAL3');
+verifyEqual(testCase,contract.robustnessMode,'INTERVAL3');
+verifyEqual(testCase,workflow.runConfig.plan_template_hash, ...
+    planWorkflow.templates.PlanTemplate.hash(template));
+end
+
+function testGuiPlanLabelDoesNotDriveObjectiveRobustness(testCase)
+workflow = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = workflow.runConfig;
+runConfig.precompute.robustPlans(1).label = 'INTERVAL3';
+workflow.setEditorResponse(template,runConfig,true);
+
+workflow.gui();
+
+robustPlans = workflow.runConfig.precompute.robustPlans;
+
+verifyEqual(testCase,robustPlans(1).label,'INTERVAL3');
+verifyEqual(testCase,robustPlans(1).robustnessMode,'INTERVAL2');
+end
+
+function testPlanEditorValidateRunConfigRequiresTemplateInput(testCase)
+options = struct();
+options.validateRunConfig = @(runConfig) runConfig;
+
+verifyError(testCase,@() ...
+    planWorkflow.gui.PlanEditor.normalizeEditorOptions(options), ...
+    'planWorkflow:gui:PlanEditor:InvalidEditorOptions');
+
+options.validateRunConfig = @(runConfig,template) runConfig;
+options = planWorkflow.gui.PlanEditor.normalizeEditorOptions(options);
+
+verifyEqual(testCase,nargin(options.validateRunConfig),2);
+end
+
 function testHiddenParameterPanelFieldsAreRemovedFromConfig(testCase)
 fig = figure('Visible','off');
 cleanupFig = onCleanup(@() close(fig));
@@ -96,8 +152,8 @@ runConfig = struct();
 runConfig.useCache = true;
 runConfig.writeCache = true;
 runConfig.precompute = planWorkflow.config.RobustPlanConfig.defaults();
-plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
-plan.strategy = 'INTERVAL2';
+	plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
+	plan.robustnessMode = 'INTERVAL2';
 plan.scenario = planWorkflow.config.ScenarioSpec.defaults('nomScen');
 plan.variants = ...
     planWorkflow.config.RobustStrategySpec.defaultVariant('INTERVAL2',1);
@@ -124,6 +180,122 @@ verifyEqual(testCase, ...
 verifyEqual(testCase, ...
     get(handles.robustConfigTables(1).controls(KModeIx),'String'), ...
     {'dynamic';'static'});
+end
+
+function testPrecomputeRobustnessFieldIsDropdownForRobustPlans(testCase)
+runConfig = baseRunConfigWithRobust('INTERVAL2','nomScen', ...
+    struct('ctActive',true));
+planConfig = runConfig.precompute.robustPlans(1);
+
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+tableHandle = planWorkflow.gui.ParameterPanelRenderer.create( ...
+    fig,[0 0 1 1], ...
+    planWorkflow.gui.panels.PrecomputePanel.robustSpecs(), ...
+    planWorkflow.gui.panels.PrecomputePanel.optionSets( ...
+    runConfig,planConfig),struct(),struct());
+
+robustnessControl = ...
+    planWorkflow.gui.ParameterPanelRenderer.control( ...
+    tableHandle,'robustness');
+
+verifyEqual(testCase,get(robustnessControl,'Style'),'popupmenu');
+end
+
+function testPrecomputeSyncOnlyRewritesObjectivesWhenRobustnessChanges(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = baseRunConfigWithRobust('INTERVAL2','nomScen', ...
+    struct('ctActive',true));
+transversalConfig = runConfig;
+transversalConfig.bixelWidth = 5;
+
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+tabGroup = uitabgroup('Parent',fig);
+parent = uitab(tabGroup);
+callbacks = struct('addRobustPlan',[],'deleteRobustPlan',[], ...
+    'reference',struct());
+handles = planWorkflow.gui.panels.PrecomputeEditorPanel.create( ...
+    parent,runConfig,callbacks);
+[handles,runConfig,template] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+baselineData = planWorkflow.gui.ObjectiveTableAdapter.toTable( ...
+    template,'robust_1');
+
+[handles,runConfig,template,transversalConfig] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.sync( ...
+    handles,runConfig,template,transversalConfig);
+unchangedData = planWorkflow.gui.ObjectiveTableAdapter.toTable( ...
+    template,'robust_1');
+
+verifyEqual(testCase,unchangedData(:,5),baselineData(:,5));
+
+robustnessControl = ...
+    planWorkflow.gui.ParameterPanelRenderer.control( ...
+    handles.robustConfigTables(1),'robustness');
+robustnessValues = get(robustnessControl,'String');
+robustnessIx = find(strcmp(robustnessValues,'INTERVAL3'),1);
+set(robustnessControl,'Value',robustnessIx);
+handles = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.refreshVisibility( ...
+    handles);
+
+[~,~,template,~] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.sync( ...
+    handles,runConfig,template,transversalConfig);
+changedData = planWorkflow.gui.ObjectiveTableAdapter.toTable( ...
+    template,'robust_1');
+
+verifyTrue(testCase,any(strcmp(changedData(:,5),'none')));
+verifyTrue(testCase,any(strcmp(changedData(:,5),'INTERVAL3')));
+verifyFalse(testCase,any(strcmp(changedData(:,5),'INTERVAL2')));
+end
+
+function testPrecomputeReferenceRobustnessDropdownPreservesNominalObjectives(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = baseRunConfig();
+transversalConfig = runConfig;
+transversalConfig.bixelWidth = 5;
+
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+tabGroup = uitabgroup('Parent',fig);
+parent = uitab(tabGroup);
+callbacks = struct('addRobustPlan',[],'deleteRobustPlan',[], ...
+    'reference',struct());
+handles = planWorkflow.gui.panels.PrecomputeEditorPanel.create( ...
+    parent,runConfig,callbacks);
+[handles,runConfig,template] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+
+robustnessControl = ...
+    planWorkflow.gui.ParameterPanelRenderer.control( ...
+    handles.referenceConfigTable,'reference_robustness');
+robustnessValues = get(robustnessControl,'String');
+robustnessIx = find(strcmp(robustnessValues,'INTERVAL2'),1);
+set(robustnessControl,'Value',robustnessIx);
+handles = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.refreshVisibility( ...
+    handles);
+
+[handles,runConfig,template,~] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.sync( ...
+    handles,runConfig,template,transversalConfig);
+data = planWorkflow.gui.ObjectiveTableAdapter.toTable( ...
+    template,'reference');
+reference = ...
+    planWorkflow.config.RobustPlanConfig.referenceFromRunConfig( ...
+    runConfig);
+
+verifyTrue(testCase,all(strcmp(data(:,5),'none')));
+verifyEqual(testCase,reference.robustnessMode,'none');
+verifyEqual(testCase, ...
+    planWorkflow.gui.ParameterPanelRenderer.fieldValue( ...
+    handles.referenceConfigTable,'reference_robustness'),'none');
 end
 
 function testPrepareQuantityOptIsPopupFromBioModel(testCase)
@@ -391,25 +563,96 @@ verifyEqual(testCase,workflow.runConfig.dose_pulling2_target,{'PTV'});
 end
 
 function testDosePullingFieldsFollowChannelToggles(testCase)
+commonFields = {'dose_pulling_max_iter','dose_pulling_strategy', ...
+    'dose_pulling_search_schedule','dose_pulling_local_window', ...
+    'dose_pulling_patience','dose_pulling_target_tol', ...
+    'dose_pulling_selection_policy', ...
+    'dose_pulling_max_vmax_percent','dose_pulling_use_warm_start'};
 verifyEqual(testCase, ...
     planWorkflow.config.WorkflowParameterSchema.dosePullingVisibleFields( ...
     false,false), ...
-    {'dose_pulling1','dose_pulling2', ...
-    'dose_pulling_max_iter','scale_factor'});
+    [{'dose_pulling1','dose_pulling2'},commonFields]);
 verifyEqual(testCase, ...
     planWorkflow.config.WorkflowParameterSchema.dosePullingVisibleFields( ...
     true,false), ...
     {'dose_pulling1','dose_pulling1_target', ...
     'dose_pulling1_criteria','dose_pulling1_limit', ...
     'dose_pulling1_start','dose_pulling2', ...
-    'dose_pulling_max_iter','scale_factor'});
+    commonFields{:}});
 verifyEqual(testCase, ...
     planWorkflow.config.WorkflowParameterSchema.dosePullingVisibleFields( ...
     false,true), ...
     {'dose_pulling1','dose_pulling2', ...
     'dose_pulling2_target','dose_pulling2_criteria', ...
-    'dose_pulling2_limit','dose_pulling2_start','dose_pulling_max_iter', ...
-    'scale_factor'});
+    'dose_pulling2_limit','dose_pulling2_start',commonFields{:}});
+verifyEqual(testCase, ...
+    planWorkflow.config.WorkflowParameterSchema.dosePullingVisibleFields( ...
+    false,false,'Threshold','normalizedKnee'), ...
+    {'dose_pulling1','dose_pulling2','dose_pulling_max_iter', ...
+    'dose_pulling_strategy'});
+verifyEqual(testCase, ...
+    planWorkflow.config.WorkflowParameterSchema.dosePullingVisibleFields( ...
+    false,false,'heuristicMultiObjective','weightedSum'), ...
+    [{'dose_pulling1','dose_pulling2'},commonFields(1:7), ...
+    {'dose_pulling_target_weight','dose_pulling_oar_weight', ...
+    'dose_pulling_step_weight'},commonFields(8:9)]);
+end
+
+function testDosePullingDropdownsAndVisibilityRefresh(testCase)
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+panel = planWorkflow.gui.panels.DosePullingPanel.create( ...
+    fig,[0 0 1 1],struct());
+runConfig = dosePullingPanelRunConfig();
+
+planWorkflow.gui.panels.DosePullingPanel.load(panel,runConfig);
+
+strategyControl = planWorkflow.gui.ParameterPanelRenderer.control( ...
+    panel,'dose_pulling_strategy');
+scheduleControl = planWorkflow.gui.ParameterPanelRenderer.control( ...
+    panel,'dose_pulling_search_schedule');
+policyControl = planWorkflow.gui.ParameterPanelRenderer.control( ...
+    panel,'dose_pulling_selection_policy');
+verifyEqual(testCase,get(strategyControl,'Style'),'popupmenu');
+verifyEqual(testCase,get(scheduleControl,'Style'),'popupmenu');
+verifyEqual(testCase,get(policyControl,'Style'),'popupmenu');
+verifyTrue(testCase,any(strcmp(get(strategyControl,'String'), ...
+    'Threshold')));
+verifyTrue(testCase,any(strcmp(get(policyControl,'String'), ...
+    'weightedSum')));
+
+policyValues = get(policyControl,'String');
+set(policyControl,'Value',find(strcmp(policyValues,'weightedSum'),1));
+planWorkflow.gui.panels.DosePullingPanel.refresh(panel);
+visibleFields = planWorkflow.gui.ParameterPanelRenderer.visibleFields(panel);
+verifyTrue(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_target_weight')));
+verifyTrue(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_oar_weight')));
+verifyTrue(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_step_weight')));
+
+strategyValues = get(strategyControl,'String');
+set(strategyControl,'Value',find(strcmp(strategyValues,'Threshold'),1));
+planWorkflow.gui.panels.DosePullingPanel.refresh(panel);
+visibleFields = planWorkflow.gui.ParameterPanelRenderer.visibleFields(panel);
+verifyFalse(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_search_schedule')));
+verifyFalse(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_selection_policy')));
+verifyFalse(testCase,any(strcmp(visibleFields, ...
+    'dose_pulling_target_weight')));
+end
+
+function testDosePullingFieldsHaveHelpText(testCase)
+specs = planWorkflow.gui.panels.DosePullingPanel.specs();
+fields = {specs.field};
+doseFields = fields(startsWith(fields,'dose_pulling'));
+for fieldIx = 1:numel(doseFields)
+    specIx = find(strcmp(fields,doseFields{fieldIx}),1);
+    verifyNotEmpty(testCase,strtrim(specs(specIx).helpText), ...
+        sprintf('Missing help text for %s.',doseFields{fieldIx}));
+end
 end
 
 function testSamplingFieldsFollowOptimizationLinkToggle(testCase)
@@ -499,7 +742,7 @@ config.p2 = 2;
 plan = planWorkflow.config.RobustPlanPanelAdapter.planFromPanelConfig( ...
     config);
 
-verifyEqual(testCase,plan.strategy,'INTERVAL2');
+	verifyEqual(testCase,plan.robustnessMode,'INTERVAL2');
 verifyEqual(testCase,plan.variants.theta1,5);
 verifyFalse(testCase,isfield(plan.variants,'theta2'));
 verifyFalse(testCase,isfield(plan.variants,'p1'));
@@ -595,10 +838,10 @@ secondPlan.label = 'Robust 2';
 template.objectiveSets.robustPlans = [robustObjectiveSets secondPlan];
 runConfig = baseRunConfig();
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
-plan.id = 'robust_1';
-plan.label = 'Robust 1';
-plan.objectiveSetName = 'robust_1';
-plan.strategy = 'INTERVAL2';
+	plan.id = 'robust_1';
+	plan.label = 'Robust 1';
+	plan.objectiveSetName = 'robust_1';
+	plan.robustnessMode = 'INTERVAL2';
 plan.variants = [struct('id','theta_low','label','Theta low', ...
     'theta1',0.95) struct('id','theta_high','label','Theta high', ...
     'theta1',1.05)];
@@ -615,9 +858,9 @@ verifyEqual(testCase,{robustPlans.objectiveSetName}, ...
 verifyEqual(testCase,{robustPlans.label}, ...
     {'Robust 1','Robust 2'});
 verifyEqual(testCase,robustPlans(1).variants(1).theta1,0.95);
-verifyEqual(testCase,robustPlans(2).strategy,'none');
+verifyEqual(testCase,robustPlans(2).robustnessMode,'INTERVAL2');
 verifyEqual(testCase,numel(robustPlans(2).variants),1);
-verifyFalse(testCase,isfield(robustPlans(2).variants,'theta1'));
+verifyTrue(testCase,isfield(robustPlans(2).variants,'theta1'));
 end
 
 function testRobustPlanAlignmentRejectsPositionalFallback(testCase)
@@ -625,10 +868,10 @@ template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
     'prostate','interval2_001');
 runConfig = baseRunConfig();
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
-plan.id = 'legacy_plan';
-plan.label = 'Legacy plan';
-plan.objectiveSetName = 'legacy_objectives';
-plan.strategy = 'INTERVAL2';
+	plan.id = 'legacy_plan';
+	plan.label = 'Legacy plan';
+	plan.objectiveSetName = 'legacy_objectives';
+	plan.robustnessMode = 'INTERVAL2';
 plan.variants = struct('id','theta_5','label','theta1=5', ...
     'theta1',5);
 runConfig.precompute.robustPlans = ...
@@ -671,7 +914,6 @@ runConfig = baseRunConfig();
 runConfig.precompute.robustPlans = struct('id','robust_1', ...
     'objectiveSetName','robust_1', ...
     'label','  Interval 2 target plan  ', ...
-    'strategy','INTERVAL2', ...
     'scenario',planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen'), ...
     'variants',struct('id','theta_1','label','Theta 1','theta1',1));
@@ -1244,6 +1486,62 @@ verifyTrue(testCase,any(strcmp(columnFormat{2},'RING 0 - 20 mm')));
 verifyTrue(testCase,any(strcmp(columnFormat{3},'matRad_MaxDVH')));
 verifyTrue(testCase,any(strcmp(columnFormat{3},'matRad_MinDVH')));
 verifyEqual(testCase,columnFormat{4},'char');
+verifyTrue(testCase,iscell(columnFormat{5}));
+verifyTrue(testCase,any(strcmp(columnFormat{5},'none')));
+verifyTrue(testCase,any(strcmp(columnFormat{5},'INTERVAL2')));
+end
+
+function testObjectiveTableHarmonizesNonNoneRobustnessRows(testCase)
+data = {true,'CTV','matRad_MaxDVH','{}','none',''; ...
+    true,'PTV','matRad_MaxDVH','{}','INTERVAL2',''; ...
+    true,'RECTUM','matRad_MaxDVH','{}','COWC',''};
+
+data = planWorkflow.gui.ObjectiveTableAdapter.harmonizeNonNoneRobustness( ...
+    data,'INTERVAL3');
+
+verifyEqual(testCase,data{1,5},'none');
+verifyEqual(testCase,data{2,5},'INTERVAL3');
+verifyEqual(testCase,data{3,5},'INTERVAL3');
+
+data = planWorkflow.gui.ObjectiveTableAdapter.harmonizeNonNoneRobustness( ...
+    data,'none');
+
+verifyEqual(testCase,data{1,5},'none');
+verifyEqual(testCase,data{2,5},'none');
+verifyEqual(testCase,data{3,5},'none');
+end
+
+function testObjectiveRobustnessMutatorSetsEntireObjectiveSet(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+
+template = ...
+    planWorkflow.templates.ObjectiveRobustnessMutator.setTemplateObjectiveSetRobustness( ...
+    template,'robust_1','INTERVAL3');
+data = planWorkflow.gui.ObjectiveTableAdapter.toTable(template,'robust_1');
+
+verifyFalse(testCase,any(strcmp(data(:,5),'none')));
+verifyTrue(testCase,all(strcmp(data(:,5),'INTERVAL3')));
+end
+
+function testPlanEditorContractRetargetsPrecomputeFromObjectiveRobustness(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = baseRunConfigWithRobust('INTERVAL2','nomScen', ...
+    struct('ctActive',true));
+
+template = ...
+    planWorkflow.templates.ObjectiveRobustnessMutator.setTemplateObjectiveSetRobustness( ...
+    template,'robust_1','INTERVAL3');
+runConfig = ...
+    planWorkflow.gui.PlanEditorContract.retargetPrecomputeRobustnessFromObjectives( ...
+    runConfig,template);
+robustPlans = ...
+    planWorkflow.config.RobustPlanConfig.plansFromRunConfig(runConfig);
+
+verifyEqual(testCase,robustPlans(1).robustnessMode,'INTERVAL3');
+verifyTrue(testCase,isfield(robustPlans(1).variants,'theta2'));
+verifyEqual(testCase,robustPlans(1).robustnessOptions.KMode,'dynamic');
 end
 
 function testStructureTableIncludesStructuresAndRings(testCase)
@@ -1551,14 +1849,40 @@ runConfig.dose_pulling2_target = {'CTV'};
 runConfig.dose_pulling2_start = 0;
 end
 
+function runConfig = dosePullingPanelRunConfig()
+runConfig = struct();
+runConfig.dose_pulling1 = false;
+runConfig.dose_pulling1_target = {'CTV'};
+runConfig.dose_pulling1_criteria = {'COV1'};
+runConfig.dose_pulling1_limit = 0.9;
+runConfig.dose_pulling1_start = 0;
+runConfig.dose_pulling2 = false;
+runConfig.dose_pulling2_target = {'CTV'};
+runConfig.dose_pulling2_criteria = 'meanQiTarget';
+runConfig.dose_pulling2_limit = 0.4;
+runConfig.dose_pulling2_start = 0;
+runConfig.dose_pulling_max_iter = 100;
+runConfig.dose_pulling_strategy = 'heuristicMultiObjective';
+runConfig.dose_pulling_search_schedule = 'exponential';
+runConfig.dose_pulling_local_window = 8;
+runConfig.dose_pulling_patience = 3;
+runConfig.dose_pulling_target_tol = 1e-3;
+runConfig.dose_pulling_selection_policy = 'normalizedKnee';
+runConfig.dose_pulling_target_weight = 1.0;
+runConfig.dose_pulling_oar_weight = 1.0;
+runConfig.dose_pulling_step_weight = 1e-6;
+runConfig.dose_pulling_max_vmax_percent = 100;
+runConfig.dose_pulling_use_warm_start = true;
+end
+
 function runConfig = baseRunConfigWithRobust(robustness,scenMode, ...
         dimensionConfig)
 runConfig = baseRunConfig();
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
-plan.id = 'robust_1';
-plan.label = 'Robust 1';
-plan.objectiveSetName = 'robust_1';
-plan.strategy = robustness;
+	plan.id = 'robust_1';
+	plan.label = 'Robust 1';
+	plan.objectiveSetName = 'robust_1';
+	plan.robustnessMode = robustness;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     scenMode);
 fields = [{'ctActive','ctReferenceScenId'}, ...

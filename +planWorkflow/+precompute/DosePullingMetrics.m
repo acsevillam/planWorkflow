@@ -192,8 +192,8 @@ classdef DosePullingMetrics
                 return;
             end
             if isfield(robustData,'planConfig') && ...
-                    isfield(robustData.planConfig,'strategy')
-                tf = any(strcmp(char(robustData.planConfig.strategy), ...
+                    isfield(robustData.planConfig,'robustnessMode')
+                tf = any(strcmp(char(robustData.planConfig.robustnessMode), ...
                     {'INTERVAL2','INTERVAL3'}));
             end
         end

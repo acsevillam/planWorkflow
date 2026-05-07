@@ -65,6 +65,45 @@ classdef ObjectiveTableAdapter
                 template,objectiveSetName,objectiveSet);
         end
 
+        function tf = isRobustnessEdit(event)
+            tf = false;
+            if isempty(event)
+                return;
+            end
+            try
+                indices = event.Indices;
+            catch
+                return;
+            end
+            if isempty(indices) || size(indices,2) < 2
+                return;
+            end
+            tf = indices(2) == ...
+                planWorkflow.gui.ObjectiveTableAdapter.robustnessColumnIndex();
+        end
+
+        function data = harmonizeNonNoneRobustness(data,robustness)
+            robustness = char(robustness);
+            robustnessColumn = ...
+                planWorkflow.gui.ObjectiveTableAdapter.robustnessColumnIndex();
+            for rowIx = 1:size(data,1)
+                if ~strcmp(char(data{rowIx,robustnessColumn}),'none')
+                    data{rowIx,robustnessColumn} = robustness;
+                end
+            end
+        end
+
+        function robustness = editedRobustness(data,event)
+            robustnessColumn = ...
+                planWorkflow.gui.ObjectiveTableAdapter.robustnessColumnIndex();
+            rowIx = event.Indices(1);
+            robustness = char(data{rowIx,robustnessColumn});
+        end
+
+        function columnIx = robustnessColumnIndex()
+            columnIx = 5;
+        end
+
         function groups = emptyGroups(baseSpecs)
             groups = repmat(struct('name','','objectives',{{}}), ...
                 1,numel(baseSpecs));

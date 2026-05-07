@@ -361,7 +361,10 @@ classdef PlanEditor
             end
 
             function precomputeConfigChanged(~,~)
-                syncEditedConfig(@savePrecomputeConfigTable);
+                if syncEditedConfig(@savePrecomputeConfigTable)
+                    loadObjectiveTable();
+                    loadAnalysisPanel();
+                end
             end
 
             function refreshPrecomputeConfigRows()
@@ -385,12 +388,14 @@ classdef PlanEditor
                     precomputePanel);
             end
 
-            function syncEditedConfig(saveFn)
+            function ok = syncEditedConfig(saveFn)
+                ok = false;
                 if options.readOnly
                     return;
                 end
                 try
                     saveFn();
+                    ok = true;
                 catch ME
                     errordlg(ME.message,'Invalid workflow settings');
                 end
@@ -636,13 +641,36 @@ classdef PlanEditor
                 template = preparePanel.syncObjectiveTables(template);
             end
 
-            function objectiveEdited(objectiveSetName,source,~)
+            function objectiveEdited(objectiveSetName,source,event)
+                robustnessEdited = ...
+                    planWorkflow.gui.ObjectiveTableAdapter.isRobustnessEdit( ...
+                    event);
                 try
+                    if robustnessEdited
+                        data = get(source,'Data');
+                        robustness = ...
+                            planWorkflow.gui.ObjectiveTableAdapter.editedRobustness( ...
+                            data,event);
+                        data = ...
+                            planWorkflow.gui.ObjectiveTableAdapter.harmonizeNonNoneRobustness( ...
+                            data,robustness);
+                        set(source,'Data',data);
+                    end
                     template = preparePanel.syncObjectiveTable( ...
                         template,objectiveSetName,source);
+                    if robustnessEdited
+                        runConfig = ...
+                            planWorkflow.gui.PlanEditorContract.retargetPrecomputeRobustnessFromObjectives( ...
+                            runConfig,template);
+                        loadPrecomputeConfigTable();
+                        loadObjectiveTable();
+                    end
                     loadAnalysisPanel();
                 catch ME
                     loadObjectiveTable();
+                    if robustnessEdited
+                        loadPrecomputeConfigTable();
+                    end
                     loadAnalysisPanel();
                     errordlg(ME.message,'Invalid objective');
                 end
@@ -897,7 +925,7 @@ classdef PlanEditor
                 [template,runConfig] = ...
                     planWorkflow.config.WorkflowContractValidator.validateAction( ...
                     template,runConfig);
-                runConfig = options.validateRunConfig(runConfig);
+                runConfig = options.validateRunConfig(runConfig,template);
                 [template,runConfig] = ...
                     planWorkflow.config.WorkflowContractValidator.validateAction( ...
                     template,runConfig);
@@ -1066,7 +1094,7 @@ classdef PlanEditor
             defaults.currentStage = 'new';
             defaults.completedStages = {};
             defaults.nextStage = 'prepare';
-            defaults.validateRunConfig = @(runConfig) runConfig;
+            defaults.validateRunConfig = @(runConfig,template) runConfig;
 
             fields = fieldnames(defaults);
             for i = 1:numel(fields)
@@ -1085,6 +1113,12 @@ classdef PlanEditor
             if ~isa(options.validateRunConfig,'function_handle')
                 error('planWorkflow:gui:PlanEditor:InvalidEditorOptions', ...
                     'options.validateRunConfig must be a function handle.');
+            end
+            validatorInputCount = nargin(options.validateRunConfig);
+            if validatorInputCount >= 0 && validatorInputCount < 2
+                error('planWorkflow:gui:PlanEditor:InvalidEditorOptions', ...
+                    ['options.validateRunConfig must accept runConfig ' ...
+                    'and template inputs.']);
             end
         end
 

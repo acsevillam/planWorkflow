@@ -185,7 +185,7 @@ classdef SamplingService
             entry.variantId = '';
             entry.planLabel = 'Sampling geometry';
             entry.label = 'Sampling geometry';
-            entry.strategy = '';
+            entry.robustnessMode = '';
             entry.scenario = struct();
             entry.optimization4D = struct();
             entry.cst = cstSampling;

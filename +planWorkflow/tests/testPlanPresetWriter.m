@@ -75,8 +75,10 @@ verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.precompute.robustPlans.robust_1.label = 'Robust 1';"));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.precompute.robustPlans.robust_1.objectiveSetName = 'robust_1';"));
-verifyTrue(testCase,contains(macroText, ...
-    "workflowConfig.precompute.robustPlans.robust_1.strategy = 'INTERVAL2';"));
+verifyFalse(testCase,contains(macroText, ...
+    'workflowConfig.precompute.robustPlans.robust_1.strategy'));
+verifyFalse(testCase,contains(macroText, ...
+    'workflowConfig.precompute.robustPlans.robust_1.robustnessMode'));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.precompute.robustPlans.robust_1.variants.theta1 = 5;"));
 verifyFalse(testCase,contains(macroText, ...
@@ -90,6 +92,9 @@ verifyFalse(testCase,contains(macroText, ...
     'workflowConfig.precompute.robust_scen_mode'));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.pullDose.step1Target = {'CTV'};"));
+verifyTrue(testCase,contains(macroText, ...
+    "workflowConfig.pullDose.strategy = 'heuristicMultiObjective';"));
+verifyFalse(testCase,contains(macroText,'scale_factor'));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.sampling.sampling_scen_mode = 'impScen_permuted5';"));
 verifyTrue(testCase,contains(macroText, ...
@@ -119,13 +124,12 @@ function testSaveMacroValidatesCanonicalContractBeforeExport(testCase)
 fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
 macroFolder = fullfile(fixture.Folder,'macros');
 runConfig = baseRunConfig(fixture.Folder);
-runConfig.precompute.robustPlans.strategyOptions = ...
-    struct('KMode','dynamic');
+runConfig.precompute.robustPlans.strategy = 'INTERVAL2';
 
 verifyError(testCase,@() planWorkflow.gui.PlanPresetWriter.saveMacro( ...
     runConfig,'interval2_001','runInvalidHiddenFieldWorkflow', ...
     'macroFolder',macroFolder), ...
-	'planWorkflow:config:RobustPlanConfig:UnsupportedField');
+	'planWorkflow:config:RobustPlanConfig:LegacyField');
 end
 
 function testSaveMacroValidatesClinicalEndpointsBeforeExport(testCase)
@@ -516,7 +520,17 @@ runConfig.dose_pulling2_criteria = 'meanQiTarget';
 runConfig.dose_pulling2_limit = 0.80;
 runConfig.dose_pulling2_start = 0;
 runConfig.dose_pulling_max_iter = 100;
-runConfig.scale_factor = 1;
+runConfig.dose_pulling_strategy = 'heuristicMultiObjective';
+runConfig.dose_pulling_search_schedule = 'exponential';
+runConfig.dose_pulling_local_window = 8;
+runConfig.dose_pulling_patience = 3;
+runConfig.dose_pulling_target_tol = 1e-3;
+runConfig.dose_pulling_selection_policy = 'normalizedKnee';
+runConfig.dose_pulling_target_weight = 1.0;
+runConfig.dose_pulling_oar_weight = 1.0;
+runConfig.dose_pulling_step_weight = 1e-6;
+runConfig.dose_pulling_max_vmax_percent = 100;
+runConfig.dose_pulling_use_warm_start = true;
 
 runConfig.optimizer = 'IPOPT';
 runConfig.sampling_linkToOptimization = true;
@@ -552,8 +566,12 @@ plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = 'robust_1';
 plan.label = 'Robust 1';
 plan.objectiveSetName = 'robust_1';
-plan.strategy = 'INTERVAL2';
 plan.variants = struct('id','theta_5','label','theta1=5', ...
     'theta1',5);
-plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1);
+contract = planWorkflow.config.RobustPlanConfig.defaultRobustnessContract();
+contract.robustnessMode = 'INTERVAL2';
+contract.hasNominalObjectives = true;
+contract.requiresNominalDij = true;
+contract.requiresIntervalDij = true;
+plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1,contract);
 end

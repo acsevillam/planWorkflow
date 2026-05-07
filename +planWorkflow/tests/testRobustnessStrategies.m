@@ -2,15 +2,13 @@ function tests = testRobustnessStrategies
 tests = functiontests(localfunctions);
 end
 
-function testCowcStrategyMarksTargetAndSelectedOars(testCase)
+function testCowcStrategyOnlyAppliesPlanParameters(testCase)
 [cst,objectiveInfo,pln,runConfig] = strategyFixture();
 strategy = planWorkflow.robustness.COWCStrategy('COWC',true);
 
-[cst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
+[actualCst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
-verifyEqual(testCase,cst{1,6}{1}.robustness,'COWC');
-verifyEqual(testCase,cst{2,6}{1}.robustness,'COWC');
-verifyFalse(testCase,isfield(cst{3,6}{1},'robustness'));
+verifyEqual(testCase,actualCst,cst);
 verifyEqual(testCase,pln.propOpt.useMaxApprox,'logsumexp');
 end
 
@@ -18,10 +16,9 @@ function testCheapCowcStrategyAddsCheapBounds(testCase)
 [cst,objectiveInfo,pln,runConfig] = strategyFixture();
 strategy = planWorkflow.robustness.CheapCOWCStrategy('c-COWC',false);
 
-[cst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
+[actualCst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
-verifyEqual(testCase,cst{1,6}{1}.robustness,'COWC');
-verifyFalse(testCase,isfield(cst{2,6}{1},'robustness'));
+verifyEqual(testCase,actualCst,cst);
 verifyEqual(testCase,pln.propOpt.useMaxApprox,'cheapCOWC');
 verifyEqual(testCase,pln.propOpt.p1,runConfig.variant.p1);
 verifyEqual(testCase,pln.propOpt.p2,runConfig.variant.p2);
@@ -35,14 +32,14 @@ verifyError(testCase,@() strategy.apply(cst,pln,objectiveInfo,struct()), ...
     'planWorkflow:robustness:CheapCOWCStrategy:MissingBounds');
 end
 
-function testStochasticStrategyMarksOnlyRequestedStructures(testCase)
+function testStochasticStrategyDoesNotRewriteObjectives(testCase)
 [cst,objectiveInfo,pln,runConfig] = strategyFixture();
 strategy = planWorkflow.robustness.StochasticStrategy('STOCH',false);
 
-cst = strategy.apply(cst,pln,objectiveInfo,runConfig);
+[actualCst,actualPln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
-verifyEqual(testCase,cst{1,6}{1}.robustness,'STOCH');
-verifyFalse(testCase,isfield(cst{2,6}{1},'robustness'));
+verifyEqual(testCase,actualCst,cst);
+verifyEqual(testCase,actualPln,pln);
 end
 
 function testNoneStrategyIsNoOp(testCase)
@@ -62,11 +59,9 @@ runConfig.variant = struct('theta1',30,'theta2',1.5);
 strategy = planWorkflow.robustness.IntervalStrategy('INTERVAL3');
 
 verifyTrue(testCase,strategy.requiresIntervalDij());
-[cst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
+[actualCst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
-verifyEqual(testCase,cst{1,6}{1}.robustness,'INTERVAL3');
-verifyEqual(testCase,cst{2,6}{1}.robustness,'INTERVAL3');
-verifyFalse(testCase,isfield(cst{3,6}{1},'robustness'));
+verifyEqual(testCase,actualCst,cst);
 verifyFalse(testCase,isfield(pln.propOpt,'scen4D'));
 verifyEqual(testCase,pln.propOpt.theta1,30);
 verifyEqual(testCase,pln.propOpt.theta2,1.5);

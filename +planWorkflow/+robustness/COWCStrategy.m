@@ -17,11 +17,6 @@ classdef COWCStrategy < planWorkflow.robustness.AbstractStrategy
 
         function [cst,pln] = apply(obj,cst,pln,objectiveInfo,runConfig) %#ok<INUSD>
             pln.propOpt.useMaxApprox = 'logsumexp';
-            cst = obj.setTargetRobustness(cst,objectiveInfo.ixTarget,'COWC');
-            if obj.includeOAR
-                cst = obj.setOARRobustness(cst, ...
-                    objectiveInfo.robustOarNames,'COWC');
-            end
         end
     end
 end

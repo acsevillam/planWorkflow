@@ -10,68 +10,63 @@ verifyError(testCase,@() planWorkflow.Workflow(config), ...
     'planWorkflow:Engine:UnsupportedConfigField');
 end
 
-function testSingleRobustPlanUsesCanonicalPlanStrategy(testCase)
+function testSingleRobustPlanUsesCanonicalRobustnessMode(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
-    'cowcPlan','COWC plan','robust_1','COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'intervalPlan','INTERVAL2 plan','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 workflow = planWorkflow.Workflow(config);
 
 robustPlans = workflow.runConfig.precompute.robustPlans;
 verifyEqual(testCase,numel(robustPlans),1);
-verifyEqual(testCase,robustPlans(1).strategy,'COWC');
+verifyEqual(testCase,robustPlans(1).robustnessMode,'INTERVAL2');
 end
 
-function testUnknownRobustPlanStrategyIsRejected(testCase)
-config = baseEngineConfig(testCase);
-config.precompute.robustPlans = robustPlanConfig( ...
-    'badPlan','Bad plan','robust_1','COWC2','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+function testUnknownRobustPlanRobustnessModeIsRejected(testCase)
+plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
+plan.robustnessMode = 'COWC2';
 
-verifyError(testCase,@() planWorkflow.Workflow(config), ...
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.normalizePlans(plan), ...
     'planWorkflow:config:RobustPlanConfig:UnknownStrategy');
 end
 
 function testMultipleRobustPlansPreserveIndependentConfigAndVariants(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'comparison_001';
 config.precompute.robustPlans = [ ...
-    robustPlanConfig('intervalPlan','Interval plan','robust_1', ...
-    'INTERVAL3','wcScen',[5 10 5], ...
-    [robustVariantConfig('theta_low','Theta low',1,1,10,0.5); ...
-    robustVariantConfig('theta_high','Theta high',1,1,20,1.0)]); ...
-    robustPlanConfig('cheapCowcPlan','Cheap COWC plan','robust_1', ...
-    'c-COWC','random',[1 2 3], ...
-    [robustVariantConfig('bounds_1','Bounds 1',1,3,1,1); ...
-    robustVariantConfig('bounds_2','Bounds 2',2,4,1,1)])];
+    robustPlanConfig('ptvPlan','PTV plan','robust_1', ...
+    'none','wcScen',[5 10 5], ...
+    robustVariantConfig('variant_1','Variant 1',1,1,1,1)); ...
+    robustPlanConfig('intervalPlan','Interval plan','robust_2', ...
+    'INTERVAL2','random',[1 2 3], ...
+    [robustVariantConfig('theta_low','Theta low',1,1,10,1); ...
+    robustVariantConfig('theta_high','Theta high',1,1,20,1)])];
 
 workflow = planWorkflowTest.EngineProbe(config);
 
 robustPlans = workflow.runConfig.precompute.robustPlans;
 verifyEqual(testCase,numel(robustPlans),2);
-verifyEqual(testCase,robustPlans(1).strategy, ...
-    'INTERVAL3');
+verifyEqual(testCase,robustPlans(1).robustnessMode, ...
+    'none');
 verifyEqual(testCase,robustPlans(1).scenario.mode, ...
     'wcScen');
-verifyEqual(testCase,[robustPlans(1).variants.theta1], ...
-    [10 20]);
-verifyEqual(testCase,robustPlans(2).strategy, ...
-    'c-COWC');
+verifyEqual(testCase,robustPlans(2).robustnessMode, ...
+    'INTERVAL2');
 verifyEqual(testCase,robustPlans(2).scenario.mode, ...
     'random');
 verifyEqual(testCase,robustPlans(2).scenario.shiftSD, ...
     [1 2 3]);
-verifyEqual(testCase,[robustPlans(2).variants.p1], ...
-    [1 2]);
-verifyEqual(testCase,[robustPlans(2).variants.p2], ...
-    [3 4]);
+verifyEqual(testCase,[robustPlans(2).variants.theta1], ...
+    [10 20]);
 end
 
 function testNamedRobustPlansAreAcceptedForMacros(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'comparison_001';
 config.precompute.robustPlans = struct();
 config.precompute.robustPlans.robust_1.label = 'PTV';
 config.precompute.robustPlans.robust_1.objectiveSetName = 'robust_1';
-config.precompute.robustPlans.robust_1.strategy = 'none';
 config.precompute.robustPlans.robust_1.scenario = ...
     planWorkflow.config.RobustPlanConfig.defaultScenario('nomScen');
 config.precompute.robustPlans.robust_1.scenario.ctActive = false;
@@ -82,7 +77,6 @@ config.precompute.robustPlans.robust_1.variants = ...
 
 config.precompute.robustPlans.robust_2.label = 'INTERVAL2';
 config.precompute.robustPlans.robust_2.objectiveSetName = 'robust_2';
-config.precompute.robustPlans.robust_2.strategy = 'INTERVAL2';
 config.precompute.robustPlans.robust_2.scenario = ...
     planWorkflow.config.RobustPlanConfig.defaultScenario('wcScen');
 config.precompute.robustPlans.robust_2.variants = [ ...
@@ -101,9 +95,9 @@ verifyEqual(testCase,{robustPlans.id}, ...
     {'robust_1','robust_2'});
 verifyEqual(testCase,{robustPlans.label}, ...
     {'PTV','INTERVAL2'});
-verifyEqual(testCase,robustPlans(1).strategy, ...
+verifyEqual(testCase,robustPlans(1).robustnessMode, ...
     'none');
-verifyEqual(testCase,robustPlans(2).strategy, ...
+verifyEqual(testCase,robustPlans(2).robustnessMode, ...
     'INTERVAL2');
 verifyEqual(testCase,[robustPlans(2).variants.theta1], ...
     [1 5 10]);
@@ -194,8 +188,8 @@ sample = struct('label','INTERVAL2 / Variant 2');
 
 verifyEqual(testCase, ...
     planWorkflow.results.PlanLabels.robustResultLabelFromRunConfig( ...
-    workflow.runConfig,2,sample.label), ...
-    'INTERVAL2 (theta1=5)');
+	    workflow.runConfig,2,sample.label), ...
+	    'INTERVAL2 (theta1=5)');
 end
 
 function testPlanTaskTimingLabelsUseStrategyParameters(testCase)
@@ -208,9 +202,9 @@ workflow = planWorkflowTest.EngineProbe(config);
 
 verifyEqual(testCase, ...
     planWorkflow.results.PlanLabels.planTimingLabel( ...
-    workflow.runConfig,'INTERVAL2 / Variant 2','robust', ...
-    'intervalPlan','theta_5'), ...
-    'INTERVAL2 (theta1=5)');
+	    workflow.runConfig,'INTERVAL2 / Variant 2','robust', ...
+	    'robust_1','theta_5'), ...
+	    'INTERVAL2 (theta1=5)');
 end
 
 function testAnalysisResultsDoNotWriteGuiLog(testCase)
@@ -270,6 +264,7 @@ config = baseEngineConfig(testCase);
 plan = robustPlanConfig('intervalPlan','INTERVAL2','robust_1', ...
     'INTERVAL2','wcScen',[5 10 5], ...
     robustVariantConfig('theta_5','theta1=5',1,1,5,1));
+plan.scenario.ctActive = true;
 config.precompute.robustPlans = plan;
 workflow = planWorkflowTest.EngineProbe(config);
 
@@ -287,7 +282,7 @@ end
 function testDisabled4DOptimizationRemovesScen4DFromPlan(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
-    'cowcPlan','COWC','robust_1','COWC','wcScen', ...
+    'intervalPlan','INTERVAL2','robust_1','INTERVAL2','wcScen', ...
     [5 10 5],robustVariantConfig('theta_5','theta1=5',1,1,5,1));
 config.precompute.robustPlans.scenario.ctActive = false;
 config.precompute.robustPlans.optimization4D.enabled = true;
@@ -295,7 +290,7 @@ workflow = planWorkflowTest.EngineProbe(config);
 
 robustData = struct();
 robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
-robustData.strategy = planWorkflow.robustness.COWCStrategy('COWC',true);
+robustData.strategy = planWorkflow.robustness.IntervalStrategy('INTERVAL2');
 robustData.pln = struct('propOpt',struct('scen4D','all'));
 
 pln = workflow.planForRobustDataPlanIndexPublic(robustData,1);
@@ -332,8 +327,9 @@ end
 
 function testIntervalCacheContextIncludesOptimization4DScenario(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'interval3_001';
 config.precompute.robustPlans = robustPlanConfig( ...
-    'intervalPlan','INTERVAL2','robust_1','INTERVAL2','wcScen', ...
+    'intervalPlan','INTERVAL3','robust_1','INTERVAL3','wcScen', ...
     [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 workflow = planWorkflowTest.EngineProbe(config);
 
@@ -365,6 +361,7 @@ end
 
 function testInterval3DoseConfigEnablesParallelSvdWithoutCacheKey(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'interval3_001';
 config.precompute.robustPlans = robustPlanConfig( ...
     'intervalPlan','INTERVAL3','robust_1','INTERVAL3','wcScen', ...
     [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
@@ -681,9 +678,9 @@ config.prepare.description = 'prostate';
 config.prepare.plan_template = 'interval2_001';
 config.prepare.caseID = 'nested-case';
 config.prepare.plan_beams = '7F';
-robustPlan = robustPlanConfig('cowcPlan','COWC plan','robust_1', ...
-    'COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+robustPlan = robustPlanConfig('intervalPlan','INTERVAL2 plan','robust_1', ...
+    'INTERVAL2','wcScen',[5 10 5], ...
+    robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 robustPlan.scenario.wcSigma = 1.25;
 config.precompute.robustPlans = robustPlan;
 config.pullDose.step1Enabled = true;
@@ -691,6 +688,17 @@ config.pullDose.step1Target = {'CTV','PTV'};
 config.pullDose.step1Criteria = {'COV1','D99'};
 config.pullDose.step1Limit = [0.90 0.95];
 config.pullDose.step1Start = 8;
+config.pullDose.strategy = 'heuristicMultiObjective';
+config.pullDose.searchSchedule = 'exponential';
+config.pullDose.localWindow = 6;
+config.pullDose.patience = 4;
+config.pullDose.targetTol = 5e-4;
+config.pullDose.selectionPolicy = 'weightedSum';
+config.pullDose.targetWeight = 2.0;
+config.pullDose.oarWeight = 3.0;
+config.pullDose.stepWeight = 4e-6;
+config.pullDose.maxVmaxPercent = 95;
+config.pullDose.useWarmStart = false;
 config.optimize.optimizer = 'IPOPT';
 config.sampling.sampling_scen_mode = 'impScen_permuted5';
 config.sampling.sampling_wcSigma = 2.5;
@@ -703,8 +711,8 @@ verifyEqual(testCase,workflow.runConfig.radiationMode,'photons');
 verifyEqual(testCase,workflow.runConfig.description,'prostate');
 verifyEqual(testCase,workflow.runConfig.plan_template,'interval2_001');
 verifyEqual(testCase,workflow.runConfig.plan_beams,'7F');
-verifyEqual(testCase,workflow.runConfig.precompute.robustPlans(1).strategy, ...
-    'COWC');
+verifyEqual(testCase,workflow.runConfig.precompute.robustPlans(1).robustnessMode, ...
+    'INTERVAL2');
 verifyEqual(testCase, ...
     workflow.runConfig.precompute.robustPlans(1).scenario.mode,'wcScen');
 verifyEqual(testCase, ...
@@ -716,6 +724,20 @@ verifyEqual(testCase,workflow.runConfig.dose_pulling1_criteria, ...
     {'COV1','D99'});
 verifyEqual(testCase,workflow.runConfig.dose_pulling1_limit,[0.90 0.95]);
 verifyEqual(testCase,workflow.runConfig.dose_pulling1_start,8);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_strategy, ...
+    'heuristicMultiObjective');
+verifyEqual(testCase,workflow.runConfig.dose_pulling_search_schedule, ...
+    'exponential');
+verifyEqual(testCase,workflow.runConfig.dose_pulling_local_window,6);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_patience,4);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_target_tol,5e-4);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_selection_policy, ...
+    'weightedSum');
+verifyEqual(testCase,workflow.runConfig.dose_pulling_target_weight,2.0);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_oar_weight,3.0);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_step_weight,4e-6);
+verifyEqual(testCase,workflow.runConfig.dose_pulling_max_vmax_percent,95);
+verifyFalse(testCase,workflow.runConfig.dose_pulling_use_warm_start);
 verifyEqual(testCase,workflow.runConfig.optimizer,'IPOPT');
 verifyEqual(testCase,workflow.runConfig.sampling_scen_mode, ...
     'impScen_permuted5');
@@ -726,8 +748,8 @@ end
 function testPrecomputeScenarioParametersAreAccepted(testCase)
 workflow = planWorkflowTest.EngineProbe(baseEngineConfig(testCase));
 robustPlan = robustPlanConfig('randomPlan','Random plan','robust_1', ...
-    'COWC','random',[1 2 3], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'INTERVAL2','random',[1 2 3], ...
+    robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 robustPlan.scenario.setupActive = true;
 robustPlan.scenario.rangeActive = true;
 robustPlan.scenario.rangeAbsSD = 1.2;
@@ -753,8 +775,8 @@ end
 function testActiveDimensionScaleValidation(testCase)
 config = baseEngineConfig(testCase);
 robustPlan = robustPlanConfig('badPlan','Bad plan','robust_1', ...
-    'COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'INTERVAL2','wcScen',[5 10 5], ...
+    robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 robustPlan.scenario.rangeActive = true;
 config.precompute.robustPlans = robustPlan;
 
@@ -765,8 +787,8 @@ end
 function testActiveAngularDimensionScaleValidation(testCase)
 config = baseEngineConfig(testCase);
 robustPlan = robustPlanConfig('badPlan','Bad plan','robust_1', ...
-    'COWC','random',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'INTERVAL2','random',[5 10 5], ...
+    robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 robustPlan.scenario.gantryActive = true;
 config.precompute.robustPlans = robustPlan;
 
@@ -923,8 +945,8 @@ end
 function testInvalidRandomSeedIsRejected(testCase)
 config = baseEngineConfig(testCase);
 robustPlan = robustPlanConfig('badPlan','Bad plan','robust_1', ...
-    'COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'INTERVAL2','wcScen',[5 10 5], ...
+    robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 robustPlan.scenario.randomSeed = 1.5;
 config.precompute.robustPlans = robustPlan;
 
@@ -1100,8 +1122,8 @@ end
 function testRobustScenarioParametersAffectDoseCacheKey(testCase)
 configA = baseEngineConfig(testCase);
 configA.precompute.robustPlans = robustPlanConfig( ...
-    'cowcPlan','COWC plan','robust_1','COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'intervalPlan','INTERVAL2 plan','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 configB = baseEngineConfig(testCase);
 configB.precompute.robustPlans = configA.precompute.robustPlans;
 configB.precompute.robustPlans(1).scenario.wcSigma = ...
@@ -1110,18 +1132,18 @@ configB.precompute.robustPlans(1).scenario.wcSigma = ...
 workflowA = planWorkflowTest.EngineProbe(configA);
 workflowB = planWorkflowTest.EngineProbe(configB);
 
-verifyNotEqual(testCase,workflowA.cacheKeyPublic('robust_cowcPlan'), ...
-    workflowB.cacheKeyPublic('robust_cowcPlan'));
+verifyNotEqual(testCase,workflowA.cacheKeyPublic('robust_robust_1'), ...
+    workflowB.cacheKeyPublic('robust_robust_1'));
 end
 
 function testRobustDoseCacheRejectsStrategyOnlyTag(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
-    'cowcPlan','COWC plan','robust_1','COWC','wcScen',[5 10 5], ...
-    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+    'intervalPlan','INTERVAL2 plan','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 workflow = planWorkflowTest.EngineProbe(config);
 
-verifyError(testCase,@() workflow.cacheKeyPublic('robust_COWC'), ...
+verifyError(testCase,@() workflow.cacheKeyPublic('robust_INTERVAL2'), ...
     'planWorkflow:cache:CacheIdentity:UnknownRobustPlanId');
 end
 
@@ -1137,35 +1159,58 @@ robustTag = workflow.robustDoseCacheTagPublic(robustData);
 intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
 intervalKey = workflow.cacheKeyPublic(intervalTag);
 
-verifyEqual(testCase,robustTag,'robust_customPlanId');
-verifyEqual(testCase,intervalTag,'interval_customPlanId');
+verifyEqual(testCase,robustTag,'robust_robust_1');
+verifyEqual(testCase,intervalTag,'interval_robust_1');
 verifyTrue(testCase,contains(intervalKey, ...
     fullfile('interval','INTERVAL2')));
 verifyFalse(testCase,contains(intervalKey,'customPlanId'));
-verifyFalse(testCase,contains(intervalKey,'robust_1'));
+verifyTrue(testCase,contains(intervalKey,'INTERVAL2'));
+end
+
+function testRobustNominalDoseCacheTagKeepsPlanIdAndNominalScenario(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig('customPlanId','INTERVAL2', ...
+    'robust_1','INTERVAL2','wcScen',[5 10 5], ...
+    robustVariantConfig('theta_10','Variant 1',1,1,10,1));
+workflow = planWorkflowTest.EngineProbe(config);
+
+descriptor = workflow.cacheDescriptorPublic( ...
+    'robustNominal_robust_1',struct());
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    'robustNominal_robust_1',struct());
+
+verifyEqual(testCase,descriptor.artifact.kind,'robust');
+verifyEqual(testCase,descriptor.artifact.planId,'robust_1');
+verifyEqual(testCase,descriptor.artifact.role,'nominal');
+verifyEqual(testCase,descriptor.identity.scenario.scen_mode,'nomScen');
+verifyEqual(testCase,cacheMetadata.planId,'robust_1');
+verifyEqual(testCase,cacheMetadata.artifact.role,'nominal');
+verifyTrue(testCase,contains(descriptor.relativeKey,'nomScen'));
+verifyFalse(testCase,contains(descriptor.relativeKey,'wcScen'));
 end
 
 function testDoseCacheMetadataIsReferenceOrPlanSpecific(testCase)
 config = baseEngineConfig(testCase);
-config.precompute.reference.strategy = 'none';
+config.plan_template = 'comparison_001';
+config.precompute.reference.robustnessMode = 'none';
 config.precompute.robustPlans = [ ...
-    robustPlanConfig('planA','Plan A','robust_1','COWC','wcScen', ...
+    robustPlanConfig('planA','Plan A','robust_1','none','wcScen', ...
     [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1)); ...
-    robustPlanConfig('planB','Plan B','robust_2','COWC','wcScen', ...
-    [7 8 9],robustVariantConfig('variant_1','Variant 1',1,1,1,1))];
+    robustPlanConfig('planB','Plan B','robust_2','INTERVAL2','wcScen', ...
+    [7 8 9],robustVariantConfig('theta_1','Variant 1',1,1,1,1))];
 workflow = planWorkflowTest.EngineProbe(config);
 
 referenceMetadata = workflow.cacheMetadataPublic('reference',struct());
-planAMetadata = workflow.cacheMetadataPublic('robust_planA',struct());
-planBMetadata = workflow.cacheMetadataPublic('robust_planB',struct());
-planAKey = workflow.cacheKeyPublic('robust_planA');
-planBKey = workflow.cacheKeyPublic('robust_planB');
+planAMetadata = workflow.cacheMetadataPublic('robust_robust_1',struct());
+planBMetadata = workflow.cacheMetadataPublic('robust_robust_2',struct());
+planAKey = workflow.cacheKeyPublic('robust_robust_1');
+planBKey = workflow.cacheKeyPublic('robust_robust_2');
 
-verifyEqual(testCase,referenceMetadata.strategy,'none');
+verifyEqual(testCase,referenceMetadata.robustnessMode,'none');
 verifyFalse(testCase,isfield(referenceMetadata,'planId') && ...
     ~isempty(referenceMetadata.planId));
-verifyEqual(testCase,planAMetadata.planId,'planA');
-verifyEqual(testCase,planBMetadata.planId,'planB');
+verifyEqual(testCase,planAMetadata.planId,'robust_1');
+verifyEqual(testCase,planBMetadata.planId,'robust_2');
 verifyTrue(testCase,contains(planAKey,fullfile('dij')));
 verifyTrue(testCase,contains(planBKey,fullfile('dij')));
 verifyFalse(testCase,contains(planAKey,'planA'));
@@ -1175,15 +1220,16 @@ end
 
 function testPhysicallyEquivalentRobustPlansShareDoseCacheKey(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'comparison_001';
 config.precompute.robustPlans = [ ...
-    robustPlanConfig('planA','Plan A','robust_1','COWC','wcScen', ...
+    robustPlanConfig('planA','Plan A','robust_1','none','wcScen', ...
     [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1)); ...
-    robustPlanConfig('planB','Plan B','robust_2','INTERVAL3','wcScen', ...
-    [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,2,0.5))];
+    robustPlanConfig('planB','Plan B','robust_2','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,2,1))];
 workflow = planWorkflowTest.EngineProbe(config);
 
-planAKey = workflow.cacheKeyPublic('robust_planA');
-planBKey = workflow.cacheKeyPublic('robust_planB');
+planAKey = workflow.cacheKeyPublic('robust_robust_1');
+planBKey = workflow.cacheKeyPublic('robust_robust_2');
 
 verifyEqual(testCase,planAKey,planBKey);
 end
@@ -1319,7 +1365,7 @@ plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;
 plan.label = label;
 plan.objectiveSetName = objectiveSetName;
-plan.strategy = robustness;
+plan.robustnessMode = robustness;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     scenMode);
 plan.scenario.shiftSD = shiftSD;
@@ -1366,7 +1412,7 @@ function robustData = robustDataForLabel(label,robustness,variant)
 robustData = struct();
 robustData.planConfig = struct();
 robustData.planConfig.label = label;
-robustData.planConfig.strategy = robustness;
+robustData.planConfig.robustnessMode = robustness;
 robustData.planConfig.variants = robustVariantsForStrategy(variant,robustness);
 end
 
@@ -1374,7 +1420,7 @@ function robustData = intervalRobustData(workflow)
 robustData = struct();
 robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
 robustData.strategy = planWorkflow.robustness.AbstractStrategy.create( ...
-    robustData.planConfig.strategy);
+    robustData.planConfig.robustnessMode);
 end
 
 function dij = referenceDij()

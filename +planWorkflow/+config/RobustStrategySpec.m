@@ -148,7 +148,7 @@ classdef RobustStrategySpec
                 options = struct();
             end
             if nargin < 3 || isempty(context)
-                context = 'strategyOptions';
+                context = 'robustnessOptions';
             end
             if ~isstruct(options) || ~isscalar(options)
                 error('planWorkflow:config:RobustPlanConfig:InvalidStrategyOptions', ...
@@ -221,36 +221,46 @@ classdef RobustStrategySpec
                 pln.propOpt = struct();
             end
             variant = planConfig.variants(variantIx);
+            robustnessMode = ...
+                planWorkflow.config.RobustStrategySpec.modeFromSource( ...
+                planConfig);
             fields = ...
                 planWorkflow.config.RobustStrategySpec.variantParameterFields( ...
-                planConfig.strategy);
+                robustnessMode);
             for fieldIx = 1:numel(fields)
                 pln.propOpt.(fields{fieldIx}) = variant.(fields{fieldIx});
             end
         end
 
         function options = optionsForPanel(source)
-            strategy = 'none';
-            if isstruct(source)
-                if isfield(source,'strategy') && ~isempty(source.strategy)
-                    strategy = char(source.strategy);
-                elseif isfield(source,'robustness') && ...
-                        ~isempty(source.robustness)
-                    strategy = char(source.robustness);
-                elseif isfield(source,'reference_robustness') && ...
-                        ~isempty(source.reference_robustness)
-                    strategy = char(source.reference_robustness);
-                end
-            end
+            strategy = planWorkflow.config.RobustStrategySpec.modeFromSource( ...
+                source);
             options = ...
                 planWorkflow.config.RobustStrategySpec.defaultStrategyOptions( ...
                 strategy);
-            if isstruct(source) && isfield(source,'strategyOptions') && ...
-                    isstruct(source.strategyOptions) && ...
-                    isscalar(source.strategyOptions)
+            if isstruct(source) && isfield(source,'robustnessOptions') && ...
+                    isstruct(source.robustnessOptions) && ...
+                    isscalar(source.robustnessOptions)
                 options = ...
                     planWorkflow.config.RobustStrategySpec.mergeDefaults( ...
-                    source.strategyOptions,options);
+                    source.robustnessOptions,options);
+            end
+        end
+
+        function mode = modeFromSource(source)
+            mode = 'none';
+            if ~isstruct(source)
+                return;
+            end
+            if isfield(source,'robustnessMode') && ...
+                    ~isempty(source.robustnessMode)
+                mode = char(source.robustnessMode);
+            elseif isfield(source,'robustness') && ...
+                    ~isempty(source.robustness)
+                mode = char(source.robustness);
+            elseif isfield(source,'reference_robustness') && ...
+                    ~isempty(source.reference_robustness)
+                mode = char(source.reference_robustness);
             end
         end
     end
