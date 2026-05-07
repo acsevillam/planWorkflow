@@ -465,6 +465,9 @@ config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
     'intervalPlan','INTERVAL2','robust_1','INTERVAL2','wcScen', ...
     [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.hasNominalObjectives = false;
+config.precompute.robustPlans.requiresNominalDij = false;
+config.precompute.robustPlans.requiresIntervalDij = true;
 config.dose_pulling2 = false;
 workflow = planWorkflowTest.EngineProbe(config);
 workflow.data.dij = referenceDij();
@@ -486,12 +489,13 @@ cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
 mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
+dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
-    'cacheMetadata','-v7.3');
+    'dijNominal','cacheMetadata','-v7.3');
 
 [cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
     robustData);
@@ -500,13 +504,16 @@ robustData = workflow.useIntervalDijForOptimizationPublic( ...
 
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_interval'));
-verifyTrue(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
+verifyTrue(testCase,isfield(robustData,'dijNominal'));
+verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
 verifyTrue(testCase,isfield(robustData,'plnForOptimization'));
 verifyEqual(testCase,robustData.pln.multScen.numScenarios(), ...
     scenarioModel.numScenarios());
 verifyEqual(testCase,robustData.plnForOptimization.multScen.numScenarios(),1);
 verifyEqual(testCase, ...
     robustData.plnForOptimization.multScen.getDijScenarioIndex(1),1);
+verifyFalse(testCase,isfield( ...
+    robustData.plnForOptimization.propOpt,'dij_interval'));
 verifyFalse(testCase,isfield(robustData,'robustDijWasLoaded'));
 verifyTrue(testCase,robustData.usesIntervalDijForOptimization);
 verifyEqual(testCase,robustData.dij.totalNumOfBixels, ...
@@ -519,6 +526,112 @@ planForOptimization = workflow.planForRobustDataPlanIndexPublic( ...
     robustData,1);
 verifyEqual(testCase,planForOptimization.multScen.numScenarios(),1);
 verifyEqual(testCase,planForOptimization.multScen.getDijScenarioIndex(1),1);
+verifyTrue(testCase,isfield(planForOptimization.propOpt,'dij_interval'));
+verifyEqual(testCase,planForOptimization.propOpt.dij_interval, ...
+    robustData.dij_interval);
+end
+
+function testCachedIntervalDijPersistsRobustDerivedNominalDij(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.hasNominalObjectives = true;
+config.precompute.robustPlans.requiresNominalDij = true;
+config.precompute.robustPlans.requiresIntervalDij = true;
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+
+robustData = intervalRobustData(workflow);
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels(workflow.data.dij.totalNumOfBixels);
+
+cacheContext = workflow.intervalCacheContextPublic(robustData);
+intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
+dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
+dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+cacheMetadata.intervalMode = 'INTERVAL2';
+cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
+    'dijNominal','cacheMetadata','-v7.3');
+
+[cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
+    robustData);
+
+verifyTrue(testCase,cacheHit);
+verifyTrue(testCase,isfield(robustData,'dijNominal'));
+verifyEqual(testCase,robustData.dijNominal.totalNumOfBixels, ...
+    size(robustData.dij_interval.center,2));
+verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
+verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
+    'dij_interval'));
+
+robustData.dij = robustData.dijNominal;
+robustData.plnForOptimization = robustData.plnNominal;
+robustData.usesNominalDijForOptimization = true;
+planForOptimization = workflow.planForRobustDataPlanIndexPublic( ...
+    robustData,1);
+verifyTrue(testCase,isfield(planForOptimization.propOpt,'dij_interval'));
+verifyEqual(testCase,planForOptimization.propOpt.dij_interval, ...
+    robustData.dij_interval);
+verifyEqual(testCase,robustData.dij.physicalDose{1}, ...
+    robustData.dijNominal.physicalDose{1});
+end
+
+function testCachedIntervalDijRejectsNominalDijWithBadQuantitySize(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2','robust_1','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.hasNominalObjectives = true;
+config.precompute.robustPlans.requiresNominalDij = true;
+config.precompute.robustPlans.requiresIntervalDij = true;
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+
+robustData = intervalRobustData(workflow);
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels(workflow.data.dij.totalNumOfBixels);
+
+cacheContext = workflow.intervalCacheContextPublic(robustData);
+intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
+dij_interval.quantity = 'RBExD';
+dij_interval.quantityField = 'RBExDose'; %#ok<NASGU>
+dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
+dijNominal = intervalNominalDij(dij_interval);
+dijNominal.RBExDose = {sparse(1,size(dij_interval.center,2))}; %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+cacheMetadata.intervalMode = 'INTERVAL2';
+cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
+    'dijNominal','cacheMetadata','-v7.3');
+
+cacheHit = workflow.loadCachedIntervalDoseInfluencePublic(robustData);
+
+verifyFalse(testCase,cacheHit);
 end
 
 function testStaleIntervalDijCacheIsRejected(testCase)
@@ -1427,6 +1540,21 @@ function dij = referenceDij()
 dij = struct();
 dij.totalNumOfBixels = 3;
 dij.physicalDose = {sparse(1,3)};
+dij.scenarioModel = matRad_NominalScenario();
+end
+
+function dij = intervalNominalDij(dij_interval)
+dij = struct();
+numRows = size(dij_interval.center,1);
+numColumns = size(dij_interval.center,2);
+dij.totalNumOfBixels = numColumns;
+dij.physicalDose = {sparse(numRows,numColumns)};
+if isfield(dij_interval,'quantityField') && ...
+        ~isempty(dij_interval.quantityField) && ...
+        ~strcmp(char(dij_interval.quantityField),'physicalDose')
+    dij.(char(dij_interval.quantityField)) = ...
+        {sparse(numRows,numColumns)};
+end
 dij.scenarioModel = matRad_NominalScenario();
 end
 
