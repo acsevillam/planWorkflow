@@ -276,6 +276,71 @@ verifyTrue(testCase,any(strcmp(changedData(:,5),'INTERVAL3')));
 verifyFalse(testCase,any(strcmp(changedData(:,5),'INTERVAL2')));
 end
 
+function testPrecomputeLoadReusesRobustTabsWhenPlanIdentityUnchanged(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = baseRunConfigWithRobust('INTERVAL2','nomScen', ...
+    struct('ctActive',true));
+transversalConfig = runConfig;
+transversalConfig.bixelWidth = 5;
+
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+tabGroup = uitabgroup('Parent',fig);
+parent = uitab(tabGroup);
+callbacks = struct('addRobustPlan',[],'deleteRobustPlan',[], ...
+    'reference',struct());
+handles = planWorkflow.gui.panels.PrecomputeEditorPanel.create( ...
+    parent,runConfig,callbacks);
+[handles,runConfig,template] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+firstRobustTab = handles.robustTabs(1);
+firstRobustPanel = handles.robustConfigTables(1).panel;
+
+runConfig.precompute.robustPlans(1).label = 'Renamed plan';
+[handles,~,~] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+
+verifyTrue(testCase,isequal(handles.robustTabs(1),firstRobustTab));
+verifyTrue(testCase,isequal(handles.robustConfigTables(1).panel, ...
+    firstRobustPanel));
+verifyEqual(testCase,get(handles.robustTabs(1),'Title'), ...
+    'Renamed plan');
+end
+
+function testPrecomputeLoadRebuildsRobustTabsWhenPlanSetChanges(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+runConfig = baseRunConfigWithRobust('INTERVAL2','nomScen', ...
+    struct('ctActive',true));
+transversalConfig = runConfig;
+transversalConfig.bixelWidth = 5;
+
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+tabGroup = uitabgroup('Parent',fig);
+parent = uitab(tabGroup);
+callbacks = struct('addRobustPlan',[],'deleteRobustPlan',[], ...
+    'reference',struct());
+handles = planWorkflow.gui.panels.PrecomputeEditorPanel.create( ...
+    parent,runConfig,callbacks);
+[handles,runConfig,template] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+firstRobustTab = handles.robustTabs(1);
+
+[template,runConfig] = appendSecondRobustPlan(template,runConfig);
+[handles,~,~] = ...
+    planWorkflow.gui.panels.PrecomputeEditorPanel.load( ...
+    handles,runConfig,template,transversalConfig);
+
+verifyNumElements(testCase,handles.robustTabs,2);
+verifyFalse(testCase,ishandle(firstRobustTab));
+verifyEqual(testCase,get(handles.robustTabs(2),'Title'),'Robust 2');
+end
+
 function testPrecomputeReferenceRobustnessDropdownPreservesNominalObjectives(testCase)
 template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
     'prostate','interval2_001');
@@ -1943,6 +2008,25 @@ for i = 1:numel(fields)
 end
 runConfig.precompute.robustPlans = ...
     planWorkflow.config.RobustPlanConfig.normalizePlans(plan);
+end
+
+function [template,runConfig] = appendSecondRobustPlan(template,runConfig)
+robustObjectiveSets = ...
+    planWorkflow.templates.PlanTemplate.robustObjectiveSets(template);
+secondSet = robustObjectiveSets(1);
+secondSet.id = 'robust_2';
+secondSet.label = 'Robust 2';
+template.objectiveSets.robustPlans = [robustObjectiveSets secondSet];
+
+robustPlans = ...
+    planWorkflow.config.RobustPlanConfig.plansFromRunConfig(runConfig);
+secondPlan = robustPlans(1);
+secondPlan.id = 'robust_2';
+secondPlan.label = 'Robust 2';
+secondPlan.objectiveSetName = 'robust_2';
+runConfig.precompute.robustPlans = ...
+    planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    [robustPlans secondPlan]);
 end
 
 function assertFieldBefore(testCase,fields,beforeField,afterField)

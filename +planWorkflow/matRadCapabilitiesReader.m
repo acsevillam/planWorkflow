@@ -3,6 +3,15 @@ classdef matRadCapabilitiesReader
 
     methods (Static)
         function objectiveTypes = supportedObjectiveTypes()
+            persistent cachedObjectiveTypes cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedObjectiveTypes) && ...
+                    isequal(cachedContextKey,contextKey)
+                objectiveTypes = cachedObjectiveTypes;
+                return;
+            end
+
             classNames = planWorkflow.matRadCapabilitiesReader.optimizationClassNames();
             isObjective = startsWith(classNames,'DoseObjectives.');
             objectiveTypes = cellfun( ...
@@ -16,9 +25,20 @@ classdef matRadCapabilitiesReader
                     'matRad_SquaredDeviation','matRad_MinDVH', ...
                     'matRad_MaxDVH','matRad_MeanDose'};
             end
+            cachedObjectiveTypes = objectiveTypes;
+            cachedContextKey = contextKey;
         end
 
         function robustnessValues = supportedObjectiveRobustnessValues()
+            persistent cachedRobustnessValues cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedRobustnessValues) && ...
+                    isequal(cachedContextKey,contextKey)
+                robustnessValues = cachedRobustnessValues;
+                return;
+            end
+
             objectiveTypes = ...
                 planWorkflow.matRadCapabilitiesReader.supportedObjectiveTypes();
             robustnessValues = {};
@@ -32,15 +52,30 @@ classdef matRadCapabilitiesReader
             if isempty(robustnessValues)
                 robustnessValues = {'none'};
             end
+            cachedRobustnessValues = robustnessValues;
+            cachedContextKey = contextKey;
         end
 
         function robustnessValues = supportedObjectiveRobustnessValuesForType( ...
                 objectiveType)
+            persistent cache
+            if isempty(cache)
+                cache = containers.Map('KeyType','char','ValueType','any');
+            end
+            cacheKey = sprintf('%s|%s', ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey(), ...
+                char(objectiveType));
+            if isKey(cache,cacheKey)
+                robustnessValues = cache(cacheKey);
+                return;
+            end
+
             className = ...
                 planWorkflow.matRadCapabilitiesReader.objectiveClassName( ...
                 objectiveType);
             if isempty(className)
                 robustnessValues = {'none'};
+                cache(cacheKey) = robustnessValues;
                 return;
             end
 
@@ -52,6 +87,7 @@ classdef matRadCapabilitiesReader
             robustnessValues = cellstr(robustnessValues);
             robustnessValues = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
                 robustnessValues);
+            cache(cacheKey) = robustnessValues;
         end
 
         function tf = supportsObjectiveRobustness(objectiveType,robustness)
@@ -77,6 +113,14 @@ classdef matRadCapabilitiesReader
         end
 
         function robustnessModes = supportedWorkflowRobustnessModes()
+            persistent cachedModes cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedModes) && isequal(cachedContextKey,contextKey)
+                robustnessModes = cachedModes;
+                return;
+            end
+
             baseModes = ...
                 planWorkflow.matRadCapabilitiesReader.supportedObjectiveRobustnessValues();
             workflowModes = {'none','STOCH','COWC','c-COWC', ...
@@ -91,9 +135,19 @@ classdef matRadCapabilitiesReader
             if ~any(strcmp(robustnessModes,'none'))
                 robustnessModes = [{'none'},robustnessModes];
             end
+            cachedModes = robustnessModes;
+            cachedContextKey = contextKey;
         end
 
         function scenarioModes = supportedScenarioModes()
+            persistent cachedModes cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedModes) && isequal(cachedContextKey,contextKey)
+                scenarioModes = cachedModes;
+                return;
+            end
+
             scenarioModes = ...
                 planWorkflow.matRadCapabilitiesReader.discoverScenarioModes();
             scenarioModes = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
@@ -123,9 +177,20 @@ classdef matRadCapabilitiesReader
                     'impScen_permuted5_truncated', ...
                     'impScen_permuted7_truncated','random'};
             end
+            cachedModes = scenarioModes;
+            cachedContextKey = contextKey;
         end
 
         function optimizers = supportedOptimizers()
+            persistent cachedOptimizers cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedOptimizers) && ...
+                    isequal(cachedContextKey,contextKey)
+                optimizers = cachedOptimizers;
+                return;
+            end
+
             optimizerSpecs = { ...
                 'IPOPT','matRad_OptimizerIPOPT'; ...
                 'fmincon','matRad_OptimizerFmincon'; ...
@@ -140,9 +205,19 @@ classdef matRadCapabilitiesReader
             if isempty(optimizers)
                 optimizers = optimizerSpecs(:,1)';
             end
+            cachedOptimizers = optimizers;
+            cachedContextKey = contextKey;
         end
 
         function radiationModes = supportedRadiationModes()
+            persistent cachedModes cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedModes) && isequal(cachedContextKey,contextKey)
+                radiationModes = cachedModes;
+                return;
+            end
+
             radiationModes = {};
             if exist('matRad_getAvailableMachines','file') == 2
                 try
@@ -163,6 +238,8 @@ classdef matRadCapabilitiesReader
             radiationModes = ...
                 planWorkflow.matRadCapabilitiesReader.orderRadiationModes( ...
                 radiationModes);
+            cachedModes = radiationModes;
+            cachedContextKey = contextKey;
         end
 
         function acquisitionTypes = supportedAcquisitionTypes()
@@ -170,7 +247,19 @@ classdef matRadCapabilitiesReader
         end
 
         function machines = supportedMachines(radiationMode)
+            persistent cache
+            if isempty(cache)
+                cache = containers.Map('KeyType','char','ValueType','any');
+            end
             radiationMode = char(radiationMode);
+            cacheKey = sprintf('%s|%s', ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey(), ...
+                radiationMode);
+            if isKey(cache,cacheKey)
+                machines = cache(cacheKey);
+                return;
+            end
+
             machines = {};
             if exist('matRad_getAvailableMachines','file') == 2
                 try
@@ -187,6 +276,7 @@ classdef matRadCapabilitiesReader
             if isempty(machines)
                 machines = {'Generic'};
             end
+            cache(cacheKey) = machines;
         end
 
         function bioModels = supportedBioModels(radiationMode)
@@ -197,6 +287,18 @@ classdef matRadCapabilitiesReader
         end
 
         function specs = supportedBioModelSpecs(radiationMode)
+            persistent cache
+            if isempty(cache)
+                cache = containers.Map('KeyType','char','ValueType','any');
+            end
+            cacheKey = sprintf('%s|%s', ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey(), ...
+                char(radiationMode));
+            if isKey(cache,cacheKey)
+                specs = cache(cacheKey);
+                return;
+            end
+
             names = ...
                 planWorkflow.matRadCapabilitiesReader.supportedBioModelNames( ...
                 radiationMode);
@@ -208,6 +310,7 @@ classdef matRadCapabilitiesReader
             end
             specs = planWorkflow.matRadCapabilitiesReader.bioModelSpecs( ...
                 names,quantities);
+            cache(cacheKey) = specs;
         end
 
         function bioModel = defaultBioModel(radiationMode)
@@ -234,6 +337,19 @@ classdef matRadCapabilitiesReader
         end
 
         function quantities = supportedDoseQuantities(radiationMode,bioModel)
+            persistent cache
+            if isempty(cache)
+                cache = containers.Map('KeyType','char','ValueType','any');
+            end
+            cacheKey = sprintf('%s|%s|%s', ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey(), ...
+                char(radiationMode), ...
+                char(bioModel));
+            if isKey(cache,cacheKey)
+                quantities = cache(cacheKey);
+                return;
+            end
+
             quantities = ...
                 planWorkflow.matRadCapabilitiesReader.supportedDoseQuantitiesForBioModel( ...
                 radiationMode,bioModel);
@@ -244,11 +360,22 @@ classdef matRadCapabilitiesReader
                      'radiationMode "%s" and bioModel "%s".'], ...
                     char(radiationMode),char(bioModel));
             end
+            cache(cacheKey) = quantities;
         end
 
         function quantities = supportedDoseQuantityNames()
+            persistent cachedQuantities cachedContextKey
+            contextKey = ...
+                planWorkflow.matRadCapabilitiesReader.capabilitiesCacheKey();
+            if ~isempty(cachedQuantities) && ...
+                    isequal(cachedContextKey,contextKey)
+                quantities = cachedQuantities;
+                return;
+            end
             quantities = ...
                 planWorkflow.matRadCapabilitiesReader.doseQuantityCandidates();
+            cachedQuantities = quantities;
+            cachedContextKey = contextKey;
         end
     end
 
@@ -580,6 +707,27 @@ classdef matRadCapabilitiesReader
             values = values(~cellfun(@isempty,values));
             [~,ix] = unique(values,'stable');
             values = values(sort(ix));
+        end
+
+        function cacheKey = capabilitiesCacheKey()
+            persistent cachedKey cachedPath
+            currentPath = path;
+            if ~isempty(cachedKey) && isequal(cachedPath,currentPath)
+                cacheKey = cachedKey;
+                return;
+            end
+
+            components = { ...
+                which('matRad_rc'), ...
+                which('matRad_getAvailableMachines'), ...
+                which('matRad_getObjectivesAndConstraints'), ...
+                which('matRad_bioModel'), ...
+                which('matRad_BiologicalModel'), ...
+                which('matRad_NominalScenario'), ...
+                which('matRad_OptimizerIPOPT')};
+            cacheKey = strjoin(components,'|');
+            cachedKey = cacheKey;
+            cachedPath = currentPath;
         end
     end
 end

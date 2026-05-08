@@ -88,7 +88,8 @@ classdef ParameterPanelRenderer
                     if isfield(selectedOptions,fieldName)
                         selectedIx = selectedOptions.(fieldName);
                     end
-                    set(control,'String',labels,'Value',selectedIx);
+                    planWorkflow.gui.ParameterPanelRenderer.setControlIfChanged( ...
+                        control,'String',labels,'Value',selectedIx);
                     planWorkflow.gui.ParameterPanelRenderer.storeOptionValueMap( ...
                         control,valueMap);
                 elseif strcmp(get(control,'Style'),'popupmenu')
@@ -104,15 +105,19 @@ classdef ParameterPanelRenderer
                     if isempty(selectedIx)
                         selectedIx = 1;
                     end
-                    set(control,'String',labels,'Value',selectedIx);
+                    planWorkflow.gui.ParameterPanelRenderer.setControlIfChanged( ...
+                        control,'String',labels,'Value',selectedIx);
                     planWorkflow.gui.ParameterPanelRenderer.storeOptionValueMap( ...
                         control,valueMap);
                 elseif strcmp(get(control,'Style'),'checkbox')
-                    set(control,'Value',logical(config.(fieldName)));
+                    planWorkflow.gui.ParameterPanelRenderer.setControlIfChanged( ...
+                        control,'Value',logical(config.(fieldName)));
                 else
-                    set(control,'String', ...
-                    planWorkflow.gui.OptionValues.valueToText( ...
-                        config.(fieldName)));
+                    textValue = ...
+                        planWorkflow.gui.OptionValues.valueToText( ...
+                        config.(fieldName));
+                    planWorkflow.gui.ParameterPanelRenderer.setControlIfChanged( ...
+                        control,'String',textValue);
                 end
             end
             planWorkflow.gui.ParameterPanelRenderer.refreshScroll(tableHandle);
@@ -582,6 +587,27 @@ classdef ParameterPanelRenderer
 
         function text = joinCellText(values)
             text = planWorkflow.gui.OptionValues.joinCellText(values);
+        end
+
+        function setControlIfChanged(control,varargin)
+            shouldSet = false;
+            for argIx = 1:2:numel(varargin)
+                propertyName = varargin{argIx};
+                newValue = varargin{argIx + 1};
+                try
+                    currentValue = get(control,propertyName);
+                    if ~isequaln(currentValue,newValue)
+                        shouldSet = true;
+                        break;
+                    end
+                catch
+                    shouldSet = true;
+                    break;
+                end
+            end
+            if shouldSet
+                set(control,varargin{:});
+            end
         end
     end
 end

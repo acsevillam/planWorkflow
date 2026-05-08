@@ -18,8 +18,8 @@
     "robustPlans": [
       {
         "ref": "shared/objectives_interval3_base.json",
-        "id": "robust_1",
-        "label": "Robust 1"
+        "id": "Interval3",
+        "label": "Interval3"
       }
     ]
   }

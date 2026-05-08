@@ -166,6 +166,8 @@ classdef PlanEditor
             end
 
             function descriptionChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating plan description...');
                 previousState = prepareSelectionSnapshot();
 
                 try
@@ -181,6 +183,8 @@ classdef PlanEditor
             end
 
             function acquisitionTypeChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating acquisition options...');
                 selectedAcquisitionTypeIx = ...
                     preparePanel.acquisitionTypeIndex();
                 runConfig.AcquisitionType = ...
@@ -192,6 +196,8 @@ classdef PlanEditor
             end
 
             function templateChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Loading plan template...');
                 previousState = prepareSelectionSnapshot();
 
                 try
@@ -265,6 +271,8 @@ classdef PlanEditor
             end
 
             function beamChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating beam set...');
                 previousBeamIx = selectedBeamIx;
                 try
                     saveBeamControls();
@@ -293,6 +301,8 @@ classdef PlanEditor
             end
 
             function precomputeSelectionChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating visible precompute fields...');
                 refreshPrecomputeConfigRows();
             end
 
@@ -363,6 +373,8 @@ classdef PlanEditor
             end
 
             function precomputeConfigChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating precompute settings...');
                 if syncEditedConfig(@savePrecomputeConfigTable)
                     loadObjectiveTable();
                     loadAnalysisPanel();
@@ -401,6 +413,17 @@ classdef PlanEditor
                 catch ME
                     errordlg(ME.message,'Invalid workflow settings');
                 end
+            end
+
+            function cleanupObj = beginInteractiveOperation(message)
+                cleanupObj = onCleanup(@() []);
+                if isempty(progressReporter) || ...
+                        ~ismethod(progressReporter, ...
+                        'beginInteractiveOperation')
+                    return;
+                end
+                cleanupObj = ...
+                    progressReporter.beginInteractiveOperation(message);
             end
 
             function setStageRunConfig(newRunConfig)
@@ -502,12 +525,16 @@ classdef PlanEditor
             end
 
             function beamConfigChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating beam settings...');
                 syncEditedConfig(@saveBeamControls);
                 loadBeamControls();
                 loadAnalysisPanel();
             end
 
             function beamRadiationModeChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating radiation mode...');
                 runConfig.radiationMode = ...
                     preparePanel.beamFieldValue('radiationMode');
                 runConfig = ...
@@ -524,6 +551,8 @@ classdef PlanEditor
             end
 
             function beamBioModelChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating biological model...');
                 runConfig.bioModel = ...
                     preparePanel.beamFieldValue('bioModel');
                 runConfig = ...
@@ -533,6 +562,8 @@ classdef PlanEditor
             end
 
             function includeOtherRadiationModesChanged(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating radiation-mode options...');
                 includeOtherRadiationModes = ...
                     preparePanel.beamFieldValue('includeOtherRadiationModes');
                 radiationModes = ...
@@ -604,6 +635,8 @@ classdef PlanEditor
             end
 
             function structureEdited(varargin)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating structures...');
                 try
                     saveStructuresTable();
                     loadObjectiveTable();
@@ -617,6 +650,8 @@ classdef PlanEditor
             end
 
             function addStructure(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Adding structure...');
                 preparePanel.addStructureRow();
                 saveStructuresTable();
                 loadObjectiveTable();
@@ -624,6 +659,8 @@ classdef PlanEditor
             end
 
             function removeStructure(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Removing structure...');
                 preparePanel.removeSelectedStructureRow();
                 saveStructuresTable();
                 loadObjectiveTable();
@@ -644,6 +681,8 @@ classdef PlanEditor
             end
 
             function objectiveEdited(objectiveSetName,source,event)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Updating objectives...');
                 robustnessEdited = ...
                     planWorkflow.gui.ObjectiveTableAdapter.isRobustnessEdit( ...
                     event);
@@ -691,14 +730,20 @@ classdef PlanEditor
             end
 
             function addObjective(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Adding objective...');
                 preparePanel.addObjectiveRow(template);
             end
 
             function deleteObjective(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Deleting objective...');
                 preparePanel.deleteObjectiveRow();
             end
 
             function addRobustPlan(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Adding robust plan...');
                 saveObjectiveTable();
                 newObjectiveSetName = appendRobustPlan( ...
                     activeObjectiveRobustPlanIx());
@@ -709,6 +754,8 @@ classdef PlanEditor
             end
 
             function addRobustPlanFromPrecompute(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Adding robust plan...');
                 saveObjectiveTable();
                 savePrecomputeConfigTable();
                 newObjectiveSetName = appendRobustPlan( ...
@@ -755,10 +802,14 @@ classdef PlanEditor
             end
 
             function deleteRobustPlan(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Deleting robust plan...');
                 deleteRobustPlanByIx(activeObjectiveRobustPlanIx());
             end
 
             function deleteRobustPlanFromPrecompute(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Deleting robust plan...');
                 saveObjectiveTable();
                 savePrecomputeConfigTable();
                 deleteRobustPlanByIx(activePrecomputeRobustPlanIx());
@@ -934,11 +985,14 @@ classdef PlanEditor
             end
 
             function exportPresetCallback(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Preparing export...');
                 try
                     saveCurrentEditorState();
                     presetNames = ...
                         planWorkflow.gui.PlanPresetWriter.defaultPresetNames( ...
                         runConfig);
+                    clear operationCleanup;
                     answer = ...
                         planWorkflow.gui.PlanEditor.promptExportPresetNames( ...
                         runConfig,template,presetNames);
@@ -946,6 +1000,8 @@ classdef PlanEditor
                         return;
                     end
 
+                    operationCleanup = beginInteractiveOperation( ...
+                        'Exporting preset...');
                     switch answer.action
                         case 'template'
                             saveResult = ...
@@ -994,6 +1050,8 @@ classdef PlanEditor
             end
 
             function calculateCallback(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Validating workflow settings...');
                 try
                     if ~options.readOnly
                         saveCurrentEditorState();
@@ -1002,6 +1060,7 @@ classdef PlanEditor
                     accepted = true;
                     lockEditorControls(true);
                     set(cancelButton,'String','Close');
+                    clear operationCleanup;
                     progressReporter.calculationAccepted();
                     uiresume(fig);
                 catch ME
@@ -1055,14 +1114,19 @@ classdef PlanEditor
             end
 
             function settingsActionCallback(~,~)
+                operationCleanup = beginInteractiveOperation( ...
+                    'Preparing workflow settings...');
                 try
                     if ~options.readOnly
                         savePrepareConfigTable();
                     end
+                    clear operationCleanup;
                     [updatedRunConfig,settingsAccepted] = ...
                         planWorkflow.gui.PlanEditor.promptWorkflowSettings( ...
                         runConfig);
                     if settingsAccepted
+                        operationCleanup = beginInteractiveOperation( ...
+                            'Applying workflow settings...');
                         runConfig = updatedRunConfig;
                         refreshCaseIdOptions();
                         refreshSamplingPanel();

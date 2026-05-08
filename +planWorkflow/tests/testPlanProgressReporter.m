@@ -138,6 +138,61 @@ verifyTrue(testCase,contains(get(status,'String'), ...
     'Sampling: Plan reference: 2/4 scenarios.'));
 end
 
+function testInteractiveOperationShowsBusyStateAndRestores(testCase)
+guiFig = figure('Visible','off');
+cleanupGui = onCleanup(@() closeFigure(guiFig));
+fill = uipanel('Parent',guiFig,'Position',[0 0 0 1], ...
+    'BackgroundColor',[0.18 0.45 0.75]);
+status = uicontrol('Parent',guiFig,'Style','text');
+details = uicontrol('Parent',guiFig,'Style','listbox');
+stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
+tabGroup = uitabgroup('Parent',guiFig);
+reporter = planWorkflow.gui.PlanProgressReporter( ...
+    guiFig,fill,status,details,stopButton,tabGroup);
+reporter.ready();
+
+originalStatus = get(status,'String');
+originalPosition = get(fill,'Position');
+originalColor = get(fill,'BackgroundColor');
+
+cleanupObj = reporter.beginInteractiveOperation( ...
+    'Updating plan template...');
+
+verifyTrue(testCase,contains(get(status,'String'), ...
+    'Updating plan template'));
+busyPosition = get(fill,'Position');
+verifyGreaterThanOrEqual(testCase,busyPosition(3),0.02);
+verifyNotEqual(testCase,get(fill,'BackgroundColor'),originalColor);
+
+clear cleanupObj;
+
+verifyEqual(testCase,get(status,'String'),originalStatus);
+verifyEqual(testCase,get(fill,'Position'),originalPosition);
+verifyEqual(testCase,get(fill,'BackgroundColor'),originalColor);
+end
+
+function testInteractiveOperationRestoresAfterException(testCase)
+guiFig = figure('Visible','off');
+cleanupGui = onCleanup(@() closeFigure(guiFig));
+fill = uipanel('Parent',guiFig,'Position',[0 0 0 1], ...
+    'BackgroundColor',[0.18 0.45 0.75]);
+status = uicontrol('Parent',guiFig,'Style','text');
+details = uicontrol('Parent',guiFig,'Style','listbox');
+stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
+tabGroup = uitabgroup('Parent',guiFig);
+reporter = planWorkflow.gui.PlanProgressReporter( ...
+    guiFig,fill,status,details,stopButton,tabGroup);
+reporter.ready();
+
+originalStatus = get(status,'String');
+originalPosition = get(fill,'Position');
+
+verifyError(testCase,@() failingInteractiveOperation(reporter), ...
+    'planWorkflowTest:ExpectedFailure');
+verifyEqual(testCase,get(status,'String'),originalStatus);
+verifyEqual(testCase,get(fill,'Position'),originalPosition);
+end
+
 function testShowResultsShowsSamplingFigurePanel(testCase)
 fixture = testCase.applyFixture( ...
     matlab.unittest.fixtures.TemporaryFolderFixture);
@@ -920,6 +975,11 @@ function touchFile(filePath)
 fid = fopen(filePath,'w');
 cleanup = onCleanup(@() fclose(fid));
 fprintf(fid,'placeholder');
+end
+
+function failingInteractiveOperation(reporter)
+cleanupObj = reporter.beginInteractiveOperation('Failing operation...');
+error('planWorkflowTest:ExpectedFailure','Expected failure.');
 end
 
 function closeFigure(fig)

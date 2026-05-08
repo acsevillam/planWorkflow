@@ -183,7 +183,8 @@ classdef PrepareEditorController < handle
         end
 
         function loadStructures(obj,template)
-            set(obj.Handles.structuresTable,'Data', ...
+            obj.setTablePropertyIfChanged(obj.Handles.structuresTable, ...
+                'Data', ...
                 planWorkflow.gui.TemplateStructureTableAdapter.toTable( ...
                 template));
         end
@@ -293,9 +294,11 @@ classdef PrepareEditorController < handle
                 planWorkflow.gui.ObjectiveTableAdapter.columnFormat(template);
             for setIx = 1:numel(setNames)
                 setName = setNames{setIx};
-                set(obj.ObjectiveTables.(setName),'ColumnFormat', ...
+                obj.setTablePropertyIfChanged( ...
+                    obj.ObjectiveTables.(setName),'ColumnFormat', ...
                     columnFormat);
-                set(obj.ObjectiveTables.(setName),'Data', ...
+                obj.setTablePropertyIfChanged( ...
+                    obj.ObjectiveTables.(setName),'Data', ...
                     planWorkflow.gui.ObjectiveTableAdapter.toTable( ...
                     template,setName));
             end
@@ -463,6 +466,20 @@ classdef PrepareEditorController < handle
                     return;
                 end
             end
+        end
+
+        function setTablePropertyIfChanged(~,tableHandle,propertyName,value)
+            if ~ishandle(tableHandle)
+                return;
+            end
+            try
+                currentValue = get(tableHandle,propertyName);
+                if isequaln(currentValue,value)
+                    return;
+                end
+            catch
+            end
+            set(tableHandle,propertyName,value);
         end
     end
 end

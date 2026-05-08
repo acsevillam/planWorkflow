@@ -17,9 +17,9 @@
     },
     "robustPlans": [
       {
-        "ref": "shared/objectives_interval2_base.json",
-        "id": "Interval2",
-        "label": "Interval2"
+        "ref": "shared/objectives_STOCH_base.json",
+        "id": "Stochastic",
+        "label": "Stochastic"
       }
     ]
   }

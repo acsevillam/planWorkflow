@@ -18,6 +18,7 @@ classdef PlanProgressReporter < handle
         RecalculateAnalysisConfigProvider = []
         RecalculateAnalysisButtonHandle = []
         IsRecalculatingAnalysis = false
+        InteractiveStateStack = {}
     end
 
     methods
@@ -38,6 +39,22 @@ classdef PlanProgressReporter < handle
 
         function ready(obj)
             obj.setProgress(0,'Ready to calculate.');
+        end
+
+        function cleanupObj = beginInteractiveOperation(obj,message)
+            if nargin < 2 || isempty(message)
+                message = 'Working...';
+            end
+
+            if ~obj.isAvailable()
+                cleanupObj = onCleanup(@() []);
+                return;
+            end
+
+            obj.InteractiveStateStack{end + 1} = ...
+                obj.captureInteractiveState();
+            obj.showInteractiveBusy(message);
+            cleanupObj = onCleanup(@() obj.endInteractiveOperation());
         end
 
         function calculationAccepted(obj)
@@ -366,6 +383,64 @@ classdef PlanProgressReporter < handle
             obj.log(sprintf('%s: %s',label,message));
         end
 
+        function snapshot = captureInteractiveState(obj)
+            snapshot = struct('statusString','','fillPosition',[], ...
+                'fillColor',[]);
+            if ishandle(obj.StatusHandle)
+                snapshot.statusString = get(obj.StatusHandle,'String');
+            end
+            if ishandle(obj.FillHandle)
+                snapshot.fillPosition = get(obj.FillHandle,'Position');
+                snapshot.fillColor = get(obj.FillHandle, ...
+                    'BackgroundColor');
+            end
+        end
+
+        function showInteractiveBusy(obj,message)
+            if ~obj.isAvailable()
+                return;
+            end
+
+            if ishandle(obj.FillHandle)
+                position = get(obj.FillHandle,'Position');
+                position(3) = max(position(3),0.02);
+                set(obj.FillHandle,'Position',position, ...
+                    'BackgroundColor',[0.93 0.68 0.20]);
+            end
+            if ishandle(obj.StatusHandle)
+                set(obj.StatusHandle,'String', ...
+                    sprintf('Working...  %s',char(message)));
+            end
+            obj.flushImmediate();
+        end
+
+        function endInteractiveOperation(obj)
+            if isempty(obj.InteractiveStateStack)
+                return;
+            end
+
+            snapshot = obj.InteractiveStateStack{end};
+            obj.InteractiveStateStack(end) = [];
+            if ~obj.isAvailable()
+                return;
+            end
+
+            if ishandle(obj.StatusHandle)
+                set(obj.StatusHandle,'String',snapshot.statusString);
+            end
+            if ishandle(obj.FillHandle)
+                if ~isempty(snapshot.fillPosition)
+                    set(obj.FillHandle,'Position', ...
+                        snapshot.fillPosition);
+                end
+                if ~isempty(snapshot.fillColor)
+                    set(obj.FillHandle,'BackgroundColor', ...
+                        snapshot.fillColor);
+                end
+            end
+            obj.flushImmediate();
+        end
+
         function flush(~)
             try
                 drawnow limitrate;
@@ -475,6 +550,8 @@ classdef PlanProgressReporter < handle
 
             obj.IsRecalculatingAnalysis = true;
             cleanupObj = onCleanup(@() obj.finishRecalculateAnalysis());
+            busyCleanup = obj.beginInteractiveOperation( ...
+                'Recalculating analysis...');
             obj.updateRecalculateAnalysisButton();
             obj.log('Recalculating analysis results...');
             obj.flushImmediate();
@@ -490,6 +567,7 @@ classdef PlanProgressReporter < handle
                     ME.message));
                 rethrow(ME);
             end
+            clear busyCleanup;
         end
 
         function invokeRecalculateAnalysisCallback(obj,varargin)

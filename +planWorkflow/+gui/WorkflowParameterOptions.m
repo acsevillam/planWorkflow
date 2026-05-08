@@ -256,8 +256,20 @@ classdef WorkflowParameterOptions
             end
 
             patientRoot = fullfile(char(patientDataPath),char(description));
+            cacheKey = sprintf('%s|%s|%s',patientRoot, ...
+                char(description),char(acquisitionType));
+            [cachedCaseIds,cacheHit] = ...
+                planWorkflow.gui.WorkflowParameterOptions.caseIdCache( ...
+                cacheKey);
+            if cacheHit
+                caseIds = cachedCaseIds;
+                return;
+            end
+
             if ~isfolder(patientRoot)
                 caseIds = {};
+                planWorkflow.gui.WorkflowParameterOptions.caseIdCache( ...
+                    cacheKey,caseIds);
                 return;
             end
 
@@ -279,6 +291,8 @@ classdef WorkflowParameterOptions
             end
 
             caseIds = sort(caseIds);
+            planWorkflow.gui.WorkflowParameterOptions.caseIdCache( ...
+                cacheKey,caseIds);
         end
 
         function caseIds = dicomCaseIds(patientRoot)
@@ -404,6 +418,26 @@ classdef WorkflowParameterOptions
                     'Option set labels and values must have equal length.');
             end
             options = struct('labels',{labels},'values',{values});
+        end
+
+        function [values,hit] = caseIdCache(cacheKey,values)
+            persistent cache
+            if isempty(cache)
+                cache = containers.Map('KeyType','char','ValueType','any');
+            end
+
+            cacheKey = char(cacheKey);
+            if nargin >= 2
+                cache(cacheKey) = values;
+                hit = true;
+                return;
+            end
+            values = {};
+            hit = false;
+            if isKey(cache,cacheKey)
+                values = cache(cacheKey);
+                hit = true;
+            end
         end
     end
 end
