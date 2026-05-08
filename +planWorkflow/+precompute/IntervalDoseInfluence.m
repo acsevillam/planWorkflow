@@ -124,6 +124,9 @@ classdef IntervalDoseInfluence
             cacheMetadata.intervalMode = robustData.strategy.name;
             cacheMetadata.intervalQuantity = dij_interval.quantity;
             cacheMetadata.intervalQuantityField = dij_interval.quantityField;
+            if isfield(dij_interval,'radiusMode')
+                cacheMetadata.intervalRadiusMode = dij_interval.radiusMode;
+            end
             context.cache.ensureFileFolder(cacheFile);
             if planWorkflow.precompute.IntervalDoseInfluence.needsRobustNominalDij( ...
                     robustData) && (~isfield(robustData,'dijNominal') || ...
@@ -205,9 +208,9 @@ classdef IntervalDoseInfluence
             if ~isfield(pln,'propOpt') || ~isstruct(pln.propOpt)
                 pln.propOpt = struct();
             end
-            if isfield(pln.propOpt,'dij_interval')
-                pln.propOpt = rmfield(pln.propOpt,'dij_interval');
-            end
+            pln = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.removePlanPayload( ...
+                pln,'dij_interval');
             pln.multScen = robustData.dij_intervalContext.scenarioModel;
         end
 
@@ -252,10 +255,18 @@ classdef IntervalDoseInfluence
                 interval.robustOarNames = {};
             end
             if strcmp(robustData.strategy.name,'INTERVAL3')
-                interval.KMode = robustData.planConfig.robustnessOptions.KMode;
-                interval.kmax = robustData.planConfig.robustnessOptions.kmax;
-                interval.retentionThreshold = ...
-                    robustData.planConfig.robustnessOptions.retentionThreshold;
+                interval.radiusMode = ...
+                    robustData.planConfig.robustnessOptions.radiusMode;
+                if strcmpi(char(interval.radiusMode),'std')
+                    interval.KMode = ...
+                        robustData.planConfig.robustnessOptions.KMode;
+                    interval.kmax = robustData.planConfig.robustnessOptions.kmax;
+                    interval.retentionThreshold = ...
+                        robustData.planConfig.robustnessOptions.retentionThreshold;
+                end
+            elseif strcmp(robustData.strategy.name,'INTERVAL2')
+                interval.radiusMode = ...
+                    robustData.planConfig.robustnessOptions.radiusMode;
             end
             contextOut.interval = interval;
             if isfield(robustData,'stf') && ~isempty(robustData.stf)
@@ -289,6 +300,12 @@ classdef IntervalDoseInfluence
                 intervalConfig.refScen = robustData.ct.refScen;
             end
             intervalConfig.ProgressLevel = 'summary';
+            if isfield(robustData.planConfig,'robustnessOptions') && ...
+                    isfield(robustData.planConfig.robustnessOptions, ...
+                    'radiusMode')
+                intervalConfig.RadiusMode = ...
+                    robustData.planConfig.robustnessOptions.radiusMode;
+            end
             intervalConfig.targetStructSel = ...
                 robustData.cst(robustData.objectiveInfo.ixTarget,2);
             intervalConfig.OARStructSel = ...
@@ -297,12 +314,15 @@ classdef IntervalDoseInfluence
 
             if strcmp(robustData.strategy.name,'INTERVAL3')
                 intervalConfig.UseParallel = true;
-                intervalConfig.KMode = ...
-                    robustData.planConfig.robustnessOptions.KMode;
-                intervalConfig.KMax = ...
-                    robustData.planConfig.robustnessOptions.kmax;
-                intervalConfig.RetentionThreshold = ...
-                    robustData.planConfig.robustnessOptions.retentionThreshold;
+                if ~isfield(intervalConfig,'RadiusMode') || ...
+                        strcmpi(char(intervalConfig.RadiusMode),'std')
+                    intervalConfig.KMode = ...
+                        robustData.planConfig.robustnessOptions.KMode;
+                    intervalConfig.KMax = ...
+                        robustData.planConfig.robustnessOptions.kmax;
+                    intervalConfig.RetentionThreshold = ...
+                        robustData.planConfig.robustnessOptions.retentionThreshold;
+                end
             end
         end
 
@@ -333,20 +353,9 @@ classdef IntervalDoseInfluence
         end
 
         function pln = createNominalOptimizationPlan(robustData,dijNominal)
-            pln = robustData.pln;
-            if isfield(dijNominal,'scenarioModel') && ...
-                    ~isempty(dijNominal.scenarioModel)
-                pln.multScen = dijNominal.scenarioModel;
-            end
-            if ~isfield(pln,'propOpt') || ~isstruct(pln.propOpt)
-                pln.propOpt = struct();
-            end
-            if isfield(pln.propOpt,'scen4D')
-                pln.propOpt = rmfield(pln.propOpt,'scen4D');
-            end
-            if isfield(pln.propOpt,'dij_interval')
-                pln.propOpt = rmfield(pln.propOpt,'dij_interval');
-            end
+            pln = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.createNominalOptimizationPlan( ...
+                robustData.pln,dijNominal,'dij_interval');
         end
     end
 
@@ -382,9 +391,8 @@ classdef IntervalDoseInfluence
                 isfield(dijInterval,'quantityField');
             if tf && strcmp(strategyName,'INTERVAL3')
                 tf = isfield(dijInterval,'OARSubIx') && ...
-                    isfield(dijInterval,'U') && ...
-                    isfield(dijInterval,'S') && ...
-                    isfield(dijInterval,'V');
+                    isfield(dijInterval,'OARRadiusFactor') && ...
+                    isfield(dijInterval,'OARRadiusRank');
             end
         end
 
@@ -461,15 +469,17 @@ classdef IntervalDoseInfluence
             end
 
             scenarioId = ...
-                planWorkflow.precompute.IntervalDoseInfluence.nominalScenarioId( ...
-                robustData.pln,robustData.dij_interval);
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.nominalScenarioId( ...
+                robustData.pln,robustData.dij_interval, ...
+                'planWorkflow:precompute:IntervalDoseInfluence', ...
+                'interval');
             scenarioDijIx = robustData.pln.multScen.getDijScenarioIndex( ...
                 scenarioId);
             scenarioModel = robustData.pln.multScen.extractSingleScenario( ...
                 scenarioId);
 
             dijNominal = ...
-                planWorkflow.precompute.IntervalDoseInfluence.extractDijScenario( ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.extractDijScenario( ...
                 robustData.dij,scenarioDijIx,scenarioModel);
             if ~planWorkflow.precompute.IntervalDoseInfluence.isRobustNominalDijUsable( ...
                     dijNominal,robustData.dij_interval)
@@ -481,73 +491,6 @@ classdef IntervalDoseInfluence
             plnNominal = ...
                 planWorkflow.precompute.IntervalDoseInfluence.createNominalOptimizationPlan( ...
                 robustData,dijNominal);
-        end
-
-        function scenarioId = nominalScenarioId(pln,dij_interval)
-            if ~isfield(pln,'multScen') || isempty(pln.multScen) || ...
-                    ~ismethod(pln.multScen,'getNominalScenarioIds')
-                error(['planWorkflow:precompute:IntervalDoseInfluence:' ...
-                    'MissingScenarioModel'], ...
-                    'Cannot derive nominal interval dij without pln.multScen.');
-            end
-
-            nominalIds = pln.multScen.getNominalScenarioIds();
-            if isempty(nominalIds)
-                error(['planWorkflow:precompute:IntervalDoseInfluence:' ...
-                    'MissingNominalRobustScenario'], ...
-                    ['The robust dij used for interval calculation does ' ...
-                    'not contain a nominal scenario.']);
-            end
-
-            refScen = 1;
-            if isfield(dij_interval,'refScen') && ...
-                    ~isempty(dij_interval.refScen)
-                refScen = dij_interval.refScen;
-            end
-            ctScenIds = arrayfun(@(id) pln.multScen.getCtScenario(id), ...
-                nominalIds);
-            matchingIx = find(ctScenIds == refScen,1,'first');
-            if isempty(matchingIx)
-                error(['planWorkflow:precompute:IntervalDoseInfluence:' ...
-                    'MissingReferenceNominalRobustScenario'], ...
-                    ['The robust dij used for interval calculation does ' ...
-                    'not contain a nominal scenario for CT scenario %d.'], ...
-                    refScen);
-            end
-
-            scenarioId = nominalIds(matchingIx);
-        end
-
-        function dijOut = extractDijScenario(dijIn,scenarioDijIx, ...
-                scenarioModel)
-            dijOut = dijIn;
-            fieldNames = fieldnames(dijOut);
-            for fieldIx = 1:numel(fieldNames)
-                fieldName = fieldNames{fieldIx};
-                value = dijOut.(fieldName);
-                if ~iscell(value) || numel(value) < scenarioDijIx
-                    continue;
-                end
-                scenarioValue = value{scenarioDijIx};
-                if ~(isempty(scenarioValue) || isnumeric(scenarioValue) || ...
-                        islogical(scenarioValue))
-                    continue;
-                end
-
-                scenarioCell = cell(1,1,1);
-                scenarioCell{1} = scenarioValue;
-                dijOut.(fieldName) = scenarioCell;
-            end
-
-            dijOut.numOfScenarios = 1;
-            dijOut.scenarioModel = scenarioModel;
-            dijOut.nominalScenarioDijIx = scenarioDijIx;
-            if ismethod(scenarioModel,'scenarioIds')
-                ids = scenarioModel.scenarioIds();
-                if ~isempty(ids)
-                    dijOut.nominalScenarioId = ids(1);
-                end
-            end
         end
 
         function robustData = stripStoredIntervalPlanPayload(robustData)
@@ -569,42 +512,27 @@ classdef IntervalDoseInfluence
         end
 
         function pln = removeIntervalDijFromPlan(pln)
-            if isstruct(pln) && isfield(pln,'propOpt') && ...
-                    isstruct(pln.propOpt) && ...
-                    isfield(pln.propOpt,'dij_interval')
-                pln.propOpt = rmfield(pln.propOpt,'dij_interval');
-            end
+            pln = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.removePlanPayload( ...
+                pln,'dij_interval');
         end
 
         function pln = attachIntervalDijToPlan(pln,dij_interval)
-            if ~isfield(pln,'propOpt') || ~isstruct(pln.propOpt)
-                pln.propOpt = struct();
-            end
-            pln.propOpt.dij_interval = dij_interval;
+            pln = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.attachPlanPayload( ...
+                pln,'dij_interval',dij_interval);
         end
 
         function quantityField = intervalQuantityField(dij_interval)
-            quantityField = 'physicalDose';
-            if ~isfield(dij_interval,'quantityField') || ...
-                    isempty(dij_interval.quantityField)
-                return;
-            end
-            if ~(ischar(dij_interval.quantityField) || ...
-                    (isstring(dij_interval.quantityField) && ...
-                    isscalar(dij_interval.quantityField)))
-                quantityField = '';
-                return;
-            end
-            quantityField = char(dij_interval.quantityField);
+            quantityField = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.quantityField( ...
+                dij_interval,'physicalDose');
         end
 
         function tf = isDijQuantityUsable(dij,quantityField,expectedSize)
-            tf = ~isempty(quantityField) && isfield(dij,quantityField) && ...
-                iscell(dij.(quantityField)) && ...
-                ~isempty(dij.(quantityField)) && ...
-                ~isempty(dij.(quantityField){1}) && ...
-                isnumeric(dij.(quantityField){1}) && ...
-                isequal(size(dij.(quantityField){1}),expectedSize);
+            tf = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.isDijQuantityUsable( ...
+                dij,quantityField,expectedSize);
         end
 
         function value = optionalStructField(input,fieldName,defaultValue)

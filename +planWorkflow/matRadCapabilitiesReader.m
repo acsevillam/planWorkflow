@@ -13,10 +13,11 @@ classdef matRadCapabilitiesReader
             end
 
             classNames = planWorkflow.matRadCapabilitiesReader.optimizationClassNames();
-            isObjective = startsWith(classNames,'DoseObjectives.');
+            isOptimizationFunction = startsWith(classNames,'DoseObjectives.') | ...
+                startsWith(classNames,'DoseConstraints.');
             objectiveTypes = cellfun( ...
                 @planWorkflow.matRadCapabilitiesReader.localClassName, ...
-                classNames(isObjective),'UniformOutput',false);
+                classNames(isOptimizationFunction),'UniformOutput',false);
             objectiveTypes = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
                 objectiveTypes);
 
@@ -99,12 +100,19 @@ classdef matRadCapabilitiesReader
 
         function className = objectiveClassName(objectiveType)
             objectiveType = char(objectiveType);
-            if startsWith(objectiveType,'DoseObjectives.')
+            if startsWith(objectiveType,'DoseObjectives.') || ...
+                    startsWith(objectiveType,'DoseConstraints.')
                 candidate = objectiveType;
             else
                 candidate = ['DoseObjectives.' objectiveType];
             end
 
+            if exist(candidate,'class') == 8
+                className = candidate;
+                return;
+            end
+
+            candidate = ['DoseConstraints.' objectiveType];
             if exist(candidate,'class') == 8
                 className = candidate;
             else
@@ -124,7 +132,7 @@ classdef matRadCapabilitiesReader
             baseModes = ...
                 planWorkflow.matRadCapabilitiesReader.supportedObjectiveRobustnessValues();
             workflowModes = {'none','STOCH','COWC','c-COWC', ...
-                'INTERVAL2','INTERVAL3'};
+                'PROB2','INTERVAL2','INTERVAL3'};
             if isempty(setdiff(baseModes,{'none'}))
                 robustnessModes = workflowModes;
             else

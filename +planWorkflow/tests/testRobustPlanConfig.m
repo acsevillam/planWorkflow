@@ -8,8 +8,8 @@ plan.robustnessMode = 'INTERVAL3';
 plan.scenario = struct('mode','wcScen','ctActive',true, ...
     'setupActive',true,'rangeActive',false,'gantryActive',false, ...
     'couchActive',false,'shiftSD',[5 10 5],'wcSigma',1.0);
-plan.robustnessOptions = struct('KMode','dynamic','kmax',10, ...
-    'retentionThreshold',1.0);
+plan.robustnessOptions = struct('radiusMode','std','KMode','dynamic', ...
+    'kmax',10,'retentionThreshold',1.0);
 plan.variants = [ ...
     struct('id','theta_5','label','theta1=5','theta1',5, ...
     'theta2',0.5) ...
@@ -25,6 +25,9 @@ verifyEqual(testCase,precompute.robustPlans(1).robustnessMode,'INTERVAL3');
 verifyTrue(testCase,precompute.robustPlans(1).hasNominalObjectives);
 verifyTrue(testCase,precompute.robustPlans(1).requiresNominalDij);
 verifyTrue(testCase,precompute.robustPlans(1).requiresIntervalDij);
+verifyFalse(testCase,precompute.robustPlans(1).requiresProb2Dij);
+verifyEqual(testCase,precompute.robustPlans(1).robustnessOptions.radiusMode, ...
+    'std');
 verifyEqual(testCase,precompute.robustPlans(1).robustnessOptions.kmax,10);
 verifyEqual(testCase,{precompute.robustPlans(1).variants.id}, ...
     {'theta_5','theta_10'});
@@ -35,8 +38,8 @@ end
 function testDerivedContractRetargetsInterval3OptionsToInterval2(testCase)
 plan = cleanPlan('interval2_from_panel','Retarget INTERVAL2');
 plan.robustnessMode = 'INTERVAL3';
-plan.robustnessOptions = struct('KMode','dynamic','kmax',7, ...
-    'retentionThreshold',0.5);
+plan.robustnessOptions = struct('radiusMode','std','KMode','dynamic', ...
+    'kmax',7,'retentionThreshold',0.5);
 plan.variants = struct('id','theta3','label','theta3', ...
     'theta1',10,'theta2',1);
 
@@ -44,7 +47,8 @@ plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('INTERVAL2',true));
 
 verifyEqual(testCase,plans.robustnessMode,'INTERVAL2');
-verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
+verifyEqual(testCase,fieldnames(plans.robustnessOptions),{'radiusMode'});
+verifyEqual(testCase,plans.robustnessOptions.radiusMode,'std');
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 verifyTrue(testCase,isfield(plans.variants,'theta1'));
 verifyFalse(testCase,isfield(plans.variants,'theta2'));
@@ -53,8 +57,8 @@ end
 function testDerivedContractRetargetsInterval3OptionsToNone(testCase)
 plan = cleanPlan('nominal_from_panel','Retarget none');
 plan.robustnessMode = 'INTERVAL3';
-plan.robustnessOptions = struct('KMode','dynamic','kmax',7, ...
-    'retentionThreshold',0.5);
+plan.robustnessOptions = struct('radiusMode','std','KMode','dynamic', ...
+    'kmax',7,'retentionThreshold',0.5);
 plan.variants = struct('id','theta3','label','theta3', ...
     'theta1',10,'theta2',1);
 
@@ -71,8 +75,8 @@ end
 function testDerivedContractPreservesMatchingInterval3Options(testCase)
 plan = cleanPlan('interval3','Preserve INTERVAL3');
 plan.robustnessMode = 'INTERVAL3';
-plan.robustnessOptions = struct('KMode','dynamic','kmax',7, ...
-    'retentionThreshold',0.5);
+plan.robustnessOptions = struct('radiusMode','std','KMode','dynamic', ...
+    'kmax',7,'retentionThreshold',0.5);
 plan.variants = struct('id','theta3','label','theta3', ...
     'theta1',10,'theta2',1);
 
@@ -80,6 +84,7 @@ plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('INTERVAL3',true));
 
 verifyEqual(testCase,plans.robustnessMode,'INTERVAL3');
+verifyEqual(testCase,plans.robustnessOptions.radiusMode,'std');
 verifyEqual(testCase,plans.robustnessOptions.KMode,'dynamic');
 verifyEqual(testCase,plans.robustnessOptions.kmax,7);
 verifyEqual(testCase,plans.robustnessOptions.retentionThreshold,0.5);
@@ -87,14 +92,14 @@ verifyEqual(testCase,plans.variants.theta1,10);
 verifyEqual(testCase,plans.variants.theta2,1);
 end
 
-function testStrategyFieldIsRejected(testCase)
+function testStrategyFieldIsUnsupported(testCase)
 plan = cleanPlan('interval3','INTERVAL3');
 plan.strategy = 'INTERVAL3';
 
 verifyError(testCase,@() ...
     planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('INTERVAL3',false)), ...
-    'planWorkflow:config:RobustPlanConfig:LegacyField');
+    'planWorkflow:config:RobustPlanConfig:UnsupportedField');
 end
 
 function testDuplicateRobustPlanIdsAreRejected(testCase)
@@ -117,6 +122,7 @@ verifyEqual(testCase,plans.robustnessMode,'none');
 verifyTrue(testCase,plans.requiresNominalDij);
 verifyFalse(testCase,plans.requiresScenarioDij);
 verifyFalse(testCase,plans.requiresIntervalDij);
+verifyFalse(testCase,plans.requiresProb2Dij);
 verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 verifyFalse(testCase,isfield(plans.variants,'theta1'));
@@ -177,6 +183,13 @@ verifyError(testCase,@() ...
     'planWorkflow:config:RobustPlanConfig:UnsupportedField');
 
 interval3 = cleanPlan('interval3','INTERVAL3');
+interval3.robustnessOptions.radiusMode = 'other';
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    interval3,contract('INTERVAL3',false)), ...
+    'planWorkflow:config:RobustPlanConfig:InvalidStrategyOption');
+
+interval3.robustnessOptions.radiusMode = 'std';
 interval3.robustnessOptions.KMode = 'other';
 verifyError(testCase,@() ...
     planWorkflow.config.RobustPlanConfig.normalizePlans( ...
@@ -198,6 +211,21 @@ verifyError(testCase,@() ...
     'planWorkflow:config:RobustPlanConfig:InvalidNumericScalar');
 end
 
+function testProb2ContractUsesProb2DijOnly(testCase)
+plan = cleanPlan('prob2','PROB2');
+
+plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,contract('PROB2',false));
+
+verifyEqual(testCase,plans.robustnessMode,'PROB2');
+verifyFalse(testCase,plans.requiresNominalDij);
+verifyFalse(testCase,plans.requiresScenarioDij);
+verifyFalse(testCase,plans.requiresIntervalDij);
+verifyTrue(testCase,plans.requiresProb2Dij);
+verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
+verifyEqual(testCase,{plans.variants.id},{'variant_1'});
+end
+
 function plan = cleanPlan(id,label)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;
@@ -214,4 +242,5 @@ value.requiresScenarioDij = any(strcmp(robustnessMode, ...
     {'STOCH','COWC','c-COWC'}));
 value.requiresIntervalDij = any(strcmp(robustnessMode, ...
     {'INTERVAL2','INTERVAL3'}));
+value.requiresProb2Dij = strcmp(robustnessMode,'PROB2');
 end

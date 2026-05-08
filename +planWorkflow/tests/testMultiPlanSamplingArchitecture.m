@@ -31,7 +31,11 @@ workflowB = planWorkflowTest.EngineProbe(runConfigB);
 
 verifyNotEmpty(testCase,strfind(workflowA.rootPath,'robust_multi_'));
 verifyNotEqual(testCase,workflowA.rootPath,workflowB.rootPath);
-verifyEqual(testCase,numel(workflowA.data.workflowIdentity.robustPlans),2);
+verifyEqual(testCase,numel(workflowA.data.workflowIdentity.robustPlans),6);
+verifyTrue(testCase,any(strcmp( ...
+    {workflowA.data.workflowIdentity.robustPlans.id},'PTV')));
+verifyTrue(testCase,any(strcmp( ...
+    {workflowA.data.workflowIdentity.robustPlans.id},'Interval2')));
 end
 
 function testSamplingPlanSetUsesOneTransversalSamplingConfig(testCase)
@@ -291,7 +295,14 @@ function plan = robustPlan(id,label,robustnessMode,shiftSD)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;
 plan.label = label;
-plan.objectiveSetName = id;
+switch char(id)
+    case 'robust_1'
+        plan.objectiveSetName = 'PTV';
+    case 'robust_2'
+        plan.objectiveSetName = 'Interval2';
+    otherwise
+        plan.objectiveSetName = id;
+end
 plan.robustnessMode = robustnessMode;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen');

@@ -117,18 +117,18 @@ reference/robust role, robust plan, variant, and task.
 The photon workflow reads supported matRad objective and robustness capabilities
 through `planWorkflow.matRadCapabilitiesReader`. The executable robustness
 modes exposed by the workflow are `none`, `STOCH`, `COWC`, `c-COWC`,
-`INTERVAL2`, and `INTERVAL3` when the loaded matRad provides those base
+`PROB2`, `INTERVAL2`, and `INTERVAL3` when the loaded matRad provides those base
 capabilities. Scenario generation uses
 `matRad_NominalScenario`, `matRad_WorstCaseScenarios`,
 `matRad_ImportanceScenarios`, `matRad_TruncatedImportanceScenarios`, and
 `matRad_RandomScenarios` through `planWorkflow.scenario.createModel`. Interval
 strategies call matRad's native `matRad_calcDoseInterval2` and
 `matRad_calcDoseInterval3` precompute functions before optimization.
-For `INTERVAL3`, the workflow consumes matRad's OAR scenario-space SVD
-factors (`U`, `S`, `V`, and `k`) produced without materializing a dense OAR
-covariance matrix. Memory-related diagnostics should follow the matRad
-calculation path: scenario-bixel working data, the scenario Gram matrix, and
-the retained factors.
+`PROB2` calls `matRad_calcDoseProb2` and attaches the cached `dij_prob2`
+payload only to the optimization plan. `INTERVAL2/3` use `radiusMode = 'std'`
+or `'extreme'`; `INTERVAL3` consumes `OARRadiusFactor` and `OARRadiusRank`
+without legacy `U/S/V/k` cache compatibility. Constraints remain entries in
+the existing objective arrays because matRad consumes them from `cst{i,6}`.
 
 Use explicit `reference_*`, `robust_*`, and `sampling_*` scenario fields for
 the reference, robust, and sampling scenario models. For example,

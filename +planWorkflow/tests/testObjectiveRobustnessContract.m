@@ -13,6 +13,7 @@ verifyEqual(testCase,contract.robustnessMode,'INTERVAL3');
 verifyTrue(testCase,contract.requiresNominalDij);
 verifyFalse(testCase,contract.requiresScenarioDij);
 verifyTrue(testCase,contract.requiresIntervalDij);
+verifyFalse(testCase,contract.requiresProb2Dij);
 end
 
 function testDerivesScenarioRobustnessNeeds(testCase)
@@ -25,6 +26,20 @@ verifyEqual(testCase,contract.robustnessMode,'COWC');
 verifyTrue(testCase,contract.requiresNominalDij);
 verifyTrue(testCase,contract.requiresScenarioDij);
 verifyFalse(testCase,contract.requiresIntervalDij);
+verifyFalse(testCase,contract.requiresProb2Dij);
+end
+
+function testDerivesProb2Needs(testCase)
+objectiveSet = objectiveSetWith({'none','PROB2'});
+
+contract = planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( ...
+    objectiveSet);
+
+verifyEqual(testCase,contract.robustnessMode,'PROB2');
+verifyTrue(testCase,contract.requiresNominalDij);
+verifyFalse(testCase,contract.requiresScenarioDij);
+verifyFalse(testCase,contract.requiresIntervalDij);
+verifyTrue(testCase,contract.requiresProb2Dij);
 end
 
 function testRejectsMultipleNonNoneModes(testCase)

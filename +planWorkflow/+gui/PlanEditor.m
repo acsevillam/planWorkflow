@@ -1187,6 +1187,11 @@ classdef PlanEditor
             end
 
             function cancelCallback(~,~)
+                if ~planWorkflow.gui.PlanEditor.confirmCloseRequest( ...
+                        accepted)
+                    return;
+                end
+
                 if accepted
                     if ishandle(fig)
                         delete(fig);
@@ -1195,6 +1200,36 @@ classdef PlanEditor
                     accepted = false;
                     uiresume(fig);
                 end
+            end
+        end
+
+        function tf = confirmCloseRequest(workflowRunning,confirmFcn)
+            if nargin < 2 || isempty(confirmFcn)
+                confirmFcn = @questdlg;
+            end
+
+            [message,title,confirmLabel,cancelLabel] = ...
+                planWorkflow.gui.PlanEditor.closeConfirmationDialog( ...
+                workflowRunning);
+            answer = confirmFcn(message,title,confirmLabel, ...
+                cancelLabel,cancelLabel);
+            tf = strcmp(char(answer),confirmLabel);
+        end
+
+        function [message,title,confirmLabel,cancelLabel] = ...
+                closeConfirmationDialog(workflowRunning)
+            title = 'Close plan workflow editor';
+            if workflowRunning
+                message = ['Close the progress window? The workflow will ' ...
+                    'continue in MATLAB. Use Stop if you want to stop the ' ...
+                    'running workflow.'];
+                confirmLabel = 'Close window';
+                cancelLabel = 'Keep open';
+            else
+                message = ['Close the editor and discard unapplied changes? ' ...
+                    'The workflow will not be started.'];
+                confirmLabel = 'Close editor';
+                cancelLabel = 'Continue editing';
             end
         end
 

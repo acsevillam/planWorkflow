@@ -421,7 +421,7 @@ classdef WorkflowParameterSchema
         end
 
         function fields = precomputeReferenceVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 1 || isempty(robustness)
                 robustness = 'none';
             end
@@ -434,12 +434,15 @@ classdef WorkflowParameterSchema
             if nargin < 4 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 5 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
 
             fields = {'reference_label','robustnessSection', ...
                 'reference_robustness'};
             robustnessFields = ...
                 planWorkflow.config.WorkflowParameterSchema.robustnessVisibleFields( ...
-                robustness,'reference',KMode);
+                robustness,'reference',KMode,radiusMode);
             if ~isempty(robustnessFields)
                 fields = [fields,{'robustnessParameterSection'}, ...
                     robustnessFields];
@@ -452,7 +455,7 @@ classdef WorkflowParameterSchema
         end
 
         function fields = precomputeReferenceParameterFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 1
                 robustness = [];
             end
@@ -465,25 +468,31 @@ classdef WorkflowParameterSchema
             if nargin < 4
                 KMode = [];
             end
+            if nargin < 5
+                radiusMode = [];
+            end
             fields = ...
                 planWorkflow.config.WorkflowParameterSchema.parameterFieldsOnly( ...
                 planWorkflow.config.WorkflowParameterSchema.precomputeReferenceVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode));
+                robustness,scenMode,dimensionConfig,KMode,radiusMode));
         end
 
         function fields = precomputeRobustVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 3 || isempty(dimensionConfig)
                 dimensionConfig = struct();
             end
             if nargin < 4 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 5 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
 
             fields = {'label','robustnessSection','robustness'};
             robustnessFields = ...
                 planWorkflow.config.WorkflowParameterSchema.robustnessVisibleFields( ...
-                robustness,'',KMode);
+                robustness,'',KMode,radiusMode);
             if ~isempty(robustnessFields)
                 fields = [fields,{'robustnessParameterSection'}, ...
                     robustnessFields];
@@ -495,7 +504,7 @@ classdef WorkflowParameterSchema
         end
 
         function fields = precomputeRobustParameterFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 1
                 robustness = [];
             end
@@ -508,10 +517,13 @@ classdef WorkflowParameterSchema
             if nargin < 4
                 KMode = [];
             end
+            if nargin < 5
+                radiusMode = [];
+            end
             fields = ...
                 planWorkflow.config.WorkflowParameterSchema.parameterFieldsOnly( ...
                 planWorkflow.config.WorkflowParameterSchema.precomputeRobustVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode));
+                robustness,scenMode,dimensionConfig,KMode,radiusMode));
         end
 
         function fields = dosePullingVisibleFields( ...
@@ -641,16 +653,20 @@ classdef WorkflowParameterSchema
             end
         end
 
-        function fields = robustnessVisibleFields(robustness,prefix,KMode)
+        function fields = robustnessVisibleFields( ...
+                robustness,prefix,KMode,radiusMode)
             if nargin < 2
                 prefix = '';
             end
             if nargin < 3 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 4 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
             fields = ...
                 planWorkflow.config.RobustStrategySpec.visibleParameterFields( ...
-                robustness,struct('KMode',KMode));
+                robustness,struct('KMode',KMode,'radiusMode',radiusMode));
             for i = 1:numel(fields)
                 fields{i} = ...
                     planWorkflow.config.WorkflowParameterSchema.prefixedField( ...

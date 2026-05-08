@@ -54,6 +54,20 @@ classdef ResourceDetails
                     detailData = ...
                         planWorkflow.performance.ResourceDetails.appendRobustData( ...
                         detailData,robustData,false);
+                case 'prob2DoseInfluence'
+                    robustData = ...
+                        planWorkflow.performance.ResourceDetails.taskOutput( ...
+                        taskOutputs,1);
+                    detailData = ...
+                        planWorkflow.performance.ResourceDetails.appendRobustData( ...
+                        detailData,robustData,true);
+                case 'prob2DoseInfluenceCacheRead'
+                    robustData = ...
+                        planWorkflow.performance.ResourceDetails.taskOutput( ...
+                        taskOutputs,2);
+                    detailData = ...
+                        planWorkflow.performance.ResourceDetails.appendRobustData( ...
+                        detailData,robustData,false);
             end
         end
 
@@ -84,6 +98,11 @@ classdef ResourceDetails
                     planWorkflow.performance.ResourceDetails.appendDoseInfluence( ...
                     detailData,'dij_interval',robustData.dij_interval);
             end
+            if isfield(robustData,'dij_prob2')
+                detailData = ...
+                    planWorkflow.performance.ResourceDetails.appendDoseInfluence( ...
+                    detailData,'dij_prob2',robustData.dij_prob2);
+            end
         end
 
         function detailData = appendDoseInfluence(detailData,label,value)
@@ -100,7 +119,12 @@ classdef ResourceDetails
         end
 
         function data = doseInfluence(value)
-            if planWorkflow.performance.ResourceDetails.isIntervalDoseInfluence( ...
+            if planWorkflow.performance.ResourceDetails.isProb2DoseInfluence( ...
+                    value)
+                data = ...
+                    planWorkflow.performance.ResourceDetails.prob2DoseInfluence( ...
+                    value);
+            elseif planWorkflow.performance.ResourceDetails.isIntervalDoseInfluence( ...
                     value)
                 data = ...
                     planWorkflow.performance.ResourceDetails.intervalDoseInfluence( ...
@@ -114,6 +138,11 @@ classdef ResourceDetails
 
         function tf = isIntervalDoseInfluence(value)
             tf = isstruct(value) && isfield(value,'center');
+        end
+
+        function tf = isProb2DoseInfluence(value)
+            tf = isstruct(value) && isfield(value,'expected') && ...
+                isfield(value,'Omega');
         end
 
         function data = standardDoseInfluence(value)
@@ -166,6 +195,29 @@ classdef ResourceDetails
                 planWorkflow.performance.ResourceDetails.sizeResourceData(value);
         end
 
+        function data = prob2DoseInfluence(value)
+            data = struct();
+            scenarioCount = ...
+                planWorkflow.performance.ResourceDetails.compactDoseInfluenceScenarioCount( ...
+                value);
+            if ~isempty(scenarioCount)
+                data.numberOfScenarios = scenarioCount;
+            end
+            if isfield(value,'expected') && ~isempty(value.expected)
+                data.expected = ...
+                    planWorkflow.performance.ResourceDetails.matrixResourceData( ...
+                    value.expected);
+            end
+            omegaComponents = ...
+                planWorkflow.performance.ResourceDetails.prob2OmegaComponents( ...
+                value);
+            if ~isempty(fieldnames(omegaComponents))
+                data.omegaComponents = omegaComponents;
+            end
+            data.totalSize = ...
+                planWorkflow.performance.ResourceDetails.sizeResourceData(value);
+        end
+
         function data = intervalRadiusComponents(dijInterval)
             data = struct();
             source = ...
@@ -176,48 +228,95 @@ classdef ResourceDetails
             end
 
             componentCount = ...
-                planWorkflow.performance.ResourceDetails.radiusComponentCount( ...
-                source);
+                planWorkflow.performance.ResourceDetails.componentCount( ...
+                source,{'OARSubIx','OARRadiusRank','OARRadiusFactor'});
             if componentCount == 0
                 return;
             end
 
             totalBytes = 0;
 
-            numericFields = {'subIx','k'};
+            numericFields = {'OARSubIx','OARRadiusRank'};
             for fieldIx = 1:numel(numericFields)
                 fieldName = numericFields{fieldIx};
                 fieldData = ...
-                    planWorkflow.performance.ResourceDetails.radiusNumericSummary( ...
+                    planWorkflow.performance.ResourceDetails.componentNumericSummary( ...
                     source,fieldName);
                 if ~isempty(fieldnames(fieldData))
                     data.(fieldName) = fieldData;
                 end
                 totalBytes = totalBytes + ...
-                    planWorkflow.performance.ResourceDetails.radiusCollectionBytes( ...
+                    planWorkflow.performance.ResourceDetails.componentCollectionBytes( ...
                     source,fieldName);
             end
 
-            matrixFields = {'U','S','V'};
+            matrixFields = {'OARRadiusFactor'};
             for fieldIx = 1:numel(matrixFields)
                 fieldName = matrixFields{fieldIx};
                 fieldData = ...
-                    planWorkflow.performance.ResourceDetails.radiusMatrixSummary( ...
+                    planWorkflow.performance.ResourceDetails.componentMatrixSummary( ...
                     source,fieldName);
                 if ~isempty(fieldnames(fieldData))
                     data.(fieldName) = fieldData;
                 end
                 totalBytes = totalBytes + ...
-                    planWorkflow.performance.ResourceDetails.radiusCollectionBytes( ...
+                    planWorkflow.performance.ResourceDetails.componentCollectionBytes( ...
                     source,fieldName);
             end
 
-            if planWorkflow.performance.ResourceDetails.hasTruncatedOARSvdFactors( ...
+            if planWorkflow.performance.ResourceDetails.hasOARRadiusFactors( ...
                     source)
-                data.representation = 'truncatedOARSvdFactors';
-                data.memoryModel = ...
-                    'scenarioBixelMatrixScenarioGramRetainedFactors';
+                data.representation = 'OARRadiusFactors';
+                data.memoryModel = 'retainedOARRadiusFactors';
             end
+            data.count = componentCount;
+            data.totalSize = ...
+                planWorkflow.performance.ResourceDetails.sizeResourceDataFromBytes( ...
+                totalBytes);
+        end
+
+        function data = prob2OmegaComponents(dijProb2)
+            data = struct();
+            source = struct();
+            if ~isstruct(dijProb2)
+                return;
+            end
+            if isfield(dijProb2,'voiSubIx')
+                source.voiSubIx = dijProb2.voiSubIx;
+            end
+            if isfield(dijProb2,'Omega')
+                source.Omega = dijProb2.Omega;
+            end
+
+            componentCount = ...
+                planWorkflow.performance.ResourceDetails.componentCount( ...
+                source,{'voiSubIx','Omega'});
+            if componentCount == 0
+                return;
+            end
+
+            totalBytes = 0;
+            voiData = ...
+                planWorkflow.performance.ResourceDetails.componentNumericSummary( ...
+                source,'voiSubIx');
+            if ~isempty(fieldnames(voiData))
+                data.voiSubIx = voiData;
+            end
+            totalBytes = totalBytes + ...
+                planWorkflow.performance.ResourceDetails.componentCollectionBytes( ...
+                source,'voiSubIx');
+
+            omegaData = ...
+                planWorkflow.performance.ResourceDetails.componentMatrixSummary( ...
+                source,'Omega');
+            if ~isempty(fieldnames(omegaData))
+                data.Omega = omegaData;
+            end
+            totalBytes = totalBytes + ...
+                planWorkflow.performance.ResourceDetails.componentCollectionBytes( ...
+                source,'Omega');
+
+            data.representation = 'probabilisticOmegaByStructure';
             data.count = componentCount;
             data.totalSize = ...
                 planWorkflow.performance.ResourceDetails.sizeResourceDataFromBytes( ...
@@ -229,18 +328,11 @@ classdef ResourceDetails
             if ~isstruct(dijInterval)
                 return;
             end
-            if isfield(dijInterval,'radiusComponents') && ...
-                    isstruct(dijInterval.radiusComponents)
-                source = dijInterval.radiusComponents;
-                return;
-            end
 
             if isfield(dijInterval,'OARSubIx')
-                source.subIx = dijInterval.OARSubIx;
-            elseif isfield(dijInterval,'subIx')
-                source.subIx = dijInterval.subIx;
+                source.OARSubIx = dijInterval.OARSubIx;
             end
-            fields = {'k','U','S','V'};
+            fields = {'OARRadiusRank','OARRadiusFactor'};
             for fieldIx = 1:numel(fields)
                 fieldName = fields{fieldIx};
                 if isfield(dijInterval,fieldName)
@@ -249,9 +341,8 @@ classdef ResourceDetails
             end
         end
 
-        function count = radiusComponentCount(source)
+        function count = componentCount(source,fields)
             count = 0;
-            fields = {'subIx','k','U','S','V'};
             for fieldIx = 1:numel(fields)
                 fieldName = fields{fieldIx};
                 if ~isfield(source,fieldName)
@@ -270,15 +361,15 @@ classdef ResourceDetails
             end
         end
 
-        function tf = hasTruncatedOARSvdFactors(source)
-            requiredFields = {'k','U','S','V'};
+        function tf = hasOARRadiusFactors(source)
+            requiredFields = {'OARRadiusRank','OARRadiusFactor'};
             tf = isstruct(source) && all(isfield(source,requiredFields));
         end
 
-        function data = radiusNumericSummary(source,fieldName)
+        function data = componentNumericSummary(source,fieldName)
             data = struct();
             values = ...
-                planWorkflow.performance.ResourceDetails.radiusCollectionValues( ...
+                planWorkflow.performance.ResourceDetails.componentCollectionValues( ...
                 source,fieldName);
             if isempty(values)
                 return;
@@ -304,10 +395,10 @@ classdef ResourceDetails
             data.mean = mean(numericValues);
         end
 
-        function data = radiusMatrixSummary(source,fieldName)
+        function data = componentMatrixSummary(source,fieldName)
             data = struct();
             values = ...
-                planWorkflow.performance.ResourceDetails.radiusCollectionValues( ...
+                planWorkflow.performance.ResourceDetails.componentCollectionValues( ...
                 source,fieldName);
             if isempty(values)
                 return;
@@ -360,7 +451,7 @@ classdef ResourceDetails
                 totalBytes);
         end
 
-        function values = radiusCollectionValues(source,fieldName)
+        function values = componentCollectionValues(source,fieldName)
             values = {};
             if ~isstruct(source) || ~isfield(source,fieldName)
                 return;
@@ -374,10 +465,10 @@ classdef ResourceDetails
             end
         end
 
-        function bytes = radiusCollectionBytes(source,fieldName)
+        function bytes = componentCollectionBytes(source,fieldName)
             bytes = 0;
             values = ...
-                planWorkflow.performance.ResourceDetails.radiusCollectionValues( ...
+                planWorkflow.performance.ResourceDetails.componentCollectionValues( ...
                 source,fieldName);
             for valueIx = 1:numel(values)
                 value = values{valueIx};
@@ -419,6 +510,12 @@ classdef ResourceDetails
         end
 
         function count = intervalDoseInfluenceScenarioCount(value)
+            count = ...
+                planWorkflow.performance.ResourceDetails.compactDoseInfluenceScenarioCount( ...
+                value);
+        end
+
+        function count = compactDoseInfluenceScenarioCount(value)
             count = [];
             if ~isstruct(value)
                 return;

@@ -61,7 +61,7 @@ classdef PrecomputePanel
         end
 
         function fields = referenceVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 1 || isempty(robustness)
                 robustness = 'none';
             end
@@ -74,36 +74,46 @@ classdef PrecomputePanel
             if nargin < 4 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 5 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
             fields = ...
                 planWorkflow.config.WorkflowParameterSchema.precomputeReferenceVisibleFields( ...
                 robustness,scenMode, ...
-                dimensionConfig,KMode);
+                dimensionConfig,KMode,radiusMode);
         end
 
         function fields = robustVisibleFields( ...
-                robustness,scenMode,dimensionConfig,KMode)
+                robustness,scenMode,dimensionConfig,KMode,radiusMode)
             if nargin < 3
                 dimensionConfig = struct();
             end
             if nargin < 4 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 5 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
             fields = ...
                 planWorkflow.config.WorkflowParameterSchema.precomputeRobustVisibleFields( ...
                 robustness,scenMode, ...
-                dimensionConfig,KMode);
+                dimensionConfig,KMode,radiusMode);
         end
 
-        function fields = robustnessVisibleFields(robustness,prefix,KMode)
+        function fields = robustnessVisibleFields( ...
+                robustness,prefix,KMode,radiusMode)
             if nargin < 2
                 prefix = '';
             end
             if nargin < 3 || isempty(KMode)
                 KMode = 'dynamic';
             end
+            if nargin < 4 || isempty(radiusMode)
+                radiusMode = 'std';
+            end
             fields = ...
                 planWorkflow.config.WorkflowParameterSchema.robustnessVisibleFields( ...
-                robustness,prefix,KMode);
+                robustness,prefix,KMode,radiusMode);
         end
 
         function specs = robustnessParameterMetadata()

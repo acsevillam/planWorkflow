@@ -53,10 +53,18 @@ classdef EngineProbe < planWorkflow.Engine
 
         function [cacheHit,robustData] = ...
                 loadCachedIntervalDoseInfluencePublic(obj,robustData)
-            robustData = obj.intervalRobustDataContext(robustData);
+            robustData = obj.robustDataContext(robustData);
             [cacheHit,robustData] = ...
                 planWorkflow.precompute.IntervalDoseInfluence.loadCached( ...
-                obj.intervalDoseInfluenceContext(),robustData);
+                obj.compactDoseInfluenceContext(),robustData);
+        end
+
+        function [cacheHit,robustData] = ...
+                loadCachedProb2DoseInfluencePublic(obj,robustData)
+            robustData = obj.robustDataContext(robustData);
+            [cacheHit,robustData] = ...
+                planWorkflow.precompute.Prob2DoseInfluence.loadCached( ...
+                obj.compactDoseInfluenceContext(),robustData);
         end
 
         function robustData = useIntervalDijForOptimizationPublic( ...
@@ -65,9 +73,20 @@ classdef EngineProbe < planWorkflow.Engine
                 robustData);
         end
 
+        function robustData = useProb2DijForOptimizationPublic( ...
+                obj,robustData)
+            robustData = planWorkflow.precompute.Prob2DoseInfluence.useForOptimization( ...
+                robustData);
+        end
+
         function tag = intervalDoseCacheTagPublic(obj,robustData)
             tag = planWorkflow.precompute.IntervalDoseInfluence.cacheTag( ...
-                obj.intervalRobustDataContext(robustData));
+                obj.robustDataContext(robustData));
+        end
+
+        function tag = prob2DoseCacheTagPublic(obj,robustData)
+            tag = planWorkflow.precompute.Prob2DoseInfluence.cacheTag( ...
+                obj.robustDataContext(robustData));
         end
 
         function tag = robustDoseCacheTagPublic(obj,robustData)
@@ -75,14 +94,21 @@ classdef EngineProbe < planWorkflow.Engine
         end
 
         function context = intervalCacheContextPublic(obj,robustData)
-            robustData = obj.intervalRobustDataContext(robustData);
+            robustData = obj.robustDataContext(robustData);
             context = ...
                 planWorkflow.precompute.IntervalDoseInfluence.cacheContext( ...
-                obj.intervalDoseInfluenceContext(),robustData);
+                obj.compactDoseInfluenceContext(),robustData);
+        end
+
+        function context = prob2CacheContextPublic(obj,robustData)
+            robustData = obj.robustDataContext(robustData);
+            context = ...
+                planWorkflow.precompute.Prob2DoseInfluence.cacheContext( ...
+                obj.compactDoseInfluenceContext(),robustData);
         end
 
         function pln = planForRobustDataPlanIndexPublic(obj,robustData,planIx)
-            robustData = obj.intervalRobustDataContext(robustData);
+            robustData = obj.robustDataContext(robustData);
             pln = planWorkflow.optimization.VariantPlanFactory.build( ...
                 robustData,planIx);
         end
@@ -151,6 +177,10 @@ classdef EngineProbe < planWorkflow.Engine
         end
 
         function robustData = intervalRobustDataContext(obj,robustData)
+            robustData = obj.robustDataContext(robustData);
+        end
+
+        function robustData = robustDataContext(obj,robustData)
             if nargin < 2 || isempty(robustData)
                 robustData = struct();
             end
@@ -171,6 +201,10 @@ classdef EngineProbe < planWorkflow.Engine
         end
 
         function context = intervalDoseInfluenceContext(obj)
+            context = obj.compactDoseInfluenceContext();
+        end
+
+        function context = compactDoseInfluenceContext(obj)
             data = obj.data;
             if ~isfield(data,'quantityOpt')
                 data.quantityOpt = '';

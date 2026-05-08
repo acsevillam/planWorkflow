@@ -660,8 +660,9 @@ classdef Engine < planWorkflow.WorkflowBase
                 obj.openInteractivePlanEditor(template,obj.runConfig, ...
                 options);
             if ~accepted
-                error('planWorkflow:gui:PlanEditor:Cancelled', ...
-                    'Interactive plan editing was cancelled.');
+                progressReporter = [];
+                obj.log('Interactive plan editor closed by the user.');
+                return;
             end
 
             if ~isempty(resumeStateFile)

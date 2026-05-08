@@ -865,7 +865,8 @@ classdef PlanPresetWriter
             tf = false;
             if any(strcmp(char(fieldName),{'robustnessMode', ...
                     'hasNominalObjectives','requiresNominalDij', ...
-                    'requiresScenarioDij','requiresIntervalDij'}))
+                    'requiresScenarioDij','requiresIntervalDij', ...
+                    'requiresProb2Dij'}))
                 tf = true;
                 return;
             end

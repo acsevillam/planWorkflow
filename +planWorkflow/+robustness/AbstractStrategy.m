@@ -9,6 +9,10 @@ classdef (Abstract) AbstractStrategy < handle
         function tf = requiresIntervalDij(obj) %#ok<MANU>
             tf = false;
         end
+
+        function tf = requiresProb2Dij(obj) %#ok<MANU>
+            tf = false;
+        end
     end
 
     methods (Static)
@@ -31,6 +35,8 @@ classdef (Abstract) AbstractStrategy < handle
                 case {'INTERVAL2','INTERVAL3'}
                     strategy = planWorkflow.robustness.IntervalStrategy( ...
                         strategyName);
+                case 'PROB2'
+                    strategy = planWorkflow.robustness.Prob2Strategy();
                 otherwise
                     error('planWorkflow:robustness:UnknownStrategy', ...
                         'Unknown robust optimization strategy: %s.', ...
