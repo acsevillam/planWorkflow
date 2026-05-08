@@ -92,10 +92,73 @@ classdef RobustDataFactory
                 for structureIx = 1:size(cstRobust,1)
                     if strcmp(sourceCst{structureIx,2}, ...
                             robustOarNames{oarIx})
+                        robustObjectives = cstRobust{structureIx,6};
                         cstRobust{structureIx,6} = ...
-                            sourceCst{structureIx,6};
+                            planWorkflow.precompute.RobustDataFactory.copyObjectivesPreservingRobustness( ...
+                            sourceCst{structureIx,6},robustObjectives);
                     end
                 end
+            end
+        end
+
+        function objectives = copyObjectivesPreservingRobustness( ...
+                sourceObjectives,robustObjectives)
+            objectives = sourceObjectives;
+            if isempty(sourceObjectives) || isempty(robustObjectives)
+                return;
+            end
+            numObjectives = min(numel(sourceObjectives),numel(robustObjectives));
+            for objectiveIx = 1:numObjectives
+                sourceObjective = ...
+                    planWorkflow.precompute.RobustDataFactory.objectiveAt( ...
+                    objectives,objectiveIx);
+                robustObjective = ...
+                    planWorkflow.precompute.RobustDataFactory.objectiveAt( ...
+                    robustObjectives,objectiveIx);
+                robustness = ...
+                    planWorkflow.precompute.RobustDataFactory.objectiveRobustness( ...
+                    robustObjective);
+                sourceObjective = ...
+                    planWorkflow.precompute.RobustDataFactory.setObjectiveRobustness( ...
+                    sourceObjective,robustness);
+                objectives = ...
+                    planWorkflow.precompute.RobustDataFactory.setObjectiveAt( ...
+                    objectives,objectiveIx,sourceObjective);
+            end
+        end
+
+        function objective = objectiveAt(objectives,index)
+            if iscell(objectives)
+                objective = objectives{index};
+            else
+                objective = objectives(index);
+            end
+        end
+
+        function objectives = setObjectiveAt(objectives,index,objective)
+            if iscell(objectives)
+                objectives{index} = objective;
+            else
+                objectives(index) = objective;
+            end
+        end
+
+        function robustness = objectiveRobustness(objective)
+            robustness = '';
+            if isstruct(objective) && isfield(objective,'robustness')
+                robustness = objective.robustness;
+            elseif isobject(objective) && isprop(objective,'robustness')
+                robustness = objective.robustness;
+            end
+        end
+
+        function objective = setObjectiveRobustness(objective,robustness)
+            if isempty(robustness)
+                return;
+            end
+            if isstruct(objective) || ...
+                    (isobject(objective) && isprop(objective,'robustness'))
+                objective.robustness = char(robustness);
             end
         end
     end
