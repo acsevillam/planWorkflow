@@ -37,6 +37,11 @@
         "label": "c-Minimax"
       },
       {
+        "ref": "shared/objectives_PROB2_base.json",
+        "id": "MeanVariance",
+        "label": "MeanVariance"
+      },
+      {
         "ref": "shared/objectives_interval2_base.json",
         "id": "Interval2",
         "label": "Interval2"
