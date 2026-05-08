@@ -101,6 +101,9 @@ classdef PrecomputeStage
 
                 if robustPlanConfig.requiresNominalDij && ...
                         ~robustPlanConfig.requiresIntervalDij
+                    robustData = ...
+                        planWorkflow.stages.PrecomputeStage.ensureNominalPlan( ...
+                        robustData);
                     robustData.dijNominal = context.runMeasuredPlanTask( ...
                         'precompute','robust',robustPlanLabel, ...
                         'nominalDoseInfluence',robustPlanId,'', ...
@@ -171,6 +174,40 @@ classdef PrecomputeStage
                 patch.data.robustPlans = data.robustPlans;
             end
         end
+
+        function robustData = selectOptimizationDoseInfluence(robustData)
+            planConfig = robustData.planConfig;
+            if planConfig.requiresIntervalDij
+                if planConfig.hasNominalObjectives
+                    planWorkflow.stages.PrecomputeStage.requireNominalOptimizationDoseInfluence( ...
+                        robustData,'MissingIntervalNominalDij', ...
+                        'MissingIntervalNominalPlan', ...
+                        ['INTERVAL optimization with nominal ' ...
+                        'objectives']);
+                    robustData.dij = robustData.dijNominal;
+                    robustData.plnForOptimization = robustData.plnNominal;
+                    robustData.usesNominalDijForOptimization = true;
+                else
+                    robustData = ...
+                        planWorkflow.precompute.IntervalDoseInfluence.useForOptimization( ...
+                        robustData);
+                end
+                return;
+            end
+
+            if planConfig.requiresScenarioDij
+                robustData.dij = robustData.dijRobust;
+                robustData.usesNominalDijForOptimization = false;
+                return;
+            end
+
+            planWorkflow.stages.PrecomputeStage.requireNominalOptimizationDoseInfluence( ...
+                robustData,'MissingNominalDij','MissingNominalPlan', ...
+                'Nominal optimization');
+            robustData.dij = robustData.dijNominal;
+            robustData.plnForOptimization = robustData.plnNominal;
+            robustData.usesNominalDijForOptimization = true;
+        end
     end
 
     methods (Static, Access = private)
@@ -225,44 +262,22 @@ classdef PrecomputeStage
                 robustData.ct,robustData.cst,robustData.plnNominal);
         end
 
-        function robustData = selectOptimizationDoseInfluence(robustData)
-            planConfig = robustData.planConfig;
-            if planConfig.requiresIntervalDij
-                if planConfig.hasNominalObjectives
-                    if ~isfield(robustData,'dijNominal') || ...
-                            isempty(robustData.dijNominal)
-                        error(['planWorkflow:stages:PrecomputeStage:' ...
-                            'MissingIntervalNominalDij'], ...
-                            ['INTERVAL plans with nominal objectives ' ...
-                            'require dijNominal derived from the robust ' ...
-                            'dij used to compute dij_interval.']);
-                    end
-                    if ~isfield(robustData,'plnNominal') || ...
-                            isempty(robustData.plnNominal)
-                        robustData.plnNominal = ...
-                            planWorkflow.precompute.IntervalDoseInfluence.createNominalOptimizationPlan( ...
-                            robustData,robustData.dijNominal);
-                    end
-                    robustData.dij = robustData.dijNominal;
-                    robustData.plnForOptimization = robustData.plnNominal;
-                    robustData.usesNominalDijForOptimization = true;
-                else
-                    robustData = ...
-                        planWorkflow.precompute.IntervalDoseInfluence.useForOptimization( ...
-                        robustData);
-                end
-                return;
+        function requireNominalOptimizationDoseInfluence( ...
+                robustData,dijErrorId,plnErrorId,description)
+            if ~isfield(robustData,'dijNominal') || ...
+                    isempty(robustData.dijNominal)
+                error(['planWorkflow:stages:PrecomputeStage:' ...
+                    char(dijErrorId)], ...
+                    '%s requires plan-specific dijNominal.', ...
+                    char(description));
             end
-
-            if planConfig.requiresScenarioDij
-                robustData.dij = robustData.dijRobust;
-                robustData.usesNominalDijForOptimization = false;
-                return;
+            if ~isfield(robustData,'plnNominal') || ...
+                    isempty(robustData.plnNominal)
+                error(['planWorkflow:stages:PrecomputeStage:' ...
+                    char(plnErrorId)], ...
+                    '%s requires plan-specific plnNominal.', ...
+                    char(description));
             end
-
-            robustData.dij = robustData.dijNominal;
-            robustData.plnForOptimization = robustData.plnNominal;
-            robustData.usesNominalDijForOptimization = true;
         end
     end
 end
