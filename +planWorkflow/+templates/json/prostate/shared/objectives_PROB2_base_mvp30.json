@@ -54,7 +54,7 @@
           "enabled": true,
           "type": "matRad_MeanVariance",
           "parameters": {
-            "penalty": 10
+            "penalty": 30
           },
           "properties": {
             "robustness": "PROB2"
