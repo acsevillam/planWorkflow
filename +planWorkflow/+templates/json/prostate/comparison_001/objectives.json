@@ -37,9 +37,29 @@
         "label": "c-Minimax"
       },
       {
-        "ref": "shared/objectives_PROB2_base.json",
-        "id": "MeanVariance",
-        "label": "MeanVariance"
+        "ref": "shared/objectives_PROB2_base_mvp1.json",
+        "id": "MeanVarianceP1",
+        "label": "MeanVariance (Penalty=1)"
+      },
+      {
+        "ref": "shared/objectives_PROB2_base_mvp5.json",
+        "id": "MeanVarianceP1",
+        "label": "MeanVariance (Penalty=5)"
+      },
+      {
+        "ref": "shared/objectives_PROB2_base_mvp10.json",
+        "id": "MeanVarianceP1",
+        "label": "MeanVariance (Penalty=10)"
+      },
+      {
+        "ref": "shared/objectives_PROB2_base_mvp20.json",
+        "id": "MeanVarianceP1",
+        "label": "MeanVariance (Penalty=20)"
+      },
+      {
+        "ref": "shared/objectives_PROB2_base_mvp30.json",
+        "id": "MeanVarianceP1",
+        "label": "MeanVariance (Penalty=30)"
       },
       {
         "ref": "shared/objectives_interval2_base.json",
