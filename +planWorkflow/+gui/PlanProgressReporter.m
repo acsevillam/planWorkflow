@@ -194,31 +194,6 @@ classdef PlanProgressReporter < handle
             obj.RecalculateAnalysisConfigProvider = callback;
         end
 
-        function filePath = saveGuiSnapshot(obj,outputFolder)
-            filePath = '';
-            if ~obj.isAvailable()
-                return;
-            end
-
-            outputFolder = char(outputFolder);
-            if isempty(outputFolder)
-                return;
-            end
-
-            if ~isfolder(outputFolder)
-                mkdir(outputFolder);
-            end
-
-            filePath = fullfile(outputFolder,'workflow_gui.fig');
-            try
-                savefig(obj.FigureHandle,filePath);
-                obj.log(sprintf('GUI saved to %s.',filePath));
-            catch ME
-                obj.log(sprintf('Could not save GUI to %s: %s', ...
-                    filePath,ME.message));
-            end
-        end
-
     end
 
     methods (Static)

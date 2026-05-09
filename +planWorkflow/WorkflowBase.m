@@ -1142,8 +1142,6 @@ classdef (Abstract) WorkflowBase < handle
                 obj.attachResultsPerformance();
                 results = obj.data.results;
                 obj.callGuiProgressReporter('showResults',results);
-                obj.callGuiProgressReporter('saveGuiSnapshot', ...
-                    obj.rootPath);
             end
         end
 
@@ -1180,8 +1178,6 @@ classdef (Abstract) WorkflowBase < handle
                         reporter.log(varargin{:});
                     case 'showResults'
                         reporter.showResults(varargin{:});
-                    case 'saveGuiSnapshot'
-                        reporter.saveGuiSnapshot(varargin{:});
                 end
             catch
             end

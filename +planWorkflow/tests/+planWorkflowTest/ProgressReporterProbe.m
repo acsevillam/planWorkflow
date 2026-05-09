@@ -5,7 +5,6 @@ classdef ProgressReporterProbe < handle
         Events = {}
         Messages = {}
         Results = []
-        SavedGuiFolder = ''
         LastFraction = 0
         StopRequested = false
     end
@@ -42,11 +41,6 @@ classdef ProgressReporterProbe < handle
         function showResults(obj,results)
             obj.Events{end + 1} = {'showResults'};
             obj.Results = results;
-        end
-
-        function saveGuiSnapshot(obj,outputFolder)
-            obj.Events{end + 1} = {'saveGuiSnapshot',outputFolder};
-            obj.SavedGuiFolder = char(outputFolder);
         end
 
         function requestStop(obj)

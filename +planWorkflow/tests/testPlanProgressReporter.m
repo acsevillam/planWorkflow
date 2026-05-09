@@ -795,26 +795,6 @@ verifyTrue(testCase,contains(helpRows{3,2},'Elapsed real time'));
 verifyTrue(testCase,contains(helpRows{8,2},'Highest MATLAB process'));
 end
 
-function testSaveGuiSnapshotWritesFigInOutputFolder(testCase)
-fixture = testCase.applyFixture( ...
-    matlab.unittest.fixtures.TemporaryFolderFixture);
-
-guiFig = figure('Visible','off');
-cleanupGui = onCleanup(@() closeFigure(guiFig));
-fill = uipanel('Parent',guiFig,'Position',[0 0 0 1]);
-status = uicontrol('Parent',guiFig,'Style','text');
-details = uicontrol('Parent',guiFig,'Style','listbox');
-stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
-tabGroup = uitabgroup('Parent',guiFig);
-reporter = planWorkflow.gui.PlanProgressReporter( ...
-    guiFig,fill,status,details,stopButton,tabGroup);
-
-filePath = reporter.saveGuiSnapshot(fixture.Folder);
-
-verifyEqual(testCase,filePath,fullfile(fixture.Folder,'workflow_gui.fig'));
-verifyTrue(testCase,isfile(filePath));
-end
-
 function resources = syntheticPerformanceResources()
 resources = struct();
 resources.stageTimings = struct();

@@ -93,11 +93,11 @@ workflow.analyze();
 verifyGreaterThanOrEqual(testCase,numel(reporter.Events),12);
 verifyEqual(testCase,reporter.Events{1}{1},'stageStarted');
 verifyEqual(testCase,reporter.Events{1}{2},'prepare');
-verifyEqual(testCase,reporter.Events{end - 2}{1},'stageCompleted');
-verifyEqual(testCase,reporter.Events{end - 2}{2},'analyze');
-verifyEqual(testCase,reporter.Events{end - 1}{1},'showResults');
-verifyEqual(testCase,reporter.Events{end}{1},'saveGuiSnapshot');
-verifyEqual(testCase,reporter.SavedGuiFolder,workflow.rootPath);
+verifyEqual(testCase,reporter.Events{end - 1}{1},'stageCompleted');
+verifyEqual(testCase,reporter.Events{end - 1}{2},'analyze');
+verifyEqual(testCase,reporter.Events{end}{1},'showResults');
+verifyFalse(testCase,any(cellfun(@(event) ...
+    strcmp(event{1},'saveGuiSnapshot'),reporter.Events)));
 verifyEqual(testCase,reporter.Results.score,47);
 verifyTrue(testCase,isfield(reporter.Results,'performance'));
 verifyEqual(testCase, ...
