@@ -431,7 +431,7 @@ classdef (Abstract) WorkflowBase < handle
             stages = planWorkflow.config.StageConfigSchema.engineStageNames();
         end
 
-        function stageNames = stageCompletedNames(obj,stageName)
+        function stageNames = stageCompletedNames(~,stageName)
             stageNames = ...
                 planWorkflow.config.StageConfigSchema.completedNamesFrom( ...
                 stageName);
@@ -753,7 +753,11 @@ classdef (Abstract) WorkflowBase < handle
 
         function performance = performanceSummary(obj)
             performance = obj.stageTimingSummary();
-            performance.planTimings = obj.planTimingSummary();
+            planTimings = planWorkflow.performance.PrecomputeTiming.enrich( ...
+                obj.planTimingSummary());
+            performance.planTimings = ...
+                planWorkflow.performance.OptimizationTiming.enrich( ...
+                planTimings);
         end
 
         function planTimings = planTimingSummary(obj)
@@ -856,6 +860,15 @@ classdef (Abstract) WorkflowBase < handle
             timing.endTime = '';
             timing.wallTimeSeconds = NaN;
             timing.cpuTimeSeconds = NaN;
+            timing.iterations = NaN;
+            timing.timePerIterationSeconds = NaN;
+            timing.rTPI = NaN;
+            timing.rTPIReferenceLabel = '';
+            timing.rTPIReferenceTimePerIterationSeconds = NaN;
+            timing.dijPrecomputingTimeSeconds = NaN;
+            timing.relativeDijPrecomputingTime = NaN;
+            timing.dijPrecomputingReferenceLabel = '';
+            timing.dijPrecomputingReferenceTimeSeconds = NaN;
             timing.detail = '';
             timing.startProcessMemoryBytes = NaN;
             timing.endProcessMemoryBytes = NaN;

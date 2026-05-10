@@ -4,8 +4,23 @@ classdef DoseInfluenceCache
     methods (Static)
         function dij = getOrCreate(runConfig,cachePath,tag,ct,cst, ...
                 stf,pln,logFn)
+            if nargin < 8
+                logFn = [];
+            end
+            dij = planWorkflow.cache.DoseInfluenceCache.getOrCreateTimed( ...
+                runConfig,cachePath,tag,ct,cst,stf,pln,logFn);
+        end
+
+        function [dij,dijPrecomputingTiming] = getOrCreateTimed( ...
+                runConfig,cachePath,tag,ct,cst,stf,pln,logFn, ...
+                timingOptions)
             if nargin < 8 || isempty(logFn)
                 logFn = @(message) [];
+            end
+            if nargin < 9 || isempty(timingOptions)
+                timingOptions = ...
+                    planWorkflow.cache.DoseInfluenceCache.timingOptions( ...
+                    runConfig,tag,[]);
             end
             cacheContext = planWorkflow.cache.DoseInfluenceCache.context( ...
                 cst,stf);
@@ -16,20 +31,32 @@ classdef DoseInfluenceCache
                 if isfield(cached,'dij')
                     if planWorkflow.cache.DoseInfluenceCache.isCompatible( ...
                             runConfig,cached,pln,tag,cacheContext)
-                        logFn(sprintf('Loaded cached dij: %s.',cacheFile));
-                        dij = cached.dij;
-                        return;
+                        dijPrecomputingTiming = ...
+                            planWorkflow.performance.PrecomputeTiming.fromCacheMetadata( ...
+                            cached.cacheMetadata);
+                        if ~isempty(dijPrecomputingTiming)
+                            logFn(sprintf('Loaded cached dij: %s.', ...
+                                cacheFile));
+                            dij = cached.dij;
+                            return;
+                        end
                     end
                     logFn(sprintf('Ignoring stale cached dij: %s.',cacheFile));
                 end
             end
 
+            wallTimer = tic;
             dij = matRad_calcDoseInfluence(ct,cst,stf,pln);
+            dijPrecomputingTiming = ...
+                planWorkflow.performance.PrecomputeTiming.fromOptions( ...
+                toc(wallTimer),timingOptions);
             if runConfig.writeCache
                 planWorkflow.cache.DoseInfluenceCache.ensureFileFolder( ...
                     cacheFile);
                 cacheMetadata = planWorkflow.cache.DoseInfluenceCache.metadata( ...
-                    runConfig,tag,pln,cacheContext); %#ok<NASGU>
+                    runConfig,tag,pln,cacheContext);
+                cacheMetadata.dijPrecomputingTiming = ...
+                    dijPrecomputingTiming;
                 builtin('save',cacheFile,'dij','cacheMetadata','-v7.3');
                 logFn(sprintf('Cached dij: %s.',cacheFile));
             end
@@ -43,8 +70,25 @@ classdef DoseInfluenceCache
 
         function dij = getOrCalculateTransient(runConfig,cachePath,tag, ...
                 robustnessModeName,ct,cst,stf,pln,logFn)
+            if nargin < 9
+                logFn = [];
+            end
+            dij = ...
+                planWorkflow.cache.DoseInfluenceCache.getOrCalculateTransientTimed( ...
+                runConfig,cachePath,tag,robustnessModeName,ct,cst,stf, ...
+                pln,logFn);
+        end
+
+        function [dij,dijPrecomputingTiming] = getOrCalculateTransientTimed( ...
+                runConfig,cachePath,tag,robustnessModeName,ct,cst,stf, ...
+                pln,logFn,timingOptions)
             if nargin < 9 || isempty(logFn)
                 logFn = @(message) [];
+            end
+            if nargin < 10 || isempty(timingOptions)
+                timingOptions = ...
+                    planWorkflow.cache.DoseInfluenceCache.timingOptions( ...
+                    runConfig,tag,[]);
             end
             cacheContext = planWorkflow.cache.DoseInfluenceCache.context( ...
                 cst,stf);
@@ -56,9 +100,15 @@ classdef DoseInfluenceCache
                     if isfield(cached,'dij') && ...
                             planWorkflow.cache.DoseInfluenceCache.isCompatible( ...
                             runConfig,cached,pln,tag,cacheContext)
-                        logFn(sprintf('Loaded cached dij: %s.',cacheFile));
-                        dij = cached.dij;
-                        return;
+                        dijPrecomputingTiming = ...
+                            planWorkflow.performance.PrecomputeTiming.fromCacheMetadata( ...
+                            cached.cacheMetadata);
+                        if ~isempty(dijPrecomputingTiming)
+                            logFn(sprintf('Loaded cached dij: %s.', ...
+                                cacheFile));
+                            dij = cached.dij;
+                            return;
+                        end
                     end
                     logFn(sprintf('Ignoring stale cached dij: %s.', ...
                         cacheFile));
@@ -68,7 +118,11 @@ classdef DoseInfluenceCache
                 end
             end
 
+            wallTimer = tic;
             dij = matRad_calcDoseInfluence(ct,cst,stf,pln);
+            dijPrecomputingTiming = ...
+                planWorkflow.performance.PrecomputeTiming.fromOptions( ...
+                toc(wallTimer),timingOptions);
             if runConfig.writeCache
                 logFn(sprintf(['Skipping persistent robust dij cache for ' ...
                     '%s; dij_interval is the cache artifact used by ' ...
@@ -248,6 +302,35 @@ classdef DoseInfluenceCache
     end
 
     methods (Static, Access = private)
+        function options = timingOptions(runConfig,tag,referenceTiming)
+            artifact = planWorkflow.cache.CacheIdentity.artifactMetadata( ...
+                runConfig,tag);
+            label = char(tag);
+            if isfield(artifact,'label') && ~isempty(artifact.label)
+                label = char(artifact.label);
+            elseif strcmp(char(tag),'reference')
+                reference = ...
+                    planWorkflow.config.RobustPlanConfig.referenceFromRunConfig( ...
+                    runConfig);
+                label = ...
+                    planWorkflow.results.PlanLabels.referencePlanDisplayLabel( ...
+                    reference);
+            end
+
+            artifactName = 'dij';
+            role = 'reference';
+            if isfield(artifact,'kind') && strcmp(artifact.kind,'robust')
+                role = 'robust';
+                if isfield(artifact,'role') && strcmp(artifact.role,'nominal')
+                    artifactName = 'dij_nominal';
+                else
+                    artifactName = 'dij_robust';
+                end
+            end
+            options = planWorkflow.performance.PrecomputeTiming.cacheOptions( ...
+                role,label,artifactName,referenceTiming);
+        end
+
         function values = stfNumericField(stf,fieldName)
             values = NaN(1,numel(stf));
             for i = 1:numel(stf)

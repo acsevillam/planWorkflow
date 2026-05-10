@@ -42,8 +42,29 @@ verifyFalse(testCase,contract.requiresIntervalDij);
 verifyTrue(testCase,contract.requiresProb2Dij);
 end
 
+function testInterval2AndInterval3SelectInterval3(testCase)
+objectiveSet = objectiveSetWith({'INTERVAL2','INTERVAL3'});
+
+contract = planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( ...
+    objectiveSet);
+
+verifyEqual(testCase,contract.robustnessMode,'INTERVAL3');
+verifyTrue(testCase,contract.requiresIntervalDij);
+verifyFalse(testCase,contract.requiresProb2Dij);
+end
+
 function testRejectsMultipleNonNoneModes(testCase)
 objectiveSet = objectiveSetWith({'COWC','INTERVAL3'});
+
+verifyError(testCase,@() ...
+    planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( ...
+    objectiveSet), ...
+    ['planWorkflow:templates:ObjectiveRobustnessContract:' ...
+    'MultipleRobustnessModes']);
+end
+
+function testRejectsProb2AndIntervalInSameObjectiveSet(testCase)
+objectiveSet = objectiveSetWith({'PROB2','INTERVAL3'});
 
 verifyError(testCase,@() ...
     planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( ...

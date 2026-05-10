@@ -93,7 +93,7 @@ classdef CacheIdentity
             if isfield(artifact,'role') && ~isempty(artifact.role)
                 metadata.role = artifact.role;
             end
-            if any(strcmp(artifact.kind,{'robust','interval'}))
+            if any(strcmp(artifact.kind,{'robust','interval','prob'}))
                 plan = planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
                     runConfig,artifact);
                 planMetadata = ...
@@ -123,6 +123,9 @@ classdef CacheIdentity
             elseif startsWith(tag,'interval_')
                 artifact.kind = 'interval';
                 artifact.planId = char(extractAfter(tag,'interval_'));
+            elseif startsWith(tag,'prob2_')
+                artifact.kind = 'prob';
+                artifact.planId = char(extractAfter(tag,'prob2_'));
             end
             artifact.planId = char(artifact.planId);
             artifact.variantId = char(artifact.variantId);
@@ -131,7 +134,7 @@ classdef CacheIdentity
         end
 
         function artifact = enrichArtifact(runConfig,artifact)
-            if ~any(strcmp(artifact.kind,{'robust','interval'}))
+            if ~any(strcmp(artifact.kind,{'robust','interval','prob'}))
                 return;
             end
             plan = planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
@@ -139,7 +142,7 @@ classdef CacheIdentity
             artifact.robustnessMode = char(plan.robustnessMode);
         end
 
-        function identity = identityStruct(runConfig,tag,artifact,pln,context)
+        function identity = identityStruct(runConfig,~,artifact,pln,context)
             identity = struct();
             identity.schemaVersion = 1;
             identity.tag = ...
@@ -170,6 +173,10 @@ classdef CacheIdentity
                 identity.interval = ...
                     planWorkflow.cache.CacheIdentity.intervalIdentity( ...
                     context);
+            end
+            if strcmp(artifact.kind,'prob')
+                identity.prob2 = ...
+                    planWorkflow.cache.CacheIdentity.prob2Identity(context);
             end
             if isfield(context,'stf')
                 identity.stf = context.stf;
@@ -299,6 +306,14 @@ classdef CacheIdentity
             identity = context.interval;
         end
 
+        function identity = prob2Identity(context)
+            identity = struct();
+            if ~isfield(context,'prob2') || isempty(context.prob2)
+                return;
+            end
+            identity = context.prob2;
+        end
+
         function tag = physicalTag(artifact)
             switch artifact.kind
                 case {'reference','robust'}
@@ -312,7 +327,7 @@ classdef CacheIdentity
             artifactOut = struct();
             artifactOut.kind = planWorkflow.cache.CacheIdentity.physicalTag( ...
                 artifact);
-            if strcmp(artifact.kind,'interval') && ...
+            if any(strcmp(artifact.kind,{'interval','prob'})) && ...
                     ~isempty(artifact.robustnessMode)
                 artifactOut.robustnessMode = artifact.robustnessMode;
             end
@@ -353,8 +368,11 @@ classdef CacheIdentity
                     fileStem = sprintf('%s_%s', ...
                         planWorkflow.cache.CacheIdentity.sanitizePathPart( ...
                         scenarioMode),shortHash);
-                case 'interval'
-                    fileStem = shortHash;
+                case {'interval','prob'}
+                    inputStem = ...
+                        planWorkflow.cache.CacheIdentity.derivedInputStem( ...
+                        identity);
+                    fileStem = sprintf('%s_%s',inputStem,shortHash);
                 otherwise
                     fileStem = sprintf('%s_%s', ...
                         planWorkflow.cache.CacheIdentity.sanitizePathPart( ...
@@ -393,7 +411,7 @@ classdef CacheIdentity
                 return;
             end
 
-            if any(strcmp(artifact.kind,{'robust','interval'}))
+            if any(strcmp(artifact.kind,{'robust','interval','prob'}))
                 plan = ...
                     planWorkflow.cache.CacheIdentity.robustPlanForArtifact( ...
                     runConfig,artifact);
@@ -419,7 +437,15 @@ classdef CacheIdentity
                 error('planWorkflow:cache:CacheIdentity:MissingRobustPlanId', ...
                     ['Robust cache artifacts require an explicit planId. ' ...
                      'Use tags like robust_<planId>, ' ...
-                     'robustNominal_<planId>, or interval_<planId>.']);
+                     'robustNominal_<planId>, interval_<planId>, ' ...
+                     'or prob2_<planId>.']);
+            end
+
+            if strcmp(char(artifact.planId),'reference')
+                plan = ...
+                    planWorkflow.cache.CacheIdentity.referencePlanForArtifact( ...
+                    runConfig);
+                return;
             end
 
             plans = ...
@@ -432,6 +458,24 @@ classdef CacheIdentity
                      '"%s".'],char(artifact.planId));
             end
             plan = plans(planIx);
+        end
+
+        function plan = referencePlanForArtifact(runConfig)
+            reference = ...
+                planWorkflow.config.RobustPlanConfig.referenceFromRunConfig( ...
+                runConfig);
+            plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
+            plan.id = 'reference';
+            plan.label = ...
+                planWorkflow.results.PlanLabels.referencePlanDisplayLabel( ...
+                reference);
+            plan.objectiveSetName = 'reference';
+            plan.robustnessMode = reference.robustnessMode;
+            plan.scenario = reference.scenario;
+            plan.optimization4D = reference.optimization4D;
+            plan.robustnessOptions = reference.robustnessOptions;
+            plan.dosePrecompute = reference.dosePrecompute;
+            plan.variants = reference.variants;
         end
 
         function metadata = robustPlanMetadata(plan)
@@ -485,6 +529,41 @@ classdef CacheIdentity
                     value = defaultValue;
                     return;
                 end
+            end
+        end
+
+        function fileStem = derivedInputStem(identity)
+            inputIdentity = identity;
+            inputIdentity.tag = 'dij';
+            inputIdentity.artifact = struct('kind','dij');
+            derivedFields = {'interval','prob2'};
+            for fieldIx = 1:numel(derivedFields)
+                if isfield(inputIdentity,derivedFields{fieldIx})
+                    inputIdentity = rmfield(inputIdentity, ...
+                        derivedFields{fieldIx});
+                end
+            end
+
+            canonicalInput = ...
+                planWorkflow.cache.CacheIdentity.canonicalize( ...
+                inputIdentity);
+            inputHash = planWorkflow.cache.CacheIdentity.sha256( ...
+                jsonencode(canonicalInput));
+            scenarioMode = ...
+                planWorkflow.cache.CacheIdentity.scenarioModeFromIdentity( ...
+                canonicalInput);
+            fileStem = sprintf('%s_%s', ...
+                planWorkflow.cache.CacheIdentity.sanitizePathPart( ...
+                scenarioMode),inputHash(1:16));
+        end
+
+        function scenarioMode = scenarioModeFromIdentity(identity)
+            scenarioMode = 'scenario';
+            if isstruct(identity) && isfield(identity,'scenario') && ...
+                    isstruct(identity.scenario) && ...
+                    isfield(identity.scenario,'scen_mode') && ...
+                    ~isempty(identity.scenario.scen_mode)
+                scenarioMode = char(identity.scenario.scen_mode);
             end
         end
 

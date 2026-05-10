@@ -226,6 +226,46 @@ verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 end
 
+function testDosePrecomputeDefaultsAndNormalization(testCase)
+cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
+plan = cleanPlan('interval3','INTERVAL3');
+plan.dosePrecompute = struct('useStreaming','true', ...
+    'SecondPassStrategy','RECOMPUTE','KeepCache','on', ...
+    'CacheRoot',['  ' cacheRoot '  ']);
+
+plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,contract('INTERVAL3',false));
+
+verifyTrue(testCase,plans.dosePrecompute.useStreaming);
+verifyEqual(testCase,plans.dosePrecompute.SecondPassStrategy,'recompute');
+verifyTrue(testCase,plans.dosePrecompute.KeepCache);
+verifyEqual(testCase,plans.dosePrecompute.CacheRoot,cacheRoot);
+end
+
+function testDosePrecomputeRejectsInvalidStrategy(testCase)
+plan = cleanPlan('interval3','INTERVAL3');
+plan.dosePrecompute.SecondPassStrategy = 'memory';
+
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,contract('INTERVAL3',false)), ...
+    ['planWorkflow:config:RobustPlanConfig:' ...
+    'InvalidDosePrecomputeStrategy']);
+end
+
+function testMixedCompactPrecomputeModesAreRejected(testCase)
+plan = cleanPlan('bad','Mixed');
+badContract = contract('PROB2',false);
+badContract.requiresIntervalDij = true;
+badContract.requiresProb2Dij = true;
+
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,badContract), ...
+    ['planWorkflow:config:RobustPlanConfig:' ...
+    'MixedCompactPrecomputeModes']);
+end
+
 function plan = cleanPlan(id,label)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;

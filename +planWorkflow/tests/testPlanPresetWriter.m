@@ -279,6 +279,26 @@ verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.sampling.sampling_ctScenProb = [0.6 0.4];"));
 end
 
+function testMacroExportsOnlyNonDefaultDosePrecomputeFields(testCase)
+fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = baseRunConfig(fixture.Folder);
+runConfig.precompute.robustPlans.dosePrecompute.useStreaming = true;
+runConfig.precompute.robustPlans.dosePrecompute.SecondPassStrategy = ...
+    'recompute';
+
+macroText = planWorkflow.gui.PlanPresetWriter.macroText( ...
+    'runStreamingWorkflow',runConfig,'interval2_001');
+
+verifyTrue(testCase,contains(macroText, ...
+    "workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.useStreaming = true;"));
+verifyTrue(testCase,contains(macroText, ...
+    "workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.SecondPassStrategy = 'recompute';"));
+verifyFalse(testCase,contains(macroText, ...
+    'workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.KeepCache'));
+verifyFalse(testCase,contains(macroText, ...
+    'workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.CacheRoot'));
+end
+
 function testSaveRejectsExistingTemplateAndMacro(testCase)
 fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
 templateRoot = fullfile(fixture.Folder,'templates');

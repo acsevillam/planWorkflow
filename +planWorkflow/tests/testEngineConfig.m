@@ -77,9 +77,13 @@ config.precompute.robustPlans = [ ...
 workflow = planWorkflowTest.EngineProbe(config);
 
 robustPlans = workflow.runConfig.precompute.robustPlans;
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','comparison_001');
+robustObjectiveSets = ...
+    planWorkflow.templates.PlanTemplate.robustObjectiveSets(template);
 ptvIx = robustPlanIx(robustPlans,'PTV');
 intervalIx = robustPlanIx(robustPlans,'Interval2');
-verifyEqual(testCase,numel(robustPlans),6);
+verifyEqual(testCase,numel(robustPlans),numel(robustObjectiveSets));
 verifyEqual(testCase,robustPlans(ptvIx).robustnessMode, ...
     'none');
 verifyEqual(testCase,robustPlans(ptvIx).scenario.mode, ...
@@ -123,13 +127,18 @@ config.precompute.robustPlans.robust_2.variants = ...
 workflow = planWorkflowTest.EngineProbe(config);
 
 robustPlans = workflow.runConfig.precompute.robustPlans;
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','comparison_001');
+robustObjectiveSets = ...
+    planWorkflow.templates.PlanTemplate.robustObjectiveSets(template);
 ptvIx = robustPlanIx(robustPlans,'PTV');
 intervalIx = robustPlanIx(robustPlans,'Interval2');
-verifyEqual(testCase,numel(robustPlans),6);
+verifyEqual(testCase,numel(robustPlans),numel(robustObjectiveSets));
 verifyEqual(testCase,{robustPlans.id}, ...
-    {'PTV','Minimax','Stochastic','cMinimax','Interval2','Interval3'});
-verifyEqual(testCase,{robustPlans.label}, ...
-    {'PTV','COWC','Stochastic','c-Minimax','INTERVAL2','Interval3'});
+    {robustObjectiveSets.id});
+expectedLabels = {robustObjectiveSets.label};
+expectedLabels{intervalIx} = 'INTERVAL2';
+verifyEqual(testCase,{robustPlans.label},expectedLabels);
 verifyEqual(testCase,robustPlans(ptvIx).robustnessMode, ...
     'none');
 verifyEqual(testCase,robustPlans(intervalIx).robustnessMode, ...
@@ -251,7 +260,7 @@ planWorkflow.analysis.ResultLogger.log(@captureMessage,results);
 verifyNotEmpty(testCase,messages);
 
     function captureMessage(message)
-        messages{end + 1} = message; %#ok<AGROW>
+        messages{end + 1} = message;
     end
 end
 
@@ -292,6 +301,82 @@ verifyError(testCase,@() ...
     planWorkflow.analysis.AnalysisService.createAnalysisResultGUI( ...
     context,struct(),{},struct(),struct(),struct()), ...
     'planWorkflow:analysis:MissingOptimizationWeights');
+end
+
+function testOptimizeStageContextDoesNotConfigureForwardDose(testCase)
+config = baseEngineConfig(testCase);
+data = struct();
+data.ct = struct('numOfCtScen',1);
+data.cst = {1};
+data.dij = referenceDij();
+data.stf = stfForBixels(3);
+data.pln = struct('propStf',struct('numOfBeams',1));
+
+context = planWorkflow.stages.OptimizeStage.context( ...
+    config,data,@passthroughTask,@(~) []);
+
+verifyFalse(testCase,isfield(context,'forwardDoseForAnalysis'));
+end
+
+function testRobustAnalysisForwardInputsUseSingleNominalScenario(testCase)
+planConfig = robustPlanConfig('robust_1','Robust','PTV', ...
+    'none','wcScen',[5 10 5], ...
+    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+planConfig.scenario.ctActive = true;
+planConfig.scenario.ctReferenceScenId = 2;
+
+ct = struct('numOfCtScen',3);
+pln = struct();
+pln.propStf = struct('numOfBeams',1);
+pln.propOpt = struct('scen4D','all','dij_interval',1, ...
+    'dij_prob2',2);
+scenarioConfig = ...
+    planWorkflow.config.RobustPlanConfig.matRadScenario( ...
+    planConfig.scenario);
+scenarioConfig = planWorkflow.config.ScenarioSpec.withBeamCount( ...
+    scenarioConfig,pln);
+pln.multScen = planWorkflow.scenario.createModel( ...
+    ct,scenarioConfig.scen_mode,scenarioConfig,'optimization');
+
+robustData = struct();
+robustData.ct = ct;
+robustData.stf = stfForBixels(3);
+robustData.pln = pln;
+robustData.planConfig = planConfig;
+variantResult = struct('variantId','variant_1');
+
+[stfNominal,plnNominal] = ...
+    planWorkflow.analysis.NominalForwardInputs.robustVariant( ...
+    robustData,variantResult);
+
+scenarioIds = plnNominal.multScen.scenarioIds();
+verifyEqual(testCase,stfNominal.totalNumOfBixels,3);
+verifyEqual(testCase,numel(scenarioIds),1);
+verifyEqual(testCase,plnNominal.multScen.getCtScenario(scenarioIds(1)),2);
+verifyEqual(testCase,plnNominal.multScen.getSetupShift(scenarioIds(1)), ...
+    [0 0 0]);
+verifyFalse(testCase,isfield(plnNominal.propOpt,'scen4D'));
+verifyFalse(testCase,isfield(plnNominal.propOpt,'dij_interval'));
+verifyFalse(testCase,isfield(plnNominal.propOpt,'dij_prob2'));
+end
+
+function testRobustAnalysisForwardInputsPreferNominalStf(testCase)
+planConfig = robustPlanConfig('robust_1','Robust','PTV', ...
+    'none','nomScen',[0 0 0], ...
+    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+robustData = struct();
+robustData.ct = struct('numOfCtScen',1);
+robustData.stf = stfForBixels(3);
+robustData.stfNominal = stfForBixels(5);
+robustData.pln = struct('propStf',struct('numOfBeams',1), ...
+    'multScen',matRad_NominalScenario());
+robustData.planConfig = planConfig;
+
+[stfNominal,~] = ...
+    planWorkflow.analysis.NominalForwardInputs.robustVariant( ...
+    robustData,struct('variantId','variant_1'));
+
+verifyEqual(testCase,stfNominal.totalNumOfBixels,5);
 end
 
 function testIntervalPlanApplies4DOptimizationConfig(testCase)
@@ -428,21 +513,109 @@ verifyFalse(testCase,isfield(intervalConfig,'KMode'));
 verifyFalse(testCase,isfield(cacheContext.interval,'KMode'));
 end
 
+function testStreamingDoseConfigCarriesSecondPassOptions(testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'interval3_001';
+cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL3','Interval3','INTERVAL3','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.dosePrecompute.useStreaming = true;
+config.precompute.robustPlans.dosePrecompute.SecondPassStrategy = 'recompute';
+config.precompute.robustPlans.dosePrecompute.KeepCache = true;
+config.precompute.robustPlans.dosePrecompute.CacheRoot = cacheRoot;
+workflow = planWorkflowTest.EngineProbe(config);
+
+robustData = intervalRobustData(workflow);
+robustData.ct = struct('refScen',1);
+robustData.cst = cell(1,6);
+robustData.cst{1,2} = 'PTV';
+robustData.objectiveInfo = struct( ...
+    'ixTarget',1, ...
+    'robustOarNames',{{'Rectum'}});
+robustData.pln = struct('propOpt',struct());
+
+legacyConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
+    workflow.intervalDoseInfluenceContext(),robustData);
+streamingConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
+    workflow.intervalDoseInfluenceContext(),robustData,true);
+
+verifyFalse(testCase,isfield(legacyConfig,'SecondPassStrategy'));
+verifyEqual(testCase,streamingConfig.SecondPassStrategy,'recompute');
+verifyTrue(testCase,streamingConfig.KeepCache);
+verifyEqual(testCase,streamingConfig.CacheRoot,cacheRoot);
+end
+
+function testProb2StreamingDoseConfigCarriesSecondPassOptions(testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig( ...
+    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.dosePrecompute.useStreaming = true;
+config.precompute.robustPlans.dosePrecompute.KeepCache = true;
+workflow = planWorkflowTest.EngineProbe(config);
+
+robustData = struct();
+robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
+robustData.strategy = planWorkflow.robustness.Prob2Strategy();
+robustData.ct = struct('refScen',1);
+robustData.cst = cell(1,6);
+robustData.cst{1,2} = 'PTV';
+robustData.objectiveInfo = struct( ...
+    'ixTarget',1, ...
+    'robustOarNames',{{'Rectum'}});
+robustData.pln = struct('propOpt',struct());
+
+prob2Config = planWorkflow.precompute.Prob2DoseInfluence.doseConfig( ...
+    workflow.intervalDoseInfluenceContext(),robustData,true);
+
+verifyEqual(testCase,prob2Config.SecondPassStrategy,'disk');
+verifyTrue(testCase,prob2Config.KeepCache);
+verifyFalse(testCase,isfield(prob2Config,'CacheRoot'));
+end
+
+function testReferenceCompactCacheIdentityUsesReferencePlan(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.reference.robustnessMode = 'PROB2';
+pln = struct('propOpt',struct());
+cacheContext = struct('prob2',struct('mode','PROB2'));
+
+descriptor = planWorkflow.cache.CacheIdentity.build( ...
+    config,'prob2_reference',pln,cacheContext);
+metadata = planWorkflow.cache.CacheIdentity.artifactMetadata( ...
+    config,'prob2_reference');
+
+verifyEqual(testCase,descriptor.artifact.kind,'prob');
+verifyEqual(testCase,descriptor.artifact.planId,'reference');
+verifyEqual(testCase,descriptor.artifact.robustnessMode,'PROB2');
+verifyEqual(testCase,metadata.planId,'reference');
+verifyEqual(testCase,metadata.objectiveSetName,'reference');
+end
+
 function testPlanTaskResourceDetailsIncludeDoseInfluenceAndIterations(testCase)
 workflow = planWorkflowTest.EngineProbe(baseEngineConfig(testCase));
 
 dij = referenceDij();
+referenceTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    10,'reference','Reference','dij',[]);
 detail = workflow.planTaskResourceDetailPublic( ...
-    'precompute','reference','Reference','doseInfluence','','',{dij});
+    'precompute','reference','Reference','doseInfluence','','', ...
+    {dij,referenceTiming});
 detailData = jsondecode(detail);
 verifyEqual(testCase,detailData.dij.numberOfScenarios,1);
 verifyEqual(testCase,detailData.dij.matrix.dimensions,'1x3');
 verifyGreaterThan(testCase,detailData.dij.matrix.size.bytes,0);
 verifyGreaterThan(testCase,detailData.dij.size.bytes,0);
+verifyEqual(testCase,detailData.dijPrecomputingTiming.totalTimeSeconds, ...
+    10);
+verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,1);
 
 robustData = struct();
 robustData.dij = referenceDij();
 robustData.dij_interval = intervalDij(3);
+robustData.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
 detail = workflow.planTaskResourceDetailPublic( ...
     'precompute','robust','INTERVAL2','intervalDoseInfluence', ...
     'interval2','',{robustData});
@@ -471,11 +644,13 @@ verifyEqual(testCase, ...
 verifyGreaterThan(testCase, ...
     detailData.dij_interval.radiusComponents.totalSize.bytes,0);
 verifyGreaterThan(testCase,detailData.dij_interval.totalSize.bytes,0);
+verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,3);
 verifyFalse(testCase,contains(jsonencode(detailData.dij_interval), ...
     ['OAR covariance/' 'SVD estimated memory']));
 
 prob2Data = struct();
 prob2Data.dij_prob2 = prob2Dij(3);
+prob2Data.dijPrecomputingTiming = sampleDijPrecomputingTiming('dij_prob2');
 detail = workflow.planTaskResourceDetailPublic( ...
     'precompute','robust','PROB2','prob2DoseInfluence', ...
     'prob2','',{prob2Data});
@@ -493,6 +668,7 @@ verifyEqual(testCase, ...
     detailData.dij_prob2.omegaComponents.Omega.totalColumns,6);
 verifyEqual(testCase, ...
     detailData.dij_prob2.omegaComponents.voiSubIx.sum,6);
+verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,3);
 
 resultGUI = struct();
 resultGUI.info = struct('iterations',17);
@@ -552,13 +728,15 @@ intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
 cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
-dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
-    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+    intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'dijNominal','cacheMetadata','-v7.3');
 
@@ -570,6 +748,8 @@ robustData = workflow.useIntervalDijForOptimizationPublic( ...
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_interval'));
 verifyTrue(testCase,isfield(robustData,'dijNominal'));
+verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
+verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
 verifyTrue(testCase,isfield(robustData,'plnForOptimization'));
 verifyEqual(testCase,robustData.pln.multScen.numScenarios(), ...
@@ -598,6 +778,15 @@ end
 
 function testCachedProb2DijCanOptimizeWithoutRobustDij(testCase)
 config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig( ...
+    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.hasNominalObjectives = false;
+config.precompute.robustPlans.requiresNominalDij = false;
+config.precompute.robustPlans.requiresScenarioDij = false;
+config.precompute.robustPlans.requiresIntervalDij = false;
+config.precompute.robustPlans.requiresProb2Dij = true;
 config.dose_pulling2 = false;
 workflow = planWorkflowTest.EngineProbe(config);
 workflow.data.dij = referenceDij();
@@ -608,18 +797,9 @@ scenarioModel.shiftSD = [1 2 3];
 scenarioModel.wcSigma = 1;
 
 robustData = struct();
-robustData.planConfig = planWorkflow.config.RobustPlanConfig.defaultPlan();
-robustData.planConfig.id = 'prob2Plan';
-robustData.planConfig.label = 'PROB2';
-robustData.planConfig.objectiveSetName = 'PROB2';
-robustData.planConfig.robustnessMode = 'PROB2';
+robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
 robustData.planConfig.hasNominalObjectives = false;
 robustData.planConfig.requiresNominalDij = false;
-robustData.planConfig.requiresScenarioDij = false;
-robustData.planConfig.requiresIntervalDij = false;
-robustData.planConfig.requiresProb2Dij = true;
-robustData.planConfig.variants = ...
-    planWorkflow.config.RobustPlanConfig.defaultVariants('PROB2');
 robustData.strategy = planWorkflow.robustness.Prob2Strategy();
 robustData.pln.multScen = scenarioModel;
 robustData.pln.propOpt = struct();
@@ -630,12 +810,14 @@ prob2Tag = workflow.prob2DoseCacheTagPublic(robustData);
 cacheFile = workflow.cacheFilePublic(prob2Tag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
-dij_prob2 = prob2Dij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
+dij_prob2 = prob2Dij(workflow.data.dij.totalNumOfBixels);
 dij_prob2Context = prob2DijContext(dij_prob2); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
-    prob2Tag,robustData.pln,cacheContext); %#ok<NASGU>
+    prob2Tag,robustData.pln,cacheContext);
 cacheMetadata.probabilisticMode = 'PROB2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_prob2');
 builtin('save',cacheFile,'dij_prob2','dij_prob2Context', ...
     'cacheMetadata','-v7.3');
 
@@ -645,6 +827,8 @@ robustData = workflow.useProb2DijForOptimizationPublic(robustData);
 
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_prob2'));
+verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
+verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_prob2'));
 verifyTrue(testCase,isfield(robustData,'plnForOptimization'));
 verifyEqual(testCase,robustData.pln.multScen.numScenarios(), ...
@@ -688,13 +872,15 @@ intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
 cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
-dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
-    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+    intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'dijNominal','cacheMetadata','-v7.3');
 
@@ -703,6 +889,8 @@ builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
 
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dijNominal'));
+verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
+verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
 verifyEqual(testCase,robustData.dijNominal.totalNumOfBixels, ...
     size(robustData.dij_interval.center,2));
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
@@ -784,6 +972,47 @@ verifyTrue(testCase,intervalData.usesNominalDijForOptimization);
 verifyTrue(testCase,prob2Data.usesNominalDijForOptimization);
 end
 
+function testReferenceNominalIntervalSelectionKeepsCompactPayload(testCase)
+referenceData = nominalSelectionData('reference','reference-nominal', ...
+    'INTERVAL2',true,false);
+referenceData.dij_interval = intervalDij(3);
+referenceData.dij_intervalContext = ...
+    intervalDijContext(referenceData.dij_interval);
+
+referenceData = ...
+    planWorkflow.stages.PrecomputeStage.selectReferenceOptimizationDoseInfluence( ...
+    referenceData);
+
+verifyEqual(testCase,referenceData.dij.source,'reference-nominal');
+verifyEqual(testCase,referenceData.plnForOptimization.source, ...
+    'reference-nominal');
+verifyTrue(testCase,referenceData.usesNominalDijForOptimization);
+verifyTrue(testCase,isfield(referenceData.plnForOptimization.propOpt, ...
+    'dij_interval'));
+verifyEqual(testCase,referenceData.plnForOptimization.propOpt.dij_interval, ...
+    referenceData.dij_interval);
+end
+
+function testReferenceNominalProb2SelectionKeepsCompactPayload(testCase)
+referenceData = nominalSelectionData('reference','reference-nominal', ...
+    'PROB2',false,true);
+referenceData.dij_prob2 = prob2Dij(3);
+referenceData.dij_prob2Context = prob2DijContext(referenceData.dij_prob2);
+
+referenceData = ...
+    planWorkflow.stages.PrecomputeStage.selectReferenceOptimizationDoseInfluence( ...
+    referenceData);
+
+verifyEqual(testCase,referenceData.dij.source,'reference-nominal');
+verifyEqual(testCase,referenceData.plnForOptimization.source, ...
+    'reference-nominal');
+verifyTrue(testCase,referenceData.usesNominalDijForOptimization);
+verifyTrue(testCase,isfield(referenceData.plnForOptimization.propOpt, ...
+    'dij_prob2'));
+verifyEqual(testCase,referenceData.plnForOptimization.propOpt.dij_prob2, ...
+    referenceData.dij_prob2);
+end
+
 function testCachedIntervalDijRejectsNominalDijWithBadQuantitySize(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
@@ -812,14 +1041,16 @@ cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
 mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_interval.quantity = 'RBExD';
-dij_interval.quantityField = 'RBExDose'; %#ok<NASGU>
+dij_interval.quantityField = 'RBExDose';
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 dijNominal = intervalNominalDij(dij_interval);
-dijNominal.RBExDose = {sparse(1,size(dij_interval.center,2))}; %#ok<NASGU>
+dijNominal.RBExDose = {sparse(1,size(dij_interval.center,2))};
 cacheMetadata = workflow.cacheMetadataPublic( ...
-    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+    intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'dijNominal','cacheMetadata','-v7.3');
 
@@ -850,12 +1081,14 @@ intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
 cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
-dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels); %#ok<NASGU>
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
-    intervalTag,robustData.pln,cacheContext); %#ok<NASGU>
+    intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = 'different-scenario';
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'cacheMetadata','-v7.3');
 
@@ -1561,6 +1794,7 @@ workflow = planWorkflowTest.EngineProbe(config);
 robustData = intervalRobustData(workflow);
 robustTag = workflow.robustDoseCacheTagPublic(robustData);
 intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+robustKey = workflow.cacheKeyPublic(robustTag);
 intervalKey = workflow.cacheKeyPublic(intervalTag);
 
 verifyEqual(testCase,robustTag,'robust_Interval2');
@@ -1569,6 +1803,72 @@ verifyTrue(testCase,contains(intervalKey, ...
     fullfile('interval','INTERVAL2')));
 verifyFalse(testCase,contains(intervalKey,'customPlanId'));
 verifyTrue(testCase,contains(intervalKey,'INTERVAL2'));
+verifyDerivedKeyUsesInputStem(testCase,intervalKey,robustKey);
+end
+
+function testProb2DoseCacheUsesProbFolderAndInputStem(testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig('prob2Plan','PROB2', ...
+    'MeanVarianceP1','PROB2','wcScen',[5 10 5], ...
+    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+workflow = planWorkflowTest.EngineProbe(config);
+
+robustData = intervalRobustData(workflow);
+robustTag = workflow.robustDoseCacheTagPublic(robustData);
+prob2Tag = workflow.prob2DoseCacheTagPublic(robustData);
+prob2Context = workflow.prob2CacheContextPublic(robustData);
+robustKey = workflow.cacheKeyPublic(robustTag);
+prob2Key = workflow.cacheKeyPublic(prob2Tag,struct(),prob2Context);
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    prob2Tag,struct(),prob2Context);
+
+verifyEqual(testCase,prob2Tag,'prob2_MeanVarianceP1');
+verifyTrue(testCase,contains(prob2Key,fullfile('prob','PROB2')));
+verifyFalse(testCase,contains(prob2Key,fullfile('other')));
+verifyEqual(testCase,cacheMetadata.artifact.kind,'prob');
+verifyEqual(testCase,cacheMetadata.planId,'MeanVarianceP1');
+verifyEqual(testCase,cacheMetadata.robustnessMode,'PROB2');
+verifyDerivedKeyUsesInputStem(testCase,prob2Key,robustKey);
+end
+
+function testDerivedDoseCacheContextChangesOnlyDerivedHash(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig('intervalPlan','INTERVAL2', ...
+    'Interval2','INTERVAL2','wcScen',[5 10 5], ...
+    robustVariantConfig('theta_10','Variant 1',1,1,10,1));
+workflow = planWorkflowTest.EngineProbe(config);
+robustData = intervalRobustData(workflow);
+intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+intervalContextA = workflow.intervalCacheContextPublic(robustData);
+intervalContextB = intervalContextA;
+intervalContextB.interval.targetName = 'Changed target';
+intervalKeyA = workflow.cacheKeyPublic(intervalTag,struct(), ...
+    intervalContextA);
+intervalKeyB = workflow.cacheKeyPublic(intervalTag,struct(), ...
+    intervalContextB);
+
+verifyNotEqual(testCase,intervalKeyA,intervalKeyB);
+verifyEqual(testCase,derivedInputStem(intervalKeyA), ...
+    derivedInputStem(intervalKeyB));
+
+config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig('prob2Plan','PROB2', ...
+    'MeanVarianceP1','PROB2','wcScen',[5 10 5], ...
+    robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+workflow = planWorkflowTest.EngineProbe(config);
+robustData = intervalRobustData(workflow);
+prob2Tag = workflow.prob2DoseCacheTagPublic(robustData);
+prob2ContextA = workflow.prob2CacheContextPublic(robustData);
+prob2ContextB = prob2ContextA;
+prob2ContextB.prob2.targetName = 'Changed target';
+prob2KeyA = workflow.cacheKeyPublic(prob2Tag,struct(),prob2ContextA);
+prob2KeyB = workflow.cacheKeyPublic(prob2Tag,struct(),prob2ContextB);
+
+verifyNotEqual(testCase,prob2KeyA,prob2KeyB);
+verifyEqual(testCase,derivedInputStem(prob2KeyA), ...
+    derivedInputStem(prob2KeyB));
 end
 
 function testRobustNominalDoseCacheTagKeepsPlanIdAndNominalScenario(testCase)
@@ -1745,6 +2045,10 @@ verifyError(testCase, ...
     'planWorkflow:Engine:ConflictingSamplingConfig');
 end
 
+function varargout = passthroughTask(~,~,~,~,~,~,taskFunction)
+[varargout{1:nargout}] = taskFunction();
+end
+
 function config = baseEngineConfig(testCase)
 fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
 config = struct();
@@ -1820,6 +2124,16 @@ if isempty(ix)
 end
 end
 
+function verifyDerivedKeyUsesInputStem(testCase,derivedKey,robustKey)
+[~,robustStem] = fileparts(robustKey);
+verifyEqual(testCase,derivedInputStem(derivedKey),robustStem);
+end
+
+function inputStem = derivedInputStem(cacheKey)
+[~,fileStem] = fileparts(cacheKey);
+inputStem = fileStem(1:end - 17);
+end
+
 function variant = robustVariantConfig(id,label,p1,p2,theta1,theta2)
 variant = struct();
 variant.id = id;
@@ -1893,6 +2207,15 @@ dij = struct();
 dij.totalNumOfBixels = 3;
 dij.physicalDose = {sparse(1,3)};
 dij.scenarioModel = matRad_NominalScenario();
+end
+
+function timing = sampleDijPrecomputingTiming(artifact)
+referenceTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    10,'reference','Reference','dij',[]);
+inputTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    20,'input','Robust','dij_robust',referenceTiming);
+timing = planWorkflow.performance.PrecomputeTiming.combine( ...
+    inputTiming,'derived',artifact,10,'Robust');
 end
 
 function dij = intervalNominalDij(dij_interval)

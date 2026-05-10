@@ -156,7 +156,7 @@ originalPosition = get(fill,'Position');
 originalColor = get(fill,'BackgroundColor');
 
 cleanupObj = reporter.beginInteractiveOperation( ...
-    'Updating plan template...');
+    'Updating plan template...'); %#ok<NASGU>
 
 verifyTrue(testCase,contains(get(status,'String'), ...
     'Updating plan template'));
@@ -502,15 +502,31 @@ verifyNotEmpty(testCase,precomputeCpuLabels);
 precomputeCpuValues = findall(robustSummaryPanels(1),'Style','edit', ...
     'String','2.250');
 verifyNotEmpty(testCase,precomputeCpuValues);
+precomputeDijTimeLabels = findall(robustSummaryPanels(1),'Style','text', ...
+    'String','Precompute dij time (s)');
+verifyNotEmpty(testCase,precomputeDijTimeLabels);
+precomputeDijTimeValues = findall(robustSummaryPanels(1),'Style','edit', ...
+    'String','3.000');
+verifyNotEmpty(testCase,precomputeDijTimeValues);
+precomputeRelativeDijLabels = findall(robustSummaryPanels(1), ...
+    'Style','text','String','Precompute relative dij time');
+verifyNotEmpty(testCase,precomputeRelativeDijLabels);
+precomputeRelativeDijValues = findall(robustSummaryPanels(1), ...
+    'Style','edit','String','2.000');
+verifyNotEmpty(testCase,precomputeRelativeDijValues);
 precomputeDetailLabels = findall(robustSummaryPanels(1),'Style','text', ...
     'String','Precompute Detail JSON');
 verifyNotEmpty(testCase,precomputeDetailLabels);
 precomputeDetailValues = findEditControlsContaining( ...
-    robustSummaryPanels(1),{'dij_robust'});
+    robustSummaryPanels(1),{'dij_robust','dijPrecomputingTiming'});
 verifyNotEmpty(testCase,precomputeDetailValues);
 precomputeDetailTexts = controlStrings(precomputeDetailValues);
 verifyTrue(testCase,any(contains(precomputeDetailTexts,'tasks:')));
 verifyTrue(testCase,any(contains(precomputeDetailTexts,'dij_robust:')));
+verifyTrue(testCase,any(contains(precomputeDetailTexts, ...
+    'dijPrecomputingTiming:')));
+verifyTrue(testCase,any(contains(precomputeDetailTexts, ...
+    'relativeTime: 2')));
 verifyTrue(testCase,any(contains(precomputeDetailTexts,newline)));
 verifyFalse(testCase,any(contains(precomputeDetailTexts,'{"tasks"')));
 optimizeTimeLabels = findall(robustSummaryPanels(1),'Style','text', ...
@@ -525,6 +541,18 @@ verifyNotEmpty(testCase,optimizeCpuLabels);
 optimizeCpuValues = findall(robustSummaryPanels(1),'Style','edit', ...
     'String','3.125');
 verifyNotEmpty(testCase,optimizeCpuValues);
+optimizeTpiLabels = findall(robustSummaryPanels(1),'Style','text', ...
+    'String','Optimize TPI (s/iter)');
+verifyNotEmpty(testCase,optimizeTpiLabels);
+optimizeTpiValues = findall(robustSummaryPanels(1),'Style','edit', ...
+    'String','0.604');
+verifyNotEmpty(testCase,optimizeTpiValues);
+optimizeRtpiLabels = findall(robustSummaryPanels(1),'Style','text', ...
+    'String','Optimize rTPI');
+verifyNotEmpty(testCase,optimizeRtpiLabels);
+optimizeRtpiValues = findall(robustSummaryPanels(1),'Style','edit', ...
+    'String','3.000');
+verifyNotEmpty(testCase,optimizeRtpiValues);
 optimizeDetailLabels = findall(robustSummaryPanels(1),'Style','text', ...
     'String','Optimize Detail JSON');
 verifyNotEmpty(testCase,optimizeDetailLabels);
@@ -533,6 +561,10 @@ optimizeDetailValues = findEditControlsContaining( ...
 verifyNotEmpty(testCase,optimizeDetailValues);
 verifyTrue(testCase,any(contains( ...
     controlStrings(optimizeDetailValues),'iterations: 12')));
+verifyTrue(testCase,any(contains( ...
+    controlStrings(optimizeDetailValues),'timePerIterationSeconds:')));
+verifyTrue(testCase,any(contains( ...
+    controlStrings(optimizeDetailValues),'rTPI: 3')));
 verifyEmpty(testCase,findall(robustSummaryPanels(1),'Style','text', ...
     'String','Precompute process max (MB)'));
 verifyEmpty(testCase,findall(robustSummaryPanels(1),'Style','text', ...
@@ -843,11 +875,32 @@ timing.startDataMemoryBytes = 12 * megabyte;
 timing.endDataMemoryBytes = 16 * megabyte;
 timing.dataMemoryDeltaBytes = 4 * megabyte;
 timing.memorySource = 'process_rss_ps';
+timing.iterations = NaN;
+timing.timePerIterationSeconds = NaN;
+timing.rTPI = NaN;
+timing.rTPIReferenceLabel = '';
+timing.rTPIReferenceTimePerIterationSeconds = NaN;
+timing.dijPrecomputingTimeSeconds = NaN;
+timing.relativeDijPrecomputingTime = NaN;
+timing.dijPrecomputingReferenceLabel = '';
+timing.dijPrecomputingReferenceTimeSeconds = NaN;
 timing.detail = '{"iterations":12}';
 timing.errorMessage = '';
 end
 
 function timings = syntheticSamplingPlanTimings()
+reference = syntheticPlanTiming();
+reference.stage = 'optimize';
+reference.role = 'reference';
+reference.label = 'Reference';
+reference.task = 'fluenceOptimization';
+reference.robustPlanId = '';
+reference.variantId = '';
+reference.wallTimeSeconds = 2.41666666666667;
+reference.cpuTimeSeconds = 1.125;
+reference.dataMemoryDeltaBytes = 2 * 1024^2;
+reference.detail = '{"iterations":12}';
+
 precompute = syntheticPlanTiming();
 precompute.stage = 'precompute';
 precompute.role = 'robust';
@@ -858,8 +911,15 @@ precompute.variantId = '';
 precompute.wallTimeSeconds = 4.5;
 precompute.cpuTimeSeconds = 2.25;
 precompute.dataMemoryDeltaBytes = 3 * 1024^2;
+referenceDijTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    1.5,'reference','Reference','dij',[]);
+precomputeDijTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    3.0,'robust','INTERVAL2','dij_robust',referenceDijTiming);
 precompute.detail = ...
-    '{"dij_robust":{"numberOfScenarios":1,"matrix":{"dimensions":"1x3"}}}';
+    jsonencode(struct( ...
+    'dij_robust',struct('numberOfScenarios',1, ...
+    'matrix',struct('dimensions','1x3')), ...
+    'dijPrecomputingTiming',precomputeDijTiming));
 
 optimize = syntheticPlanTiming();
 optimize.stage = 'optimize';
@@ -873,7 +933,7 @@ optimize.cpuTimeSeconds = 3.125;
 optimize.dataMemoryDeltaBytes = 4 * 1024^2;
 optimize.detail = '{"iterations":12}';
 
-timings = [precompute optimize];
+timings = [reference precompute optimize];
 end
 
 function cstStat = samplingStructureStat(name,volumePoints)
@@ -908,7 +968,7 @@ for i = 1:numel(allTextControls)
     text = controlString(allTextControls(i));
     matched = true;
     for patternIx = 1:numel(patterns)
-        matched = matched && ~isempty(strfind(text,patterns{patternIx})); %#ok<STREMP>
+        matched = matched && ~isempty(strfind(text,patterns{patternIx}));
     end
     if matched
         handles(end + 1) = allTextControls(i); %#ok<AGROW>
@@ -923,7 +983,7 @@ for i = 1:numel(allEditControls)
     text = controlString(allEditControls(i));
     matched = true;
     for patternIx = 1:numel(patterns)
-        matched = matched && ~isempty(strfind(text,patterns{patternIx})); %#ok<STREMP>
+        matched = matched && ~isempty(strfind(text,patterns{patternIx}));
     end
     if matched
         handles(end + 1) = allEditControls(i); %#ok<AGROW>
@@ -958,7 +1018,7 @@ fprintf(fid,'placeholder');
 end
 
 function failingInteractiveOperation(reporter)
-cleanupObj = reporter.beginInteractiveOperation('Failing operation...');
+cleanupObj = reporter.beginInteractiveOperation('Failing operation...'); %#ok<NASGU>
 error('planWorkflowTest:ExpectedFailure','Expected failure.');
 end
 

@@ -28,10 +28,15 @@ runConfigB.precompute.robustPlans(2).scenario.shiftSD = [9 9 9];
 
 workflowA = planWorkflowTest.EngineProbe(runConfigA);
 workflowB = planWorkflowTest.EngineProbe(runConfigB);
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','comparison_001');
+robustObjectiveSets = ...
+    planWorkflow.templates.PlanTemplate.robustObjectiveSets(template);
 
 verifyNotEmpty(testCase,strfind(workflowA.rootPath,'robust_multi_'));
 verifyNotEqual(testCase,workflowA.rootPath,workflowB.rootPath);
-verifyEqual(testCase,numel(workflowA.data.workflowIdentity.robustPlans),6);
+verifyEqual(testCase,numel(workflowA.data.workflowIdentity.robustPlans), ...
+    numel(robustObjectiveSets));
 verifyTrue(testCase,any(strcmp( ...
     {workflowA.data.workflowIdentity.robustPlans.id},'PTV')));
 verifyTrue(testCase,any(strcmp( ...

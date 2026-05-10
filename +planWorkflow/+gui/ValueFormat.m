@@ -32,6 +32,14 @@ classdef ValueFormat
             end
         end
 
+        function text = ratio(value)
+            if isnumeric(value) && isscalar(value) && isfinite(value)
+                text = sprintf('%.3f',double(value));
+            else
+                text = '-';
+            end
+        end
+
         function text = megabytes(value)
             if isnumeric(value) && isscalar(value) && isfinite(value)
                 text = sprintf('%.2f',double(value) / 1024^2);

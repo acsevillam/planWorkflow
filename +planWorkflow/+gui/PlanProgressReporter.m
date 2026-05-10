@@ -262,6 +262,16 @@ classdef PlanProgressReporter < handle
             performance = [];
             if isstruct(results) && isfield(results,'performance')
                 performance = results.performance;
+                if isstruct(performance) && ...
+                        isfield(performance,'planTimings') && ...
+                        isstruct(performance.planTimings)
+                    planTimings = ...
+                        planWorkflow.performance.PrecomputeTiming.enrich( ...
+                        performance.planTimings);
+                    performance.planTimings = ...
+                        planWorkflow.performance.OptimizationTiming.enrich( ...
+                        planTimings);
+                end
             end
         end
 
@@ -526,7 +536,7 @@ classdef PlanProgressReporter < handle
             obj.IsRecalculatingAnalysis = true;
             cleanupObj = onCleanup(@() obj.finishRecalculateAnalysis());
             busyCleanup = obj.beginInteractiveOperation( ...
-                'Recalculating analysis...');
+                'Recalculating analysis...'); %#ok<NASGU>
             obj.updateRecalculateAnalysisButton();
             obj.log('Recalculating analysis results...');
             obj.flushImmediate();
@@ -823,11 +833,7 @@ classdef PlanProgressReporter < handle
         end
 
         function addPlanResultsTab(obj,resultGroup,titleText,planResults, ...
-                runConfig,referencePlanResults) %#ok<INUSD>
-            if nargin < 6
-                referencePlanResults = [];
-            end
-
+                ~,~)
             qiSource = obj.qiSource(planResults);
             if isempty(qiSource)
                 return;
@@ -1329,13 +1335,13 @@ classdef PlanProgressReporter < handle
                 planResults);
             if ~isempty(evaluationRows)
                 rows(end + 1,:) = {'Evaluation parameters','', ...
-                    'section',''}; %#ok<AGROW>
+                    'section',''};
                 rows = [rows; evaluationRows];
             end
 
             gammaRows = obj.gammaSummaryRows(planResults,runConfig);
             if ~isempty(gammaRows)
-                rows(end + 1,:) = {'Gamma','','section',''}; %#ok<AGROW>
+                rows(end + 1,:) = {'Gamma','','section',''};
                 rows = [rows; gammaRows];
             end
 
@@ -1343,10 +1349,10 @@ classdef PlanProgressReporter < handle
             if ~isempty(robustnessRows)
                 riHelpText = obj.robustnessIndexHelpText('all');
                 rows(end + 1,:) = {'Robustness','', ...
-                    'section',riHelpText}; %#ok<AGROW>
+                    'section',riHelpText};
                 rows(end + 1,:) = {'Targets', ...
                     obj.robustnessTargetsText(runConfig),'', ...
-                    'Structures included in the robustness index calculation.'}; %#ok<AGROW>
+                    'Structures included in the robustness index calculation.'};
                 rows = [rows; robustnessRows];
             end
 
@@ -1354,7 +1360,7 @@ classdef PlanProgressReporter < handle
                 planResults,runConfig,referencePlanResults);
             if ~isempty(porRows)
                 rows(end + 1,:) = {'Price of Robustness','', ...
-                    'section',''}; %#ok<AGROW>
+                    'section',''};
                 rows = [rows; porRows];
             end
 
@@ -1362,7 +1368,7 @@ classdef PlanProgressReporter < handle
                 performance,planIdentity);
             if ~isempty(performanceRows)
                 rows(end + 1,:) = {'Performance','','section', ...
-                    'Performance timings and task detail JSON for this plan.'}; %#ok<AGROW>
+                    'Performance timings and task detail JSON for this plan.'};
                 rows = [rows; performanceRows];
             end
         end
@@ -1410,6 +1416,21 @@ classdef PlanProgressReporter < handle
                     planWorkflow.gui.ValueFormat.seconds( ...
                     summary.cpuTimeSeconds),'', ...
                     'CPU seconds consumed by MATLAB for this plan stage.'}; %#ok<AGROW>
+                if strcmp(stageNames{stageIx},'precompute')
+                    dijTiming = obj.dijPrecomputeTiming(timings);
+                    if ~isempty(dijTiming)
+                        rows = obj.appendDijPrecomputeTimingRows( ...
+                            rows,dijTiming);
+                    end
+                end
+                if strcmp(stageNames{stageIx},'optimize')
+                    optimizationTiming = obj.fluenceOptimizationTiming( ...
+                        timings);
+                    if ~isempty(optimizationTiming)
+                        rows = obj.appendOptimizationTimingRows( ...
+                            rows,optimizationTiming);
+                    end
+                end
                 rows(end + 1,:) = {[label ' Detail JSON'], ...
                     summary.detailJson,'json', ...
                     'Task detail JSON recorded for this plan stage.'}; %#ok<AGROW>
@@ -1487,7 +1508,7 @@ classdef PlanProgressReporter < handle
             end
         end
 
-        function summary = aggregatePlanTimings(obj,timings) %#ok<INUSD>
+        function summary = aggregatePlanTimings(obj,timings)
             summary = struct();
             summary.count = 0;
             summary.wallTimeSeconds = 0;
@@ -1516,6 +1537,67 @@ classdef PlanProgressReporter < handle
             if ~isempty(detailEntries)
                 summary.detailJson = jsonencode(struct('tasks',detailEntries));
             end
+        end
+
+        function timing = fluenceOptimizationTiming(~,timings)
+            timing = [];
+            for i = 1:numel(timings)
+                candidate = timings(i);
+                if isstruct(candidate) && isfield(candidate,'task') && ...
+                        strcmp(char(candidate.task),'fluenceOptimization')
+                    timing = candidate;
+                end
+            end
+        end
+
+        function timing = dijPrecomputeTiming(obj,timings)
+            timing = [];
+            for i = 1:numel(timings)
+                candidate = timings(i);
+                if obj.isFiniteTimingValue( ...
+                        candidate,'dijPrecomputingTimeSeconds')
+                    timing = candidate;
+                end
+            end
+        end
+
+        function rows = appendDijPrecomputeTimingRows(obj,rows,timing)
+            if obj.isFiniteTimingValue(timing,'dijPrecomputingTimeSeconds')
+                rows(end + 1,:) = {'Precompute dij time (s)', ...
+                    planWorkflow.gui.ValueFormat.seconds( ...
+                    timing.dijPrecomputingTimeSeconds),'', ...
+                    ['Elapsed real time used to precompute dose influence ' ...
+                     'matrices for this plan.']};
+            end
+            if obj.isFiniteTimingValue(timing,'relativeDijPrecomputingTime')
+                rows(end + 1,:) = {'Precompute relative dij time', ...
+                    planWorkflow.gui.ValueFormat.ratio( ...
+                    timing.relativeDijPrecomputingTime),'', ...
+                    ['Dose influence precompute time normalized to the ' ...
+                     'reference plan dij precompute time.']};
+            end
+        end
+
+        function rows = appendOptimizationTimingRows(obj,rows,timing)
+            if obj.isFiniteTimingValue(timing,'timePerIterationSeconds')
+                rows(end + 1,:) = {'Optimize TPI (s/iter)', ...
+                    planWorkflow.gui.ValueFormat.seconds( ...
+                    timing.timePerIterationSeconds),'', ...
+                    ['Average elapsed real time per fluence optimization ' ...
+                     'iteration.']};
+            end
+            if obj.isFiniteTimingValue(timing,'rTPI')
+                rows(end + 1,:) = {'Optimize rTPI', ...
+                    planWorkflow.gui.ValueFormat.ratio(timing.rTPI),'', ...
+                    ['Relative time per iteration normalized to the ' ...
+                     'reference plan in this workflow.']};
+            end
+        end
+
+        function tf = isFiniteTimingValue(~,timing,fieldName)
+            tf = isstruct(timing) && isfield(timing,fieldName) && ...
+                isnumeric(timing.(fieldName)) && ...
+                isscalar(timing.(fieldName)) && isfinite(timing.(fieldName));
         end
 
         function text = timingDetailText(obj,timing) %#ok<INUSD>
@@ -1579,7 +1661,7 @@ classdef PlanProgressReporter < handle
             if numel(value) ~= 1
                 if ~isempty(prefixText)
                     lines(end + 1,1) = ...
-                        {[indentText prefixText(1:end - 2) ':']}; %#ok<AGROW>
+                        {[indentText prefixText(1:end - 2) ':']};
                 end
                 for i = 1:numel(value)
                     lines(end + 1,1) = {sprintf('%s- item %d:', ...
@@ -1592,14 +1674,14 @@ classdef PlanProgressReporter < handle
 
             if ~isempty(prefixText)
                 lines(end + 1,1) = ...
-                    {[indentText prefixText(1:end - 2) ':']}; %#ok<AGROW>
+                    {[indentText prefixText(1:end - 2) ':']};
                 indent = indent + 2;
                 indentText = repmat(' ',1,indent);
             end
 
             fields = fieldnames(value);
             if isempty(fields)
-                lines(end + 1,1) = {[indentText '{}']}; %#ok<AGROW>
+                lines(end + 1,1) = {[indentText '{}']};
                 return;
             end
 
@@ -1622,13 +1704,13 @@ classdef PlanProgressReporter < handle
             lines = {};
             if ~isempty(prefixText)
                 lines(end + 1,1) = ...
-                    {[indentText prefixText(1:end - 2) ':']}; %#ok<AGROW>
+                    {[indentText prefixText(1:end - 2) ':']};
                 indent = indent + 2;
                 indentText = repmat(' ',1,indent);
             end
 
             if isempty(value)
-                lines(end + 1,1) = {[indentText '[]']}; %#ok<AGROW>
+                lines(end + 1,1) = {[indentText '[]']};
                 return;
             end
 
@@ -1675,12 +1757,12 @@ classdef PlanProgressReporter < handle
                 if isfield(analysis,'gammaCriteria')
                     rows(end + 1,:) = {'Gamma criteria', ...
                         obj.valueText(analysis.gammaCriteria),'', ...
-                        'Gamma distance-to-agreement and dose-difference criteria used for sampling analysis.'}; %#ok<AGROW>
+                        'Gamma distance-to-agreement and dose-difference criteria used for sampling analysis.'};
                 end
                 if isfield(analysis,'gammaWindow')
                     rows(end + 1,:) = {'Gamma window', ...
                         obj.valueText(analysis.gammaWindow),'', ...
-                        'Display window used for gamma analysis figures.'}; %#ok<AGROW>
+                        'Display window used for gamma analysis figures.'};
                 end
             end
             if isfield(planResults,'doseStat') && ...
@@ -1689,7 +1771,7 @@ classdef PlanProgressReporter < handle
                 rows(end + 1,:) = {'Gamma pass rate', ...
                         obj.valueText( ...
                     planResults.doseStat.gammaAnalysis.gammaPassRate),'', ...
-                    'Percentage of evaluated points that pass the gamma criterion.'}; %#ok<AGROW>
+                    'Percentage of evaluated points that pass the gamma criterion.'};
             end
         end
 
@@ -1818,7 +1900,7 @@ classdef PlanProgressReporter < handle
             columns = planWorkflow.gui.ClinicalEndpointTableModel.columnNames();
         end
 
-        function rows = clinicalRows(obj,planResults,runConfig, ...
+        function rows = clinicalRows(~,planResults,runConfig, ...
                 referencePlanResults)
             if nargin < 4
                 referencePlanResults = [];
