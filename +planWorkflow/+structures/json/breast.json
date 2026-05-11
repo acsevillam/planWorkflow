@@ -16,7 +16,11 @@
   "aliases": [
     {
       "structure": "BODY",
-      "values": ["Skin", "BODY", "External", "Piel"]
+      "values": ["Skin", "BODY", "External"]
+    },
+    {
+      "structure": "SKIN",
+      "values": ["Piel"]
     },
     {
       "structure": "CTV",

@@ -49,6 +49,14 @@
       "visibleColor": [1, 0.7, 0.8],
       "operation": ""
     }
+,
+    {
+      "name": "SKIN",
+      "role": "OAR",
+      "priority": 4,
+      "visibleColor": [1, 0.7, 0.8],
+      "operation": ""
+    }
   ],
   "rings": []
 }

@@ -211,6 +211,10 @@
     {
       "name": "CONTRALATERAL BREAST",
       "objectives": []
+    },
+    {
+      "name": "SKIN",
+      "objectives": []
     }
   ],
   "ringObjectives": []

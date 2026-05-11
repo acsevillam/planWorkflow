@@ -17,9 +17,9 @@
     },
     "robustPlans": [
       {
-        "ref": "shared/objectives_PROB2_base_mvp1.json",
-        "id": "MeanVarianceP1",
-        "label": "MeanVariance (penalty=1)"
+        "ref": "shared/objectives_PROB2_base.json",
+        "id": "MeanVariance",
+        "label": "MeanVariance"
       }
     ]
   }

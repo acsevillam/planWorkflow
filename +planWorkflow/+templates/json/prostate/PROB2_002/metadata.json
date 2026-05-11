@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "PROB2_002",
-  "description": "prostate",
-  "components": {
-    "beams": "shared/beams_base.json",
-    "structures": "shared/structures_base.json"
-  }
-}

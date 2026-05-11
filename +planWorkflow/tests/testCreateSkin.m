@@ -95,15 +95,32 @@ verifyTrue(testCase,strcmp(updatedCst{1,2},'BODY') || ...
     any(strcmp(updatedCst(:,2),'BODY')));
 end
 
+function testNormalizeNamesMapsBreastPielToSkin(testCase)
+ct = makeCt([5 5 5]);
+cst = makeBreastCst(ct.cubeDim);
+cst = addStructure(cst,'Piel','OAR',sub2ind(ct.cubeDim,1,3,3));
+runConfig = struct('description','breast','skinMode','full');
+
+updatedCst = planWorkflow.structures.normalizeNames(cst,runConfig,ct);
+structureNames = updatedCst(:,2);
+
+verifyEqual(testCase,sum(strcmp(structureNames,'BODY')),1);
+verifyEqual(testCase,sum(strcmp(structureNames,'SKIN')),1);
+verifyEqual(testCase,updatedCst{1,2},'BODY');
+verifyTrue(testCase,any(strcmp(structureNames,'SKIN')));
+end
+
 function testBreastNormalizationConfigMapsAliases(testCase)
 config = planWorkflow.structures.loadNormalizationConfig('breast');
 rightLungKey = planWorkflow.structures.normalizationKey('pulmon derecho');
 leftLungKey = planWorkflow.structures.normalizationKey('PULMON IZQUIERDO');
 skinKey = planWorkflow.structures.normalizationKey('Skin');
+pielKey = planWorkflow.structures.normalizationKey('Piel');
 
 verifyEqual(testCase,config.aliasMap(rightLungKey),'RIGHT LUNG');
 verifyEqual(testCase,config.aliasMap(leftLungKey),'LEFT LUNG');
 verifyEqual(testCase,config.aliasMap(skinKey),'BODY');
+verifyEqual(testCase,config.aliasMap(pielKey),'SKIN');
 verifyTrue(testCase,any(strcmp(config.outputStructures,'SKIN')));
 verifyEqual(testCase,char(config.derivedStructures(1).kind), ...
     'skinFromBody');

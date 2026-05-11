@@ -10,7 +10,7 @@
             "penalty": 100,
             "dRef": {
               "ref": "prescriptionDose",
-              "scale": 0.3
+              "scale": 0.5
             },
             "vMaxPercent": 0
           },
@@ -25,7 +25,7 @@
             "penalty": 10,
             "dMax": {
               "ref": "prescriptionDose",
-              "scale": 0.5
+              "scale": 0.3
             }
           },
           "properties": {
