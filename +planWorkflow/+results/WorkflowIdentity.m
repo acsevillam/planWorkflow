@@ -132,7 +132,8 @@ classdef WorkflowIdentity
                     planWorkflow.results.WorkflowIdentity.variantMetadata( ...
                     plans(planIx));
                 metadata(planIx).variantCount = ...
-                    max(1,numel(plans(planIx).variants));
+                    planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+                    plans(planIx));
             end
         end
 
@@ -142,16 +143,21 @@ classdef WorkflowIdentity
                 'label','', ...
                 'parameters',struct());
             metadata = repmat(variantTemplate,1,0);
-            if ~isstruct(plan) || ~isfield(plan,'variants') || ...
-                    isempty(plan.variants)
+            if ~isstruct(plan)
                 return;
             end
 
+            variants = ...
+                planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                plan);
+            if isempty(variants)
+                return;
+            end
             parameterFields = ...
                 planWorkflow.config.RobustStrategySpec.variantParameterFields( ...
                 plan.robustnessMode);
-            for variantIx = 1:numel(plan.variants)
-                variant = plan.variants(variantIx);
+            for variantIx = 1:numel(variants)
+                variant = variants(variantIx);
                 metadata(variantIx) = variantTemplate; %#ok<AGROW>
                 metadata(variantIx).id = char(variant.id);
                 metadata(variantIx).label = char(variant.label);
@@ -162,6 +168,12 @@ classdef WorkflowIdentity
                         parameters.(fieldName) = variant.(fieldName);
                     end
                 end
+                penaltyValues = ...
+                    planWorkflow.templates.ObjectivePenaltyVariants.penaltyValues( ...
+                    variant);
+                if ~isempty(penaltyValues)
+                    parameters.penalties = penaltyValues;
+                end
                 metadata(variantIx).parameters = parameters;
             end
         end
@@ -169,7 +181,9 @@ classdef WorkflowIdentity
         function count = variantCount(plans)
             count = 0;
             for planIx = 1:numel(plans)
-                count = count + max(1,numel(plans(planIx).variants));
+                count = count + ...
+                    planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+                    plans(planIx));
             end
         end
 

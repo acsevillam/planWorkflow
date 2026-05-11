@@ -62,10 +62,14 @@ classdef PrepareService
         end
 
         function [cst,objectiveInfo] = addDefaultRings( ...
-                runConfig,template,cst,ct,objectiveInfo)
+                runConfig,template,cst,ct,objectiveInfo,penaltyVariant)
+            if nargin < 6
+                penaltyVariant = [];
+            end
             [cst,objectiveInfo] = ...
                 planWorkflow.templates.PlanTemplate.addDerivedStructures( ...
-                runConfig,cst,ct,objectiveInfo,template);
+                runConfig,cst,ct,objectiveInfo,template,[], ...
+                penaltyVariant);
         end
 
         function [cst,pln] = applyReferenceRobustness( ...

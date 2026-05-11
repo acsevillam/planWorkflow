@@ -182,6 +182,9 @@ classdef PlanEditorContract
                 planConfig.variants = ...
                     planWorkflow.config.RobustPlanConfig.defaultVariants( ...
                     robustnessMode);
+                if isfield(planConfig,'variantsWithPenalties')
+                    planConfig.variantsWithPenalties = [];
+                end
             end
             planConfig.robustnessMode = robustnessMode;
         end

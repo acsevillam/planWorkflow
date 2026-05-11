@@ -1970,22 +1970,22 @@ classdef PlanProgressReporter < handle
             robustPlans = robustPlans(:)';
             for planIx = 1:numel(robustPlans)
                 planConfig = robustPlans(planIx);
-                numVariants = 1;
-                if isfield(planConfig,'variants') && ...
-                        ~isempty(planConfig.variants)
-                    numVariants = numel(planConfig.variants);
-                end
+                numVariants = ...
+                    planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+                    planConfig);
+                variants = ...
+                    planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                    planConfig);
                 for variantIx = 1:numVariants
                     resultCount = resultCount + 1;
                     if resultCount == resultIx
                         if isfield(planConfig,'id')
                             identity.robustPlanId = char(planConfig.id);
                         end
-                        if isfield(planConfig,'variants') && ...
-                                ~isempty(planConfig.variants) && ...
-                                isfield(planConfig.variants(variantIx),'id')
+                        if numel(variants) >= variantIx && ...
+                                isfield(variants(variantIx),'id')
                             identity.variantId = ...
-                                char(planConfig.variants(variantIx).id);
+                                char(variants(variantIx).id);
                         end
                         return;
                     end

@@ -70,6 +70,16 @@ workflow.analyze();
 workflow.save();
 ```
 
+Robust plan templates can define `parameters.penalty` as a finite numeric
+vector inside `objectiveSets.robustPlans`. The workflow keeps `reference` as a
+single-plan objective set and expands robust `variants` with penalty
+combinations internally; macros export only the public robust parameter
+`variants`. Penalty sweeps are capped at 1000 combinations per robust
+objective set and 10000 internal variants after combining with robust
+parameter variants. A penalty vector is rejected on objectives using a
+`dose_pulling_2` channel; keep those objectives scalar or move the sweep to a
+non-pulled objective.
+
 ## Resume
 
 ```matlab

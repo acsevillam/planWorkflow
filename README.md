@@ -140,3 +140,12 @@ dose-pulling channels, target selection, and all structure/ring objective specs 
 `objectives.json`; `structures.json` defines selectors, structure roles,
 priorities, and derived ring geometry/display metadata. Templates are not tied
 to a radiation mode; `radiationMode` is a prepare-stage workflow parameter.
+In `objectiveSets.robustPlans`, an objective `parameters.penalty` may be a
+finite numeric vector to request a deterministic penalty sweep. The public
+config still defines only robust parameter `variants`; planWorkflow expands
+those variants internally with the penalty combinations during validation.
+Penalty sweeps are capped at 1000 combinations per robust objective set and
+10000 internal variants after combining with robust parameter variants. A
+penalty vector is not allowed on an objective configured with a
+`dose_pulling_2` channel; use a scalar penalty there or move the sweep to a
+non-pulled objective.

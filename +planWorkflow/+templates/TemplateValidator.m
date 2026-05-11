@@ -251,7 +251,7 @@ classdef TemplateValidator
 
             planWorkflow.templates.TemplateValidator.validateObjectiveSet( ...
                 objectiveSets.reference,structures,rings,dosePullingChannels, ...
-                [context '.reference'],false);
+                [context '.reference'],false,false);
 
             if ~isfield(objectiveSets,'robustPlans') || ...
                     isempty(objectiveSets.robustPlans)
@@ -268,7 +268,9 @@ classdef TemplateValidator
                 setContext = sprintf('%s.robustPlans(%d)',context,planIx);
                 planWorkflow.templates.TemplateValidator.validateObjectiveSet( ...
                     robustPlans(planIx),structures,rings, ...
-                    dosePullingChannels,setContext,true);
+                    dosePullingChannels,setContext,true,true);
+                planWorkflow.templates.ObjectivePenaltyVariants.assertPenaltyCombinationLimit( ...
+                    robustPlans(planIx),setContext);
             end
         end
 
@@ -286,7 +288,10 @@ classdef TemplateValidator
     methods (Static)
         function validateObjectiveSet( ...
                 objectiveSet,structures,rings,dosePullingChannels, ...
-                setContext,requiresIdentity)
+                setContext,requiresIdentity,allowPenaltyVectors)
+            if nargin < 7
+                allowPenaltyVectors = false;
+            end
             planWorkflow.templates.TemplateValidator.requireScalarStruct( ...
                 objectiveSet,setContext);
             fields = {'structureObjectives','ringObjectives'};
@@ -310,14 +315,20 @@ classdef TemplateValidator
             end
             planWorkflow.templates.TemplateValidator.validateNamedObjectiveGroups( ...
                 objectiveSet.structureObjectives,structures, ...
-                dosePullingChannels,[setContext '.structureObjectives']);
+                dosePullingChannels,[setContext '.structureObjectives'], ...
+                allowPenaltyVectors);
             planWorkflow.templates.TemplateValidator.validateNamedObjectiveGroups( ...
                 objectiveSet.ringObjectives,rings, ...
-                dosePullingChannels,[setContext '.ringObjectives']);
+                dosePullingChannels,[setContext '.ringObjectives'], ...
+                allowPenaltyVectors);
         end
 
         function validateNamedObjectiveGroups( ...
-                groups,baseSpecs,dosePullingChannels,context)
+                groups,baseSpecs,dosePullingChannels,context, ...
+                allowPenaltyVectors)
+            if nargin < 5
+                allowPenaltyVectors = false;
+            end
             planWorkflow.templates.TemplateValidator.assertUniqueTextField( ...
                 groups,'name',context);
             baseNames = cell(1,numel(baseSpecs));
@@ -342,10 +353,14 @@ classdef TemplateValidator
                 end
             end
             planWorkflow.templates.TemplateValidator.validateObjectiveGroups( ...
-                groups,dosePullingChannels,context);
+                groups,dosePullingChannels,context,allowPenaltyVectors);
         end
 
-        function validateObjectiveGroups(groups,dosePullingChannels,context)
+        function validateObjectiveGroups(groups,dosePullingChannels,context, ...
+                allowPenaltyVectors)
+            if nargin < 4
+                allowPenaltyVectors = false;
+            end
             if isempty(groups)
                 return;
             end
@@ -356,11 +371,15 @@ classdef TemplateValidator
             for i = 1:numel(groups)
                 planWorkflow.templates.TemplateValidator.validateObjectives( ...
                     groups(i).objectives,dosePullingChannels, ...
-                    [context '.objectives']);
+                    [context '.objectives'],allowPenaltyVectors);
             end
         end
 
-        function validateObjectives(objectives,dosePullingChannels,context)
+        function validateObjectives(objectives,dosePullingChannels,context, ...
+                allowPenaltyVectors)
+            if nargin < 4
+                allowPenaltyVectors = false;
+            end
             if isempty(objectives)
                 return;
             end
@@ -383,7 +402,7 @@ classdef TemplateValidator
                     objectiveSpec.type);
                 planWorkflow.templates.TemplateValidator.validateParameterMap( ...
                     objectiveSpec.parameters,parameterNames, ...
-                    [context '.parameters']);
+                    [context '.parameters'],allowPenaltyVectors);
                 planWorkflow.templates.TemplateValidator.validateObjectiveProperties( ...
                     objectiveSpec.type,objectiveSpec.properties, ...
                     [context '.properties']);
@@ -392,11 +411,17 @@ classdef TemplateValidator
                     planWorkflow.templates.TemplateValidator.validateObjectiveDosePulling( ...
                         objectiveSpec.dosePulling,parameterNames, ...
                         dosePullingChannels,[context '.dosePulling']);
+                    planWorkflow.templates.TemplateValidator.validatePenaltyVectorDosePulling( ...
+                        objectiveSpec,dosePullingChannels,context);
                 end
             end
         end
 
-        function validateParameterMap(parameters,parameterNames,context)
+        function validateParameterMap(parameters,parameterNames,context, ...
+                allowPenaltyVectors)
+            if nargin < 4
+                allowPenaltyVectors = false;
+            end
             planWorkflow.templates.TemplateValidator.requireScalarStruct( ...
                 parameters,context);
             planWorkflow.templates.TemplateValidator.assertAllowedFields( ...
@@ -406,14 +431,25 @@ classdef TemplateValidator
             for i = 1:numel(parameterNames)
                 planWorkflow.templates.TemplateValidator.validateParameterValue( ...
                     parameters.(parameterNames{i}), ...
-                    [context '.' parameterNames{i}],parameterNames{i});
+                    [context '.' parameterNames{i}],parameterNames{i}, ...
+                    allowPenaltyVectors);
             end
         end
 
-        function validateParameterValue(value,context,parameterName)
+        function validateParameterValue(value,context,parameterName, ...
+                allowPenaltyVectors)
+            if nargin < 4
+                allowPenaltyVectors = false;
+            end
             if isnumeric(value)
-                planWorkflow.templates.TemplateValidator.validateFiniteScalar( ...
-                    value,context);
+                if strcmp(char(parameterName),'penalty') && ...
+                        logical(allowPenaltyVectors)
+                    planWorkflow.templates.TemplateValidator.validateFiniteVector( ...
+                        value,context);
+                else
+                    planWorkflow.templates.TemplateValidator.validateFiniteScalar( ...
+                        value,context);
+                end
                 return;
             end
             if (ischar(value) || isstring(value)) && strcmp(parameterName,'fDiff')
@@ -491,6 +527,31 @@ classdef TemplateValidator
                     dosePulling.rates.(rateNames{i}), ...
                     [context '.rates.' rateNames{i}]);
             end
+        end
+
+        function validatePenaltyVectorDosePulling( ...
+                objectiveSpec,dosePullingChannels,context)
+            if ~isfield(objectiveSpec,'parameters') || ...
+                    ~isfield(objectiveSpec.parameters,'penalty') || ...
+                    ~isnumeric(objectiveSpec.parameters.penalty) || ...
+                    numel(objectiveSpec.parameters.penalty) <= 1
+                return;
+            end
+            channelName = char(objectiveSpec.dosePulling.channel);
+            if ~isfield(dosePullingChannels,channelName)
+                return;
+            end
+            channel = dosePullingChannels.(channelName);
+            if ~isfield(channel,'step') || ~isnumeric(channel.step) || ...
+                    ~isscalar(channel.step) || channel.step ~= 2
+                return;
+            end
+            error(['planWorkflow:templates:PlanTemplate:' ...
+                'PenaltyVectorDosePulling2'], ...
+                ['%s cannot use dose_pulling step 2 when ' ...
+                'parameters.penalty contains multiple values. Disable ' ...
+                'dosePulling for that objective or use a scalar penalty.'], ...
+                context);
         end
 
         function validateBooleanOperations(structures,context)

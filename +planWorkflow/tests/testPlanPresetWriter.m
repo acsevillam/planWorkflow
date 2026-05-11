@@ -79,6 +79,7 @@ verifyFalse(testCase,contains(macroText, ...
     'workflowConfig.precompute.robustPlans.Interval2.strategy'));
 verifyFalse(testCase,contains(macroText, ...
     'workflowConfig.precompute.robustPlans.Interval2.robustnessMode'));
+verifyFalse(testCase,contains(macroText,'variantsWithPenalties'));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.precompute.robustPlans.Interval2.variants.theta1 = 5;"));
 verifyFalse(testCase,contains(macroText, ...
@@ -99,6 +100,33 @@ verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.sampling.sampling_scen_mode = 'impScen_permuted5';"));
 verifyTrue(testCase,contains(macroText, ...
     "workflow.gui();"));
+end
+
+function testSavePreservesPenaltyArraysAndMacroSkipsInternalVariants(testCase)
+fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+templateRoot = fullfile(fixture.Folder,'templates');
+macroFolder = fullfile(fixture.Folder,'macros');
+runConfig = baseRunConfig(fixture.Folder);
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+template = setRobustPenaltyVector(template,[10 30 100]);
+
+result = planWorkflow.gui.PlanPresetWriter.save( ...
+    template,runConfig,'penaltySweep','runPenaltySweepWorkflow', ...
+    'templateRoot',templateRoot,'macroFolder',macroFolder);
+
+writtenObjectives = jsondecode(fileread(fullfile( ...
+    result.templateFolder,'objectives.json')));
+robustSet = writtenObjectives.objectiveSets.robustPlans(1);
+ctvIx = find(strcmp({robustSet.structureObjectives.name},'CTV'),1);
+writtenPenalty = ...
+    robustSet.structureObjectives(ctvIx).objectives(1).parameters.penalty;
+verifyEqual(testCase,writtenPenalty(:)',[10 30 100]);
+
+macroText = fileread(result.macroFile);
+verifyFalse(testCase,contains(macroText,'variantsWithPenalties'));
+verifyTrue(testCase,contains(macroText, ...
+    "workflowConfig.precompute.robustPlans.Interval2.variants.theta1 = 5;"));
 end
 
 function testSaveMacroDoesNotWriteDerived4DOptimization(testCase)
@@ -595,4 +623,21 @@ contract.requiresNominalDij = true;
 contract.requiresIntervalDij = true;
 contract.requiresProb2Dij = false;
 plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1,contract);
+end
+
+function template = setRobustPenaltyVector(template,penalties)
+groups = template.objectiveSets.robustPlans(1).structureObjectives;
+ctvIx = find(strcmp({groups.name},'CTV'),1);
+objectives = groups(ctvIx).objectives;
+if ~iscell(objectives)
+    objectives = num2cell(objectives);
+end
+objective = objectives{1};
+objective.parameters.penalty = penalties;
+if isfield(objective,'dosePulling')
+    objective = rmfield(objective,'dosePulling');
+end
+objectives{1} = objective;
+groups(ctvIx).objectives = objectives;
+template.objectiveSets.robustPlans(1).structureObjectives = groups;
 end

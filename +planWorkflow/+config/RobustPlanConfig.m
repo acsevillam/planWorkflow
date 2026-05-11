@@ -53,7 +53,8 @@ classdef RobustPlanConfig
                 'robustnessOptions',struct(), ...
                 'dosePrecompute', ...
                 planWorkflow.config.RobustPlanConfig.defaultDosePrecompute(), ...
-                'variants',[]);
+                'variants',[], ...
+                'variantsWithPenalties',[]);
         end
 
         function dosePrecompute = defaultDosePrecompute()
@@ -256,7 +257,7 @@ classdef RobustPlanConfig
                 'requiresScenarioDij','requiresIntervalDij', ...
                 'requiresProb2Dij', ...
                 'optimization4D','scenario','robustnessOptions', ...
-                'dosePrecompute','variants'};
+                'dosePrecompute','variants','variantsWithPenalties'};
             planWorkflow.config.RobustPlanConfig.assertAllowedFields( ...
                 plan,allowed,'config.precompute.robustPlans');
 
@@ -302,6 +303,11 @@ classdef RobustPlanConfig
                 planWorkflow.config.RobustPlanConfig.normalizeVariants( ...
                 plan.variants,plan.robustnessMode, ...
                 'config.precompute.robustPlans.variants');
+            plan.variantsWithPenalties = ...
+                planWorkflow.config.RobustPlanConfig.normalizeVariantsWithPenalties( ...
+                plan.variantsWithPenalties,plan.variants, ...
+                plan.robustnessMode, ...
+                'config.precompute.robustPlans.variantsWithPenalties');
         end
 
         function scenario = normalizeScenario(scenario,defaults,context)
@@ -477,8 +483,60 @@ classdef RobustPlanConfig
             end
         end
 
+        function variants = normalizeVariantsWithPenalties( ...
+                variants,baseVariants,robustnessMode,context)
+            if nargin < 4
+                context = 'variantsWithPenalties';
+            end
+            if isempty(variants)
+                variants = repmat( ...
+                    planWorkflow.config.RobustPlanConfig.defaultVariant( ...
+                    robustnessMode,1),1,0);
+                return;
+            end
+            if ~isstruct(variants) || isempty(variants)
+                error('planWorkflow:config:RobustPlanConfig:InvalidVariants', ...
+                    '%s must be a struct array.',context);
+            end
+            variants = variants(:)';
+            ids = cell(1,numel(variants));
+            required = ...
+                planWorkflow.config.RobustPlanConfig.requiredVariantFields( ...
+                robustnessMode);
+            for variantIx = 1:numel(variants)
+                variantContext = sprintf('%s(%d)',context,variantIx);
+                variant = variants(variantIx);
+                if ~isstruct(variant) || ~isscalar(variant)
+                    error('planWorkflow:config:RobustPlanConfig:InvalidVariant', ...
+                        '%s entries must be scalar structs.',context);
+                end
+                variant.id = ...
+                    planWorkflow.config.RobustPlanConfig.identifierText( ...
+                    variant.id,[variantContext '.id']);
+                variant.label = ...
+                    planWorkflow.config.RobustPlanConfig.requiredText( ...
+                    variant.label,[variantContext '.label']);
+                for fieldIx = 1:numel(required)
+                    fieldName = required{fieldIx};
+                    if isfield(variant,fieldName)
+                        variant.(fieldName) = finiteNumericScalar( ...
+                            variant.(fieldName), ...
+                            [variantContext '.' fieldName]);
+                    end
+                end
+                variants(variantIx) = variant;
+                ids{variantIx} = char(variant.id);
+            end
+            if numel(unique(ids)) ~= numel(ids)
+                error('planWorkflow:config:RobustPlanConfig:DuplicateVariantId', ...
+                    '%s ids must be unique.',context);
+            end
+        end
+
         function runConfig = variantRunConfig(runConfig,plan,variantIx)
-            variant = plan.variants(variantIx);
+            variant = ...
+                planWorkflow.config.RobustPlanConfig.variantWithPenalty( ...
+                plan,variantIx);
             runConfig.robustnessMode = char(plan.robustnessMode);
             runConfig.variant = variant;
             if ~isempty(fieldnames(plan.robustnessOptions))
@@ -486,6 +544,43 @@ classdef RobustPlanConfig
             elseif isfield(runConfig,'robustnessOptions')
                 runConfig = rmfield(runConfig,'robustnessOptions');
             end
+        end
+
+        function variants = variantsWithPenalties(plan)
+            variants = repmat( ...
+                planWorkflow.config.RobustPlanConfig.defaultVariant( ...
+                'none',1),1,0);
+            if ~isstruct(plan)
+                return;
+            end
+            if isfield(plan,'variantsWithPenalties') && ...
+                    ~isempty(plan.variantsWithPenalties)
+                variants = plan.variantsWithPenalties(:)';
+                return;
+            end
+            if isfield(plan,'variants') && ~isempty(plan.variants)
+                variants = ...
+                    planWorkflow.config.RobustPlanConfig.baseVariantsWithPenalties( ...
+                    plan.variants(:)');
+            end
+        end
+
+        function variant = variantWithPenalty(plan,variantIx)
+            variants = ...
+                planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                plan);
+            if isempty(variants)
+                error('planWorkflow:config:RobustPlanConfig:MissingVariant', ...
+                    'Plan has no configured variants.');
+            end
+            variant = variants(variantIx);
+        end
+
+        function count = variantWithPenaltyCount(plan)
+            count = numel( ...
+                planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                plan));
+            count = max(1,count);
         end
 
         function plans = plansFromRunConfig(runConfig)
@@ -544,6 +639,27 @@ classdef RobustPlanConfig
     end
 
     methods (Static, Access = private)
+        function variants = baseVariantsWithPenalties(baseVariants)
+            if isempty(baseVariants)
+                variants = baseVariants;
+                return;
+            end
+            assignments = repmat(struct('groupField','','groupIx',0, ...
+                'objectiveIx',0,'structureName','','value',0),1,0);
+            variants = baseVariants(:)';
+            for variantIx = 1:numel(variants)
+                variants(variantIx).baseVariantId = ...
+                    char(variants(variantIx).id);
+                variants(variantIx).baseVariantLabel = ...
+                    char(variants(variantIx).label);
+                variants(variantIx).baseVariantIndex = variantIx;
+                variants(variantIx).penaltyCombinationIndex = 1;
+                variants(variantIx).penaltyCombinationCount = 1;
+                variants(variantIx).penaltyAssignments = assignments;
+                variants(variantIx).penaltyLabel = '';
+            end
+        end
+
         function tf = isNamedPlanStruct(plans)
             tf = false;
             if ~isscalar(plans)
@@ -555,7 +671,7 @@ classdef RobustPlanConfig
                 'requiresScenarioDij','requiresIntervalDij', ...
                 'requiresProb2Dij', ...
                 'optimization4D','scenario','robustnessOptions', ...
-                'dosePrecompute','variants'};
+                'dosePrecompute','variants','variantsWithPenalties'};
             if isempty(planFields) || all(ismember(planFields,allowed))
                 return;
             end
@@ -658,6 +774,7 @@ classdef RobustPlanConfig
             plan.variants = ...
                 planWorkflow.config.RobustPlanConfig.defaultVariants( ...
                 contractMode);
+            plan.variantsWithPenalties = [];
         end
 
         function plan = applyRobustnessContract(plan,contract)

@@ -109,6 +109,9 @@ classdef RobustPlanPanelAdapter
             else
                 config = plan;
             end
+            config.variantSummary = ...
+                planWorkflow.templates.ObjectivePenaltyVariants.summary( ...
+                plan);
 
             variants = planWorkflow.config.RobustPlanPanelAdapter.panelVariants( ...
                 config);

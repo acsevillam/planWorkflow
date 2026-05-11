@@ -166,12 +166,16 @@ classdef PlanTemplate
         end
 
         function [cst,objectiveInfo] = applyObjectives( ...
-                runConfig,~,cst,template,objectiveSetName)
+                runConfig,~,cst,template,objectiveSetName, ...
+                penaltyVariant)
             if nargin < 4
                 template = [];
             end
             if nargin < 5 || isempty(objectiveSetName)
                 objectiveSetName = 'reference';
+            end
+            if nargin < 6
+                penaltyVariant = [];
             end
             template = planWorkflow.templates.TemplateResolver.resolve( ...
                 runConfig,template);
@@ -179,11 +183,13 @@ classdef PlanTemplate
                 template,objectiveSetName);
             [cst,objectiveInfo] = ...
                 planWorkflow.templates.ObjectiveApplicator.apply( ...
-                runConfig,cst,template,objectiveSet,objectiveSetName);
+                runConfig,cst,template,objectiveSet,objectiveSetName, ...
+                penaltyVariant);
         end
 
         function [cst,objectiveInfo] = addDerivedStructures( ...
-                runConfig,cst,ct,objectiveInfo,template,objectiveSetName)
+                runConfig,cst,ct,objectiveInfo,template,objectiveSetName, ...
+                penaltyVariant)
             if nargin < 5
                 template = [];
             end
@@ -195,6 +201,9 @@ classdef PlanTemplate
                     objectiveSetName = 'reference';
                 end
             end
+            if nargin < 7
+                penaltyVariant = [];
+            end
             template = planWorkflow.templates.TemplateResolver.resolve( ...
                 runConfig,template);
             objectiveSet = planWorkflow.templates.TemplateResolver.objectiveSet( ...
@@ -202,7 +211,7 @@ classdef PlanTemplate
             [cst,objectiveInfo] = ...
                 planWorkflow.templates.ObjectiveApplicator.addDerivedStructures( ...
                 runConfig,cst,ct,objectiveInfo,template,objectiveSet, ...
-                objectiveSetName);
+                objectiveSetName,penaltyVariant);
         end
 
         function validateTemplate(template,expectedId)

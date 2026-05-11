@@ -686,6 +686,10 @@ classdef PlanEditor
                 robustnessEdited = ...
                     planWorkflow.gui.ObjectiveTableAdapter.isRobustnessEdit( ...
                     event);
+                robustObjectiveEdited = ~strcmp(char(objectiveSetName), ...
+                    'reference');
+                precomputeNeedsRefresh = robustnessEdited || ...
+                    robustObjectiveEdited;
                 try
                     if robustnessEdited
                         data = get(source,'Data');
@@ -703,13 +707,17 @@ classdef PlanEditor
                         runConfig = ...
                             planWorkflow.gui.PlanEditorContract.retargetPrecomputeRobustnessFromObjectives( ...
                             runConfig,template);
+                    end
+                    if precomputeNeedsRefresh
                         loadPrecomputeConfigTable();
+                    end
+                    if robustnessEdited
                         loadObjectiveTable();
                     end
                     loadAnalysisPanel();
                 catch ME
                     loadObjectiveTable();
-                    if robustnessEdited
+                    if precomputeNeedsRefresh
                         loadPrecomputeConfigTable();
                     end
                     loadAnalysisPanel();

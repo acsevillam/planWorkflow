@@ -12,7 +12,9 @@ classdef VariantResults
 
         function result = create(robustData,variantIx,resultGUI)
             planConfig = robustData.planConfig;
-            variantConfig = planConfig.variants(variantIx);
+            variantConfig = ...
+                planWorkflow.config.RobustPlanConfig.variantWithPenalty( ...
+                planConfig,variantIx);
 
             result = planWorkflow.results.VariantResults.emptyResult();
             result.planId = char(planConfig.id);
@@ -24,7 +26,9 @@ classdef VariantResults
             result.scenario = planConfig.scenario;
             result.optimization4D = planConfig.optimization4D;
             if isfield(robustData,'objectiveInfo')
-                result.objectiveInfo = robustData.objectiveInfo;
+                result.objectiveInfo = ...
+                    planWorkflow.precompute.RobustDataFactory.objectiveInfoForVariant( ...
+                    robustData,variantIx);
             end
         end
 
@@ -108,7 +112,9 @@ classdef VariantResults
                     'Complete variantResults validation requires planConfig.');
             end
             planConfig = robustData.planConfig;
-            expectedCount = numel(planConfig.variants);
+            expectedCount = ...
+                planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+                planConfig);
             if numel(results) ~= expectedCount
                 error(['planWorkflow:results:VariantResults:' ...
                     'IncompleteVariantResults'], ...
@@ -117,7 +123,10 @@ classdef VariantResults
                     planWorkflow.results.VariantResults.planLabel( ...
                     robustData),numel(results),expectedCount,char(purpose));
             end
-            variantIds = {planConfig.variants.id};
+            variants = ...
+                planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                planConfig);
+            variantIds = {variants.id};
             for resultIx = 1:numel(results)
                 result = results(resultIx);
                 planWorkflow.results.VariantResults.assertTextField( ...

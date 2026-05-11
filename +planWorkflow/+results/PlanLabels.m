@@ -17,12 +17,16 @@ classdef PlanLabels
         function label = robustResultLabel(planConfig,variantIx)
             label = planWorkflow.results.PlanLabels.planLabel( ...
                 planConfig,sprintf('Robust %d',variantIx));
-            if ~isstruct(planConfig) || ~isfield(planConfig,'variants') || ...
-                    isempty(planConfig.variants)
+            if ~isstruct(planConfig)
                 return;
             end
 
-            variants = planConfig.variants;
+            variants = ...
+                planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                planConfig);
+            if isempty(variants)
+                return;
+            end
             variant = variants(min(variantIx,numel(variants)));
             strategy = '';
             if isfield(planConfig,'robustnessMode')
@@ -57,11 +61,9 @@ classdef PlanLabels
             robustPlans = robustPlans(:)';
             for planIx = 1:numel(robustPlans)
                 planConfig = robustPlans(planIx);
-                numVariants = 1;
-                if isfield(planConfig,'variants') && ...
-                        ~isempty(planConfig.variants)
-                    numVariants = numel(planConfig.variants);
-                end
+                numVariants = ...
+                    planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+                    planConfig);
                 for variantIx = 1:numVariants
                     resultCount = resultCount + 1;
                     if resultCount == resultIx
@@ -86,12 +88,14 @@ classdef PlanLabels
                 runConfig);
             for planIx = 1:numel(robustPlans)
                 planConfig = robustPlans(planIx);
+                variants = ...
+                    planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
+                    planConfig);
                 if ~strcmp(char(planConfig.id),char(robustPlanId)) || ...
-                        isempty(planConfig.variants)
+                        isempty(variants)
                     continue;
                 end
 
-                variants = planConfig.variants;
                 for variantIx = 1:numel(variants)
                     if strcmp(char(variants(variantIx).id),char(variantId))
                         label = ...
@@ -136,6 +140,14 @@ classdef PlanLabels
                             planWorkflow.results.PlanLabels.numberText( ...
                             variant.p2)];
                     end
+            end
+            if isfield(variant,'penaltyLabel') && ...
+                    ~isempty(variant.penaltyLabel)
+                if isempty(suffix)
+                    suffix = char(variant.penaltyLabel);
+                else
+                    suffix = [suffix ', ' char(variant.penaltyLabel)];
+                end
             end
         end
 

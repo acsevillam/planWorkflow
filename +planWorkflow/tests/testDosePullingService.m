@@ -170,6 +170,40 @@ verifyTrue(testCase,any(contains(messages, ...
     end
 end
 
+function testHeuristicRobustCandidateFeasibilityUsesAllVariantCsts(testCase)
+runConfig = heuristicRunConfig();
+runConfig.dose_pulling_max_iter = 0;
+runConfig.dose_pulling2 = true;
+runConfig.dose_pulling2_target = {'CTV'};
+runConfig.dose_pulling2_limit = 0;
+runConfig.dose_pulling2_criteria = 'meanQiTarget';
+runConfig.dose_pulling_max_vmax_percent = 100;
+variants = [struct('id','theta_1','label','Theta 1','theta1',1) ...
+    struct('id','theta_5','label','Theta 5','theta1',5)];
+robustData = struct();
+robustData.planConfig = cleanPlan('INTERVAL2',variants);
+robustData.dij = struct();
+robustData.cst = robustHeuristicCst(3,50);
+robustData.cstByVariant = {robustHeuristicCst(3,50), ...
+    robustHeuristicCst(7,101)};
+robustData.ctScenProb = 1;
+robustData.pln = struct('propOpt',struct());
+context = planWorkflow.precompute.DosePulling.context( ...
+    runConfig,@runOptimization,@runAnalysis,@runMetrics,@runPolicy, ...
+    @logMessage);
+
+[~,report] = planWorkflow.precompute.DosePulling.runRobust( ...
+    context,robustData);
+
+verifyFalse(testCase,report.selected.isFeasible);
+verifyEqual(testCase,report.selected.rectumPull,101);
+verifyEqual(testCase,report.selected.channelObjective,7);
+
+    function resultGUI = runOptimization(~,~,~,~)
+        resultGUI = struct('w',1,'physicalDose',[0 0 0]);
+    end
+end
+
 function testRobustDosePullingWeightsUseFinalPlanCst(testCase)
 variants = [struct('id','theta_1','label','Theta 1','theta1',1) ...
     struct('id','theta_5','label','Theta 5','theta1',5)];
@@ -340,6 +374,22 @@ cst = cell(1,6);
 cst{1,2} = 'CTV';
 cst{1,4} = {1};
 cst{1,6} = {objective};
+end
+
+function cst = robustHeuristicCst(targetPenalty,vMaxPercent)
+targetObjective = struct('className','matRad_MinDose', ...
+    'parameters',{{78}},'penalty',targetPenalty, ...
+    'dosePulling',true,'pullingStep',2);
+oarObjective = struct('className','matRad_MaxDVH', ...
+    'parameters',{{40,vMaxPercent}},'penalty',2, ...
+    'dosePulling',true,'pullingStep',2);
+cst = cell(2,6);
+cst{1,2} = 'CTV';
+cst{1,4} = {1};
+cst{1,6} = {targetObjective};
+cst{2,2} = 'RECTUM';
+cst{2,4} = {1:3};
+cst{2,6} = {oarObjective};
 end
 
 function cst = scoringCst(pullingStep,vMaxPercent)
