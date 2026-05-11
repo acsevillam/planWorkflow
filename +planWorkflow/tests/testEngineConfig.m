@@ -550,7 +550,7 @@ function testProb2StreamingDoseConfigCarriesSecondPassOptions(testCase)
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
 config.precompute.robustPlans = robustPlanConfig( ...
-    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    'prob2Plan','PROB2','MeanVariance','PROB2','wcScen', ...
     [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 config.precompute.robustPlans.dosePrecompute.useStreaming = true;
 config.precompute.robustPlans.dosePrecompute.KeepCache = true;
@@ -837,7 +837,7 @@ function testCachedProb2DijCanOptimizeWithoutRobustDij(testCase)
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
 config.precompute.robustPlans = robustPlanConfig( ...
-    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    'prob2Plan','PROB2','MeanVariance','PROB2','wcScen', ...
     [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 config.precompute.robustPlans.hasNominalObjectives = false;
 config.precompute.robustPlans.requiresNominalDij = false;
@@ -911,7 +911,7 @@ function testCachedProb2DijUsesContextNominalDij(testCase)
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
 config.precompute.robustPlans = robustPlanConfig( ...
-    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    'prob2Plan','PROB2','MeanVariance','PROB2','wcScen', ...
     [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 config.precompute.robustPlans.hasNominalObjectives = true;
 config.precompute.robustPlans.requiresNominalDij = true;
@@ -1936,7 +1936,7 @@ function testProb2DoseCacheUsesProbFolderAndInputStem(testCase)
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
 config.precompute.robustPlans = robustPlanConfig('prob2Plan','PROB2', ...
-    'MeanVarianceP1','PROB2','wcScen',[5 10 5], ...
+    'MeanVariance','PROB2','wcScen',[5 10 5], ...
     robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 workflow = planWorkflowTest.EngineProbe(config);
 
@@ -1949,11 +1949,11 @@ prob2Key = workflow.cacheKeyPublic(prob2Tag,struct(),prob2Context);
 cacheMetadata = workflow.cacheMetadataPublic( ...
     prob2Tag,struct(),prob2Context);
 
-verifyEqual(testCase,prob2Tag,'prob2_MeanVarianceP1');
+verifyEqual(testCase,prob2Tag,'prob2_MeanVariance');
 verifyTrue(testCase,contains(prob2Key,fullfile('prob','PROB2')));
 verifyFalse(testCase,contains(prob2Key,fullfile('other')));
 verifyEqual(testCase,cacheMetadata.artifact.kind,'prob');
-verifyEqual(testCase,cacheMetadata.planId,'MeanVarianceP1');
+verifyEqual(testCase,cacheMetadata.planId,'MeanVariance');
 verifyEqual(testCase,cacheMetadata.robustnessMode,'PROB2');
 verifyDerivedKeyUsesInputStem(testCase,prob2Key,robustKey);
 end
@@ -1981,7 +1981,7 @@ verifyEqual(testCase,derivedInputStem(intervalKeyA), ...
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
 config.precompute.robustPlans = robustPlanConfig('prob2Plan','PROB2', ...
-    'MeanVarianceP1','PROB2','wcScen',[5 10 5], ...
+    'MeanVariance','PROB2','wcScen',[5 10 5], ...
     robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 workflow = planWorkflowTest.EngineProbe(config);
 robustData = intervalRobustData(workflow);

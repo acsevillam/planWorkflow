@@ -41,7 +41,7 @@
           "enabled": true,
           "type": "matRad_SquaredDeviation",
           "parameters": {
-            "penalty": [0.1 0.2 0.5 1 2 5 10 20 50],
+            "penalty": [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50],
             "dRef": {
               "ref": "prescriptionDose"
             }
