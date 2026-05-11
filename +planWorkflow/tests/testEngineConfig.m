@@ -730,7 +730,6 @@ cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
 mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
-dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
@@ -738,7 +737,7 @@ cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
-    'dijNominal','cacheMetadata','-v7.3');
+    'cacheMetadata','-v7.3');
 
 [cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
     robustData);
@@ -747,7 +746,6 @@ robustData = workflow.useIntervalDijForOptimizationPublic( ...
 
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_interval'));
-verifyTrue(testCase,isfield(robustData,'dijNominal'));
 verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
 verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
@@ -846,7 +844,61 @@ verifyEqual(testCase,planForOptimization.propOpt.dij_prob2, ...
     robustData.dij_prob2);
 end
 
-function testCachedIntervalDijPersistsRobustDerivedNominalDij(testCase)
+function testCachedProb2DijUsesContextNominalDij(testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig( ...
+    'prob2Plan','PROB2','MeanVarianceP1','PROB2','wcScen', ...
+    [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.hasNominalObjectives = true;
+config.precompute.robustPlans.requiresNominalDij = true;
+config.precompute.robustPlans.requiresScenarioDij = false;
+config.precompute.robustPlans.requiresIntervalDij = false;
+config.precompute.robustPlans.requiresProb2Dij = true;
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+
+robustData = struct();
+robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
+robustData.strategy = planWorkflow.robustness.Prob2Strategy();
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels(workflow.data.dij.totalNumOfBixels);
+
+cacheContext = workflow.prob2CacheContextPublic(robustData);
+prob2Tag = workflow.prob2DoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(prob2Tag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_prob2 = prob2Dij(workflow.data.dij.totalNumOfBixels);
+dij_prob2Context = prob2DijContext(dij_prob2);
+dij_prob2Context.physicalDose = {sparse(1,1,5, ...
+    size(dij_prob2.expected,1),size(dij_prob2.expected,2))}; %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    prob2Tag,robustData.pln,cacheContext);
+cacheMetadata.probabilisticMode = 'PROB2';
+cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_prob2');
+builtin('save',cacheFile,'dij_prob2','dij_prob2Context', ...
+    'cacheMetadata','-v7.3');
+
+[cacheHit,robustData] = workflow.loadCachedProb2DoseInfluencePublic( ...
+    robustData);
+
+verifyTrue(testCase,cacheHit);
+verifyTrue(testCase,isfield(robustData,'dijNominal'));
+verifyEqual(testCase,robustData.dijNominal,robustData.dij_prob2Context);
+verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
+    'dij_prob2'));
+end
+
+function testCachedIntervalDijUsesContextNominalDij(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
     'intervalPlan','INTERVAL2','Interval2','INTERVAL2','wcScen', ...
@@ -873,8 +925,9 @@ cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
-dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
-dijNominal = intervalNominalDij(dij_interval); %#ok<NASGU>
+dij_intervalContext = intervalDijContext(dij_interval);
+dij_intervalContext.physicalDose = {sparse(1,1,7, ...
+    size(dij_interval.center,1),size(dij_interval.center,2))}; %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
@@ -882,7 +935,7 @@ cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
-    'dijNominal','cacheMetadata','-v7.3');
+    'cacheMetadata','-v7.3');
 
 [cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
     robustData);
@@ -893,6 +946,8 @@ verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
 verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
 verifyEqual(testCase,robustData.dijNominal.totalNumOfBixels, ...
     size(robustData.dij_interval.center,2));
+verifyEqual(testCase,robustData.dijNominal, ...
+    robustData.dij_intervalContext);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
 verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
     'dij_interval'));
@@ -1042,9 +1097,9 @@ mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
 dij_interval.quantity = 'RBExD';
 dij_interval.quantityField = 'RBExDose';
-dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
-dijNominal = intervalNominalDij(dij_interval);
-dijNominal.RBExDose = {sparse(1,size(dij_interval.center,2))};
+dij_intervalContext = intervalDijContext(dij_interval);
+dij_intervalContext.RBExDose = ...
+    {sparse(1,size(dij_interval.center,2))}; %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
@@ -1052,7 +1107,7 @@ cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
-    'dijNominal','cacheMetadata','-v7.3');
+    'cacheMetadata','-v7.3');
 
 cacheHit = workflow.loadCachedIntervalDoseInfluencePublic(robustData);
 

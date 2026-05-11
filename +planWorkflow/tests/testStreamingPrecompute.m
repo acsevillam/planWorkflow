@@ -32,6 +32,24 @@ verifyTrue(testCase, ...
     robustData.dijPrecomputingTiming));
 end
 
+function testIntervalStreamingNominalObjectivesUseContextDij(testCase)
+context = compactContext();
+robustData = intervalRobustData('INTERVAL2');
+robustData.planConfig.hasNominalObjectives = true;
+robustData.planConfig.requiresNominalDij = true;
+
+robustData = ...
+    planWorkflow.precompute.IntervalDoseInfluence.precompute( ...
+    context,robustData);
+
+verifyFalse(testCase,isfield(robustData,'dij'));
+verifyEqual(testCase,robustData.dijNominal, ...
+    robustData.dij_intervalContext);
+verifyEqual(testCase,robustData.stfNominal,robustData.stf);
+verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
+    'dij_interval'));
+end
+
 function testInterval3StreamingPrecomputeCallsStreamingWithoutDij(testCase)
 context = compactContext();
 robustData = intervalRobustData('INTERVAL3');
@@ -61,6 +79,23 @@ verifyEqual(testCase,robustData.dij_prob2Context.stubNargin,5);
 verifyTrue(testCase, ...
     planWorkflow.performance.PrecomputeTiming.isValid( ...
     robustData.dijPrecomputingTiming));
+end
+
+function testProb2StreamingNominalObjectivesUseContextDij(testCase)
+context = compactContext();
+robustData = prob2RobustData();
+robustData.planConfig.hasNominalObjectives = true;
+robustData.planConfig.requiresNominalDij = true;
+
+robustData = ...
+    planWorkflow.precompute.Prob2DoseInfluence.precompute( ...
+    context,robustData);
+
+verifyFalse(testCase,isfield(robustData,'dij'));
+verifyEqual(testCase,robustData.dijNominal,robustData.dij_prob2Context);
+verifyEqual(testCase,robustData.stfNominal,robustData.stf);
+verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
+    'dij_prob2'));
 end
 
 function context = compactContext()
