@@ -19,6 +19,7 @@ dijProb2.quantityField = 'physicalDose';
 dijProb2.probabilisticMode = 'PROB2';
 dijProb2.stubMode = 'PROB2';
 dijProb2.stubNargin = nargin;
+dijProb2.streamingSize = streamingSize(dijProb2,512);
 plnOut = pln;
 if ~isfield(plnOut,'propOpt') || ~isstruct(plnOut.propOpt)
     plnOut.propOpt = struct();
@@ -30,6 +31,27 @@ dijProb2Context.physicalDose = {dijProb2.expected};
 dijProb2Context.numOfScenarios = 1;
 dijProb2Context.scenarioModel = matRad_NominalScenario();
 dijProb2Context.stubNargin = nargin;
+end
+
+function data = streamingSize(dijProb2,auxiliaryPeakBytes)
+compactBytes = variableBytes(dijProb2);
+data = struct();
+data.compactBytes = compactBytes;
+data.auxiliaryPeakBytes = auxiliaryPeakBytes;
+data.totalPrecomputingBytes = compactBytes + auxiliaryPeakBytes;
+data.diskCachePeakBytes = auxiliaryPeakBytes;
+data.memoryTemporaryPeakBytes = 0;
+data.auxiliaryPeakKind = 'diskCache';
+data.secondPassStrategy = 'disk';
+dijProb2.streamingSize = data;
+compactBytes = variableBytes(dijProb2);
+data.compactBytes = compactBytes;
+data.totalPrecomputingBytes = compactBytes + auxiliaryPeakBytes;
+end
+
+function bytes = variableBytes(value) %#ok<INUSD>
+info = whos('value');
+bytes = double(info.bytes);
 end
 
 function numOfBixels = totalNumOfBixels(stf)

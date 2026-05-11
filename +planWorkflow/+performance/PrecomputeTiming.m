@@ -2,21 +2,26 @@ classdef PrecomputeTiming
     % PrecomputeTiming Builds dose-influence precompute timing metadata.
 
     methods (Static)
-        function options = cacheOptions(role,label,artifact,referenceTiming)
+        function options = cacheOptions(role,label,artifact,referenceTiming, ...
+                referenceSize)
             if nargin < 4
                 referenceTiming = [];
+            end
+            if nargin < 5
+                referenceSize = [];
             end
             options = struct();
             options.role = char(role);
             options.label = char(label);
             options.artifact = char(artifact);
             options.referenceTiming = referenceTiming;
+            options.referenceSize = referenceSize;
         end
 
         function timing = fromOptions(timeSeconds,options)
             if nargin < 2 || ~isstruct(options)
                 options = planWorkflow.performance.PrecomputeTiming.cacheOptions( ...
-                    '','','',[]);
+                    '','','',[],[]);
             end
             timing = planWorkflow.performance.PrecomputeTiming.single( ...
                 timeSeconds, ...
@@ -110,23 +115,36 @@ classdef PrecomputeTiming
             [~,tf] = planWorkflow.performance.PrecomputeTiming.normalize(value);
         end
 
-        function timing = fromCacheMetadata(cacheMetadata)
-            timing = [];
-            if ~isstruct(cacheMetadata) || ...
-                    ~isfield(cacheMetadata,'dijPrecomputingTiming')
+        function timing = asReference(timing,label)
+            [timing,tf] = ...
+                planWorkflow.performance.PrecomputeTiming.normalize(timing);
+            if ~tf
+                timing = [];
                 return;
             end
+            if nargin < 2 || isempty(label)
+                label = timing.reference.label;
+            end
+            timing.reference.label = char(label);
+            timing.reference.timeSeconds = timing.totalTimeSeconds;
+            timing.relativeTime = NaN;
+            if planWorkflow.performance.PrecomputeTiming.isPositive( ...
+                    timing.totalTimeSeconds)
+                timing.relativeTime = 1;
+                for componentIx = 1:numel(timing.components)
+                    timing.components(componentIx).relativeTime = ...
+                        timing.components(componentIx).timeSeconds / ...
+                        timing.totalTimeSeconds;
+                end
+            end
+        end
+
+        function timing = fromCacheMetadata(cacheMetadata)
             [timing,tf] = planWorkflow.performance.PrecomputeTiming.normalize( ...
                 cacheMetadata.dijPrecomputingTiming);
             if ~tf
                 timing = [];
             end
-        end
-
-        function tf = hasCacheTiming(cacheMetadata)
-            tf = ~isempty( ...
-                planWorkflow.performance.PrecomputeTiming.fromCacheMetadata( ...
-                cacheMetadata));
         end
 
         function timings = enrich(timings)

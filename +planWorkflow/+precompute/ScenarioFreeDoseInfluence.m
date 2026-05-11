@@ -154,6 +154,20 @@ classdef ScenarioFreeDoseInfluence
                 logical(planConfig.dosePrecompute.useStreaming);
         end
 
+        function tf = isReferencePlan(robustData)
+            tf = false;
+            if ~isstruct(robustData) || ...
+                    ~isfield(robustData,'planConfig') || ...
+                    ~isstruct(robustData.planConfig) || ...
+                    ~isfield(robustData.planConfig,'id')
+                return;
+            end
+            planId = robustData.planConfig.id;
+            if ischar(planId) || (isstring(planId) && isscalar(planId))
+                tf = strcmp(char(planId),'reference');
+            end
+        end
+
         function cfg = streamingConfig(planConfig)
             cfg = struct();
             if ~isstruct(planConfig) || ~isfield(planConfig,'dosePrecompute') || ...
@@ -190,6 +204,35 @@ classdef ScenarioFreeDoseInfluence
                     isfield(robustData,'dijNominalPrecomputingTiming') && ...
                     ~isempty(robustData.dijNominalPrecomputingTiming)
                 timing = robustData.dijNominalPrecomputingTiming;
+            end
+        end
+
+        function sizeData = inputSize(robustData)
+            sizeData = [];
+            if isstruct(robustData) && ...
+                    isfield(robustData,'dijRobustPrecomputingSize') && ...
+                    ~isempty(robustData.dijRobustPrecomputingSize)
+                sizeData = robustData.dijRobustPrecomputingSize;
+            elseif isstruct(robustData) && ...
+                    isfield(robustData,'dijNominalPrecomputingSize') && ...
+                    ~isempty(robustData.dijNominalPrecomputingSize)
+                sizeData = robustData.dijNominalPrecomputingSize;
+            end
+        end
+
+        function sizeData = referenceSize(context,robustData)
+            sizeData = [];
+            if nargin >= 2 && isstruct(robustData) && ...
+                    isfield(robustData,'referenceDijPrecomputingSize') && ...
+                    ~isempty(robustData.referenceDijPrecomputingSize)
+                sizeData = robustData.referenceDijPrecomputingSize;
+                return;
+            end
+            if isstruct(context) && isfield(context,'data') && ...
+                    isstruct(context.data) && ...
+                    isfield(context.data,'dijPrecomputingSize') && ...
+                    ~isempty(context.data.dijPrecomputingSize)
+                sizeData = context.data.dijPrecomputingSize;
             end
         end
 

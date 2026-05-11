@@ -29,6 +29,7 @@ dijInterval.quantity = 'physicalDose';
 dijInterval.quantityField = 'physicalDose';
 dijInterval.stubMode = mode;
 dijInterval.stubNargin = inputCount;
+dijInterval.streamingSize = streamingSize(dijInterval,256);
 plnOut = pln;
 if ~isfield(plnOut,'propOpt') || ~isstruct(plnOut.propOpt)
     plnOut.propOpt = struct();
@@ -40,6 +41,27 @@ dijIntervalContext.physicalDose = {dijInterval.center};
 dijIntervalContext.numOfScenarios = 1;
 dijIntervalContext.scenarioModel = matRad_NominalScenario();
 dijIntervalContext.stubNargin = inputCount;
+end
+
+function data = streamingSize(dijInterval,auxiliaryPeakBytes)
+compactBytes = variableBytes(dijInterval);
+data = struct();
+data.compactBytes = compactBytes;
+data.auxiliaryPeakBytes = auxiliaryPeakBytes;
+data.totalPrecomputingBytes = compactBytes + auxiliaryPeakBytes;
+data.diskCachePeakBytes = auxiliaryPeakBytes;
+data.memoryTemporaryPeakBytes = 0;
+data.auxiliaryPeakKind = 'diskCache';
+data.secondPassStrategy = 'disk';
+dijInterval.streamingSize = data;
+compactBytes = variableBytes(dijInterval);
+data.compactBytes = compactBytes;
+data.totalPrecomputingBytes = compactBytes + auxiliaryPeakBytes;
+end
+
+function bytes = variableBytes(value) %#ok<INUSD>
+info = whos('value');
+bytes = double(info.bytes);
 end
 
 function numOfBixels = totalNumOfBixels(stf)

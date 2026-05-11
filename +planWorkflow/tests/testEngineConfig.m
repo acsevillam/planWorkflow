@@ -599,9 +599,11 @@ workflow = planWorkflowTest.EngineProbe(baseEngineConfig(testCase));
 dij = referenceDij();
 referenceTiming = planWorkflow.performance.PrecomputeTiming.single( ...
     10,'reference','Reference','dij',[]);
+referenceSize = planWorkflow.performance.PrecomputeSize.single( ...
+    10,'reference','Reference','dij',[]);
 detail = workflow.planTaskResourceDetailPublic( ...
     'precompute','reference','Reference','doseInfluence','','', ...
-    {dij,referenceTiming});
+    {dij,referenceTiming,referenceSize});
 detailData = jsondecode(detail);
 verifyEqual(testCase,detailData.dij.numberOfScenarios,1);
 verifyEqual(testCase,detailData.dij.matrix.dimensions,'1x3');
@@ -610,12 +612,16 @@ verifyGreaterThan(testCase,detailData.dij.size.bytes,0);
 verifyEqual(testCase,detailData.dijPrecomputingTiming.totalTimeSeconds, ...
     10);
 verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,1);
+verifyEqual(testCase,detailData.dijPrecomputingSize.totalSizeBytes,10);
+verifyEqual(testCase,detailData.dijPrecomputingSize.relativeSize,1);
 
 robustData = struct();
 robustData.dij = referenceDij();
 robustData.dij_interval = intervalDij(3);
 robustData.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
+robustData.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
 detail = workflow.planTaskResourceDetailPublic( ...
     'precompute','robust','INTERVAL2','intervalDoseInfluence', ...
     'interval2','',{robustData});
@@ -645,12 +651,14 @@ verifyGreaterThan(testCase, ...
     detailData.dij_interval.radiusComponents.totalSize.bytes,0);
 verifyGreaterThan(testCase,detailData.dij_interval.totalSize.bytes,0);
 verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,3);
+verifyEqual(testCase,detailData.dijPrecomputingSize.relativeSize,3);
 verifyFalse(testCase,contains(jsonencode(detailData.dij_interval), ...
     ['OAR covariance/' 'SVD estimated memory']));
 
 prob2Data = struct();
 prob2Data.dij_prob2 = prob2Dij(3);
 prob2Data.dijPrecomputingTiming = sampleDijPrecomputingTiming('dij_prob2');
+prob2Data.dijPrecomputingSize = sampleDijPrecomputingSize('dij_prob2');
 detail = workflow.planTaskResourceDetailPublic( ...
     'precompute','robust','PROB2','prob2DoseInfluence', ...
     'prob2','',{prob2Data});
@@ -669,6 +677,7 @@ verifyEqual(testCase, ...
 verifyEqual(testCase, ...
     detailData.dij_prob2.omegaComponents.voiSubIx.sum,6);
 verifyEqual(testCase,detailData.dijPrecomputingTiming.relativeTime,3);
+verifyEqual(testCase,detailData.dijPrecomputingSize.relativeSize,3);
 
 resultGUI = struct();
 resultGUI.info = struct('iterations',17);
@@ -736,6 +745,8 @@ cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'cacheMetadata','-v7.3');
 
@@ -747,7 +758,9 @@ robustData = workflow.useIntervalDijForOptimizationPublic( ...
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_interval'));
 verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
+verifyTrue(testCase,isfield(robustData,'dijPrecomputingSize'));
 verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
+verifyEqual(testCase,robustData.dijPrecomputingSize.relativeSize,3);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_interval'));
 verifyTrue(testCase,isfield(robustData,'plnForOptimization'));
 verifyEqual(testCase,robustData.pln.multScen.numScenarios(), ...
@@ -772,6 +785,52 @@ verifyEqual(testCase,planForOptimization.multScen.getDijScenarioIndex(1),1);
 verifyTrue(testCase,isfield(planForOptimization.propOpt,'dij_interval'));
 verifyEqual(testCase,planForOptimization.propOpt.dij_interval, ...
     robustData.dij_interval);
+end
+
+function testCachedIntervalDijWithInvalidPrecomputeSizeIsRejected(testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2','Interval2','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.requiresIntervalDij = true;
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+
+robustData = intervalRobustData(workflow);
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels(workflow.data.dij.totalNumOfBixels);
+
+cacheContext = workflow.intervalCacheContextPublic(robustData);
+intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_interval = intervalDij(workflow.data.dij.totalNumOfBixels);
+dij_intervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    intervalTag,robustData.pln,cacheContext);
+cacheMetadata.intervalMode = 'INTERVAL2';
+cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = struct( ...
+    'schemaVersion',1, ...
+    'totalSizeBytes',NaN, ...
+    'relativeSize',NaN);
+builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
+    'cacheMetadata','-v7.3');
+
+[cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
+    robustData);
+
+verifyFalse(testCase,cacheHit);
+verifyFalse(testCase,isfield(robustData,'dijPrecomputingSize'));
 end
 
 function testCachedProb2DijCanOptimizeWithoutRobustDij(testCase)
@@ -816,6 +875,8 @@ cacheMetadata.probabilisticMode = 'PROB2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_prob2');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_prob2');
 builtin('save',cacheFile,'dij_prob2','dij_prob2Context', ...
     'cacheMetadata','-v7.3');
 
@@ -826,7 +887,9 @@ robustData = workflow.useProb2DijForOptimizationPublic(robustData);
 verifyTrue(testCase,cacheHit);
 verifyTrue(testCase,isfield(robustData,'dij_prob2'));
 verifyTrue(testCase,isfield(robustData,'dijPrecomputingTiming'));
+verifyTrue(testCase,isfield(robustData,'dijPrecomputingSize'));
 verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,3);
+verifyEqual(testCase,robustData.dijPrecomputingSize.relativeSize,3);
 verifyFalse(testCase,isfield(robustData.pln.propOpt,'dij_prob2'));
 verifyTrue(testCase,isfield(robustData,'plnForOptimization'));
 verifyEqual(testCase,robustData.pln.multScen.numScenarios(), ...
@@ -885,6 +948,8 @@ cacheMetadata.probabilisticMode = 'PROB2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_prob2');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_prob2');
 builtin('save',cacheFile,'dij_prob2','dij_prob2Context', ...
     'cacheMetadata','-v7.3');
 
@@ -934,6 +999,8 @@ cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'cacheMetadata','-v7.3');
 
@@ -1106,6 +1173,8 @@ cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'cacheMetadata','-v7.3');
 
@@ -1144,6 +1213,8 @@ cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = 'different-scenario';
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
 builtin('save',cacheFile,'dij_interval','dij_intervalContext', ...
     'cacheMetadata','-v7.3');
 
@@ -2271,6 +2342,15 @@ inputTiming = planWorkflow.performance.PrecomputeTiming.single( ...
     20,'input','Robust','dij_robust',referenceTiming);
 timing = planWorkflow.performance.PrecomputeTiming.combine( ...
     inputTiming,'derived',artifact,10,'Robust');
+end
+
+function sizeData = sampleDijPrecomputingSize(artifact)
+referenceSize = planWorkflow.performance.PrecomputeSize.single( ...
+    10,'reference','Reference','dij',[]);
+inputSize = planWorkflow.performance.PrecomputeSize.single( ...
+    20,'input','Robust','dij_robust',referenceSize);
+sizeData = planWorkflow.performance.PrecomputeSize.combine( ...
+    inputSize,'derived',artifact,10,'Robust');
 end
 
 function dij = intervalNominalDij(dij_interval)

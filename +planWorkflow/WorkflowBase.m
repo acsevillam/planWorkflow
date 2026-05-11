@@ -755,6 +755,8 @@ classdef (Abstract) WorkflowBase < handle
             performance = obj.stageTimingSummary();
             planTimings = planWorkflow.performance.PrecomputeTiming.enrich( ...
                 obj.planTimingSummary());
+            planTimings = planWorkflow.performance.PrecomputeSize.enrich( ...
+                planTimings);
             performance.planTimings = ...
                 planWorkflow.performance.OptimizationTiming.enrich( ...
                 planTimings);
@@ -869,6 +871,10 @@ classdef (Abstract) WorkflowBase < handle
             timing.relativeDijPrecomputingTime = NaN;
             timing.dijPrecomputingReferenceLabel = '';
             timing.dijPrecomputingReferenceTimeSeconds = NaN;
+            timing.dijPrecomputingSizeBytes = NaN;
+            timing.relativeDijPrecomputingSize = NaN;
+            timing.dijPrecomputingSizeReferenceLabel = '';
+            timing.dijPrecomputingSizeReferenceBytes = NaN;
             timing.detail = '';
             timing.startProcessMemoryBytes = NaN;
             timing.endProcessMemoryBytes = NaN;
