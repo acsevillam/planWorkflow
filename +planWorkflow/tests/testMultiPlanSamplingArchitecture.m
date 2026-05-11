@@ -222,6 +222,41 @@ verifyEqual(testCase,planSet.entries(3).pln.propOpt.theta1,5);
 verifyFalse(testCase,isfield(data.robustPlans{2}.variantResults,'pln'));
 end
 
+function testSamplingPlanSetUsesNominalStfForNominalRobustOptimization(testCase)
+runConfig = makeRunConfig();
+data = samplingData(runConfig);
+robustData = data.robustPlans{1};
+robustData.usesNominalDijForOptimization = true;
+robustData.stf = struct('totalNumOfBixels',1,'source','robust');
+robustData.stfNominal = struct('totalNumOfBixels',1,'source','nominal');
+data.robustPlans{1} = robustData;
+
+planSet = planWorkflow.sampling.SamplingPlanSet.fromData( ...
+    runConfig,data);
+
+verifyEqual(testCase,planSet.entries(2).stf.source,'nominal');
+end
+
+function testSamplingPlanSetRequiresNominalStfForNominalRobustOptimization(testCase)
+runConfig = makeRunConfig();
+data = samplingData(runConfig);
+data.robustPlans{1}.usesNominalDijForOptimization = true;
+
+verifyError(testCase,@() ...
+    planWorkflow.sampling.SamplingPlanSet.fromData(runConfig,data), ...
+    'planWorkflow:sampling:SamplingPlanSet:MissingNominalStf');
+end
+
+function testSamplingPlanSetRejectsWeightSteeringMismatch(testCase)
+runConfig = makeRunConfig();
+data = samplingData(runConfig);
+data.robustPlans{1}.stf = struct('totalNumOfBixels',2);
+
+verifyError(testCase,@() ...
+    planWorkflow.sampling.SamplingPlanSet.fromData(runConfig,data), ...
+    'planWorkflow:sampling:SamplingPlanSet:WeightSteeringMismatch');
+end
+
 function testVariantResultsAreRequiredWhenResultGUIExists(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
