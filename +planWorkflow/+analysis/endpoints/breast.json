@@ -65,6 +65,18 @@
       "doseQuantity": "physicalDose",
       "outputDoseMode": "totalDose",
       "unit": "Gy"
+    },
+    {
+      "structureNames": ["SKIN"],
+      "metric": "D5",
+      "kind": "D",
+      "goal": "lowerIsBetter",
+      "doseQuantity": "physicalDose",
+      "threshold": 5,
+      "thresholdUnit": "%",
+      "thresholdMode": "volumePercent",
+      "outputDoseMode": "totalDose",
+      "unit": "Gy"
     }
   ]
 }
