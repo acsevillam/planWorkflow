@@ -95,6 +95,136 @@ verifyEqual(testCase,resumed.state.currentStage,'analyzed');
 verifyTrue(testCase,any(strcmp(resumed.state.completedStages,'analyzed')));
 end
 
+function testWorkflowDataArtifactPersistsOptimizationDijAsCacheRef(testCase)
+[compactData,dataMetadata,runConfig,cachePath,~,dij] = ...
+    referenceDijArtifact(testCase);
+
+verifyFalse(testCase,isfield(compactData.optimizationInput,'dij'));
+verifyTrue(testCase,isfield(compactData.optimizationInput,'dijRef'));
+verifyFalse(testCase,isfield(compactData,'dij'));
+
+rehydrated = ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath);
+
+verifyEqual(testCase, ...
+    rehydrated.optimizationInput.dij.totalNumOfBixels, ...
+    dij.totalNumOfBixels);
+verifyEqual(testCase,rehydrated.optimizationInput.dijKind,'nominal');
+end
+
+function testWorkflowDataArtifactDropsScenarioDijAlias(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = planWorkflowTest.SyntheticWorkflow( ...
+    baseSyntheticConfigWithRobustPlan(testCase,'planA')).runConfig;
+cachePath = fullfile(fixture.Folder,'cache');
+mkdir(cachePath);
+
+ct = struct('numOfCtScen',1);
+cst = {1};
+stf = struct('totalNumOfBixels',3);
+pln = struct('propStf',struct('numOfBeams',1));
+dij = referenceDij();
+planConfig = struct('id','planA');
+cacheContext = planWorkflow.cache.DoseInfluenceCache.context(cst,stf);
+cacheFile = planWorkflow.cache.DoseInfluenceCache.cacheFile( ...
+    cachePath,runConfig,'robust_planA',pln,cacheContext);
+mkdir(fileparts(cacheFile));
+cacheMetadata = planWorkflow.cache.DoseInfluenceCache.metadata( ...
+    runConfig,'robust_planA',pln,cacheContext);
+builtin('save',cacheFile,'dij','cacheMetadata','-v7.3');
+
+robustData = struct();
+robustData.ct = ct;
+robustData.cst = cst;
+robustData.stf = stf;
+robustData.pln = pln;
+robustData.planConfig = planConfig;
+robustData.dijRobust = dij;
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    ct,cst,pln,stf,dij,'scenario','planA');
+
+[compactData,workflowDataMetadata] = ...
+    planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+    robustData,runConfig,cachePath);
+
+verifyFalse(testCase,isfield(compactData,'dijRobust'));
+verifyTrue(testCase,isfield(compactData.optimizationInput,'dijRef'));
+verifyFalse(testCase,isfield(compactData.optimizationInput,'dij'));
+
+dataMetadata = struct('workflowData',workflowDataMetadata);
+rehydrated = ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath);
+
+verifyFalse(testCase,isfield(rehydrated,'dijRobust'));
+verifyEqual(testCase, ...
+    rehydrated.optimizationInput.dij.totalNumOfBixels, ...
+    dij.totalNumOfBixels);
+verifyEqual(testCase,rehydrated.optimizationInput.dijKind,'scenario');
+end
+
+function testWorkflowDataArtifactResumeFailsWhenDijCacheMissing(testCase)
+[compactData,dataMetadata,runConfig,cachePath,cacheFile] = ...
+    referenceDijArtifact(testCase);
+delete(cacheFile);
+
+verifyError(testCase,@() ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath), ...
+    ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+    'MissingDijCache']);
+end
+
+function testWorkflowDataArtifactResumeFailsWhenDijCacheIdentityChanges( ...
+        testCase)
+[compactData,dataMetadata,runConfig,cachePath] = ...
+    referenceDijArtifact(testCase);
+compactData.optimizationInput.pln.propStf.numOfBeams = 2;
+
+verifyError(testCase,@() ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath), ...
+    ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+    'IncompatibleDijCacheOnResume']);
+end
+
+function testWorkflowDataArtifactResumeFailsWhenDijBixelsMismatch(testCase)
+[compactData,dataMetadata,runConfig,cachePath] = ...
+    referenceDijArtifact(testCase);
+compactData.optimizationInput.dijRef.totalNumOfBixels = 4;
+
+verifyError(testCase,@() ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath), ...
+    ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+    'DijRefBixelMismatch']);
+end
+
+function testWorkflowDataArtifactRejectsLegacyDataDij(testCase)
+config = baseSyntheticConfig(testCase);
+runConfig = planWorkflowTest.SyntheticWorkflow(config).runConfig;
+data = struct('dij',referenceDij());
+
+verifyError(testCase,@() ...
+    planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+    data,runConfig,config.cacheRootPath), ...
+    'planWorkflow:persistence:WorkflowDataArtifact:LegacyDataDij');
+end
+
+function testWorkflowDataArtifactRejectsOldSchemaOnResume(testCase)
+config = baseSyntheticConfig(testCase);
+runConfig = planWorkflowTest.SyntheticWorkflow(config).runConfig;
+
+verifyError(testCase,@() ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    struct(),struct(),runConfig,config.cacheRootPath), ...
+    ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+    'UnsupportedWorkflowDataSchema']);
+end
+
 function testReleaseMemoryClearsOnlyInMemoryData(testCase)
 workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
 workflow.prepare();
@@ -211,4 +341,65 @@ config = struct();
 config.outputRootPath = fullfile(fixture.Folder,'output');
 config.cacheRootPath = fullfile(fixture.Folder,'cache');
 config.runId = 'synthetic-workflow-test';
+end
+
+function config = baseSyntheticConfigWithRobustPlan(testCase,planId)
+config = baseSyntheticConfig(testCase);
+plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
+plan.id = char(planId);
+plan.label = 'Plan A';
+plan.objectiveSetName = char(planId);
+plan.robustnessMode = 'COWC';
+plan.hasNominalObjectives = false;
+plan.requiresNominalDij = false;
+plan.requiresScenarioDij = true;
+plan.requiresIntervalDij = false;
+plan.requiresProb2Dij = false;
+plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
+    'wcScen');
+plan.variants = planWorkflow.config.RobustPlanConfig.defaultVariants( ...
+    'COWC');
+config.precompute.robustPlans = plan;
+end
+
+function [compactData,dataMetadata,runConfig,cachePath,cacheFile,dij] = ...
+        referenceDijArtifact(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = planWorkflowTest.SyntheticWorkflow( ...
+    baseSyntheticConfig(testCase)).runConfig;
+cachePath = fullfile(fixture.Folder,'cache');
+mkdir(cachePath);
+
+ct = struct('numOfCtScen',1);
+cst = {1};
+stf = struct('totalNumOfBixels',3);
+pln = struct('propStf',struct('numOfBeams',1));
+dij = referenceDij();
+cacheContext = planWorkflow.cache.DoseInfluenceCache.context(cst,stf);
+cacheFile = planWorkflow.cache.DoseInfluenceCache.cacheFile( ...
+    cachePath,runConfig,'reference',pln,cacheContext);
+mkdir(fileparts(cacheFile));
+cacheMetadata = planWorkflow.cache.DoseInfluenceCache.metadata( ...
+    runConfig,'reference',pln,cacheContext);
+builtin('save',cacheFile,'dij','cacheMetadata','-v7.3');
+
+data = struct();
+data.ct = ct;
+data.cst = cst;
+data.stf = stf;
+data.pln = pln;
+data.optimizationInput = planWorkflow.precompute.OptimizationInput.build( ...
+    ct,cst,pln,stf,dij,'nominal','reference');
+
+[compactData,workflowDataMetadata] = ...
+    planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+    data,runConfig,cachePath);
+dataMetadata = struct('workflowData',workflowDataMetadata);
+end
+
+function dij = referenceDij()
+dij = struct();
+dij.totalNumOfBixels = 3;
+dij.physicalDose = {sparse(1,3)};
 end

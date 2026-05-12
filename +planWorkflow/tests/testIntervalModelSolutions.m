@@ -44,8 +44,18 @@ function robustData = controlledIntervalRobustData(robustness)
 robustData = struct();
 robustData.pln = struct('propOpt',struct());
 robustData.dij_interval = controlledDijInterval();
+robustData.ct = struct();
+robustData.cst = {1};
+robustData.stf = struct();
+robustData.dijIntervalContext = controlledDijIntervalContext();
 robustData.planConfig = controlledPlanConfig(robustness);
 robustData.strategy = planWorkflow.robustness.IntervalStrategy(robustness);
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    robustData.ct,robustData.cst, ...
+    planWorkflow.precompute.IntervalDoseInfluence.optimizationPlan( ...
+    robustData),robustData.stf,robustData.dijIntervalContext, ...
+    'interval','test');
 end
 
 function planConfig = controlledPlanConfig(robustness)
@@ -72,6 +82,11 @@ dijInterval.OARSubIx = 1;
 dijInterval.OARRadiusFactor = {sparse(1,1,1,1,1)};
 dijInterval.OARRadiusRank = 1;
 dijInterval.radiusMode = 'std';
+end
+
+function dijContext = controlledDijIntervalContext()
+dijContext.totalNumOfBixels = 1;
+dijContext.physicalDose = {sparse(1,1,1,1,1)};
 end
 
 function [optiProb,dij,cst] = matRadProblemFromPlan(pln,robustness)

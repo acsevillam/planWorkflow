@@ -4,6 +4,9 @@ classdef RobustDataFactory
     methods (Static)
         function robustData = build(runConfig,planTemplate, ...
                 robustPlanConfig,sourceData)
+            [sourceData,scenarioForComputation,ctReferenceView] = ...
+                planWorkflow.precompute.CtReferenceDataView.apply( ...
+                sourceData,robustPlanConfig.scenario);
             variants = ...
                 planWorkflow.config.RobustPlanConfig.variantsWithPenalties( ...
                 robustPlanConfig);
@@ -23,7 +26,7 @@ classdef RobustDataFactory
             plnRobust = sourceData.pln;
             robustScenarioConfig = ...
                 planWorkflow.config.RobustPlanConfig.matRadScenario( ...
-                robustPlanConfig.scenario);
+                scenarioForComputation);
             robustScenarioConfig = ...
                 planWorkflow.config.ScenarioSpec.withBeamCount( ...
                 robustScenarioConfig,plnRobust);
@@ -40,6 +43,7 @@ classdef RobustDataFactory
             robustData.pln = plnRobust;
             robustData.stf = stfRobust;
             robustData.ctScenProb = multScen.ctScenProb(:,2)';
+            robustData.ctReferenceView = ctReferenceView;
             robustData.objectiveInfo = objectiveInfo;
             robustData.cstByVariant = cstByVariant;
             robustData.objectiveInfoByVariant = objectiveInfoByVariant;
@@ -77,6 +81,7 @@ classdef RobustDataFactory
 
             robustData.cst = refreshedData.cst;
             robustData.pln = refreshedData.pln;
+            robustData.ct = refreshedData.ct;
             if isfield(robustData.planConfig,'requiresProb2Dij') && ...
                     logical(robustData.planConfig.requiresProb2Dij)
                 robustData = ...
@@ -90,6 +95,10 @@ classdef RobustDataFactory
             end
             robustData.stf = refreshedData.stf;
             robustData.ctScenProb = refreshedData.ctScenProb;
+            robustData.ctReferenceView = refreshedData.ctReferenceView;
+            if isfield(robustData,'optimizationInput')
+                robustData = rmfield(robustData,'optimizationInput');
+            end
             robustData.objectiveInfo = refreshedData.objectiveInfo;
             robustData.cstByVariant = refreshedData.cstByVariant;
             robustData.objectiveInfoByVariant = ...

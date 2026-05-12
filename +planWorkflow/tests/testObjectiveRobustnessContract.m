@@ -23,7 +23,8 @@ contract = planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( .
     objectiveSet);
 
 verifyEqual(testCase,contract.robustnessMode,'COWC');
-verifyTrue(testCase,contract.requiresNominalDij);
+verifyTrue(testCase,contract.hasNominalObjectives);
+verifyFalse(testCase,contract.requiresNominalDij);
 verifyTrue(testCase,contract.requiresScenarioDij);
 verifyFalse(testCase,contract.requiresIntervalDij);
 verifyFalse(testCase,contract.requiresProb2Dij);

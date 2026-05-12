@@ -87,8 +87,16 @@ end
 
 function testVariantPlanFactoryIsCanonicalVariantBuilder(testCase)
 robustData = struct();
+robustData.ct = struct();
+robustData.cst = {1};
+robustData.stf = struct();
 robustData.pln = struct('propOpt',struct());
 robustData.planConfig = robustPlanConfig();
+dij = struct();
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    robustData.ct,robustData.cst,robustData.pln,robustData.stf, ...
+    dij,'scenario','test');
 variantResult = struct('variantId','theta_5');
 
 factoryPln = planWorkflow.optimization.VariantPlanFactory.build( ...

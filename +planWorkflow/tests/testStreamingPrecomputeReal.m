@@ -22,7 +22,7 @@ verifyEqual(testCase, ...
     robustData.dij_interval.secondPassStrategy,'recompute');
 verifyEqual(testCase,robustData.dij_interval.intervalMode,'INTERVAL2');
 verifyEqual(testCase,size(robustData.dij_interval.center,2), ...
-    robustData.dij_intervalContext.totalNumOfBixels);
+    robustData.dijIntervalContext.totalNumOfBixels);
 verifyGreaterThan(testCase,nnz(robustData.dij_interval.center),0);
 verifyFalse(testCase,isfield(robustData.dij_interval,'cacheDir'));
 end
@@ -45,7 +45,7 @@ verifyEqual(testCase,robustData.dij_prob2.precomputeMode,'streaming');
 verifyEqual(testCase,robustData.dij_prob2.secondPassStrategy,'recompute');
 verifyEqual(testCase,robustData.dij_prob2.probabilisticMode,'PROB2');
 verifyEqual(testCase,size(robustData.dij_prob2.expected,2), ...
-    robustData.dij_prob2Context.totalNumOfBixels);
+    robustData.dijProb2Context.totalNumOfBixels);
 verifyGreaterThan(testCase,nnz(robustData.dij_prob2.expected),0);
 verifyFalse(testCase,isfield(robustData.dij_prob2,'cacheDir'));
 end

@@ -9,14 +9,11 @@ classdef SamplingService
             if runConfig.sampling_linkToOptimization
                 context.reportGuiStageProgress('sample',0.02, ...
                     'Using optimization geometry for sampling.');
-                if ~isfield(context.data,'ct') || ~isfield(context.data,'cst')
-                    error(['planWorkflow:sampling:SamplingService:' ...
-                        'MissingOptimizationGeometry'], ...
-                        ['Sampling is linked to optimization, but prepared ' ...
-                         'optimization geometry is not available.']);
-                end
-                ctSampling = context.data.ct;
-                cstSampling = context.data.cst;
+                optimizationInput = ...
+                    planWorkflow.precompute.OptimizationInput.require( ...
+                    context.data,'linked sampling geometry');
+                ctSampling = optimizationInput.ct;
+                cstSampling = optimizationInput.cst;
                 context.reportGuiStageProgress('sample',0.18, ...
                     'Using optimization structures for sampling.');
                 return;
@@ -171,7 +168,6 @@ classdef SamplingService
                 multScen,'dvhDoseWindow',dvhDoseWindow);
 
             sample = struct();
-            sample.cst = cstForSampling;
             sample.caSamp = caSamp;
             sample.mSampDose = mSampDose;
             sample.pln = plnSamp;
@@ -188,11 +184,9 @@ classdef SamplingService
             entry.robustnessMode = '';
             entry.scenario = struct();
             entry.optimization4D = struct();
-            entry.cst = cstSampling;
             entry.stf = [];
             entry.pln = [];
             entry.resultGUI = [];
-            entry.objectiveInfo = struct();
         end
 
         function reportPlanProgress(context,completedPlans,totalPlans,message)

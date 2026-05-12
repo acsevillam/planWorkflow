@@ -2,16 +2,16 @@ function tests = testRobustDoseInfluence
 tests = functiontests(localfunctions);
 end
 
-function testIntervalRobustDijIsTransient(testCase)
+function testIntervalRobustDijIsExplicitInput(testCase)
 robustData = planData(true,false);
 dij = struct('physicalDose',{{sparse(1,1),sparse(1,1)}});
 
 robustData = planWorkflow.precompute.RobustDoseInfluence.attach( ...
     robustData,dij);
 
-verifyTrue(testCase,isfield(robustData,'dij'));
-verifyFalse(testCase,isfield(robustData,'dijRobust'));
-verifyEqual(testCase,robustData.dij,dij);
+verifyFalse(testCase,isfield(robustData,'dij'));
+verifyTrue(testCase,isfield(robustData,'dijRobust'));
+verifyEqual(testCase,robustData.dijRobust,dij);
 end
 
 function testScenarioRobustDijIsNamedForReuse(testCase)
@@ -21,21 +21,21 @@ dij = struct('physicalDose',{{sparse(1,1),sparse(1,1)}});
 robustData = planWorkflow.precompute.RobustDoseInfluence.attach( ...
     robustData,dij);
 
-verifyTrue(testCase,isfield(robustData,'dij'));
+verifyFalse(testCase,isfield(robustData,'dij'));
 verifyTrue(testCase,isfield(robustData,'dijRobust'));
 verifyEqual(testCase,robustData.dijRobust,dij);
 end
 
-function testProb2RobustDijIsTransient(testCase)
+function testProb2RobustDijIsExplicitInput(testCase)
 robustData = planData(false,false,true);
 dij = struct('physicalDose',{{sparse(1,1),sparse(1,1)}});
 
 robustData = planWorkflow.precompute.RobustDoseInfluence.attach( ...
     robustData,dij);
 
-verifyTrue(testCase,isfield(robustData,'dij'));
-verifyFalse(testCase,isfield(robustData,'dijRobust'));
-verifyEqual(testCase,robustData.dij,dij);
+verifyFalse(testCase,isfield(robustData,'dij'));
+verifyTrue(testCase,isfield(robustData,'dijRobust'));
+verifyEqual(testCase,robustData.dijRobust,dij);
 end
 
 function robustData = planData(requiresIntervalDij,requiresScenarioDij, ...

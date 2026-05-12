@@ -124,10 +124,10 @@ classdef ResourceDetails
             if ~isstruct(robustData)
                 return;
             end
-            if includeRobustDij && isfield(robustData,'dij')
+            if includeRobustDij && isfield(robustData,'dijRobust')
                 detailData = ...
                     planWorkflow.performance.ResourceDetails.appendDoseInfluence( ...
-                    detailData,'dij_robust',robustData.dij);
+                    detailData,'dij_robust',robustData.dijRobust);
             end
             if isfield(robustData,'dij_interval')
                 detailData = ...

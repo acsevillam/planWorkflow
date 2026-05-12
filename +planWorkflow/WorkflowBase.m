@@ -979,8 +979,13 @@ classdef (Abstract) WorkflowBase < handle
             paths = obj.workflowPaths();
 
             [workflowData,workflowResults] = obj.splitWorkflowData(obj.data);
+            [workflowData,workflowDataMetadata] = ...
+                planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+                workflowData,obj.runConfig,obj.cachePath);
+            dataMetadata = obj.artifactMetadata('data');
+            dataMetadata.workflowData = workflowDataMetadata;
             dataArtifact = struct('data',workflowData, ...
-                'dataMetadata',obj.artifactMetadata('data'));
+                'dataMetadata',dataMetadata);
             obj.saveStructArtifact(obj.dataFile,dataArtifact);
 
             resultsArtifact = struct('results',workflowResults, ...
@@ -1082,8 +1087,15 @@ classdef (Abstract) WorkflowBase < handle
         end
 
         function data = loadWorkflowData(obj)
-            dataSnapshot = load(obj.dataFile,'data');
+            dataSnapshot = load(obj.dataFile,'data','dataMetadata');
             data = dataSnapshot.data;
+            dataMetadata = struct();
+            if isfield(dataSnapshot,'dataMetadata')
+                dataMetadata = dataSnapshot.dataMetadata;
+            end
+            data = ...
+                planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+                data,dataMetadata,obj.runConfig,obj.cachePath);
 
             resultsSnapshot = load(obj.resultsFile,'results');
             results = resultsSnapshot.results;

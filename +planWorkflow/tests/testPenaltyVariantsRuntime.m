@@ -57,8 +57,11 @@ verifyEqual(testCase,{planSet.entries.role}, ...
     {'reference','robust','robust'});
 verifyEqual(testCase,planSet.entries(2).variantId,'theta_5_v1_p1');
 verifyEqual(testCase,planSet.entries(3).variantId,'theta_5_v1_p2');
-verifyEqual(testCase,planSet.entries(2).cst{1,6}{1}.penalty,11);
-verifyEqual(testCase,planSet.entries(3).cst{1,6}{1}.penalty,22);
+verifyFalse(testCase,isfield(planSet.entries,'cst'));
+verifyEqual(testCase, ...
+    data.robustPlans{1}.cstByVariant{1}{1,6}{1}.penalty,11);
+verifyEqual(testCase, ...
+    data.robustPlans{1}.cstByVariant{2}{1,6}{1}.penalty,22);
 end
 
 function testRobustDataFactoryPreservesOarPenaltyVariants(testCase)
@@ -171,27 +174,36 @@ function data = workflowData(planConfig)
 data = struct();
 data.ct = struct();
 data.cst = cstWithPenalty(99);
-data.dij = struct();
-data.stf = struct();
+data.stf = struct('totalNumOfBixels',1);
 data.pln = struct('propOpt',struct());
 data.resultGUIReference = struct('w',0);
 data.objectiveInfo = objectiveInfo();
-data.referenceUsesNominalDijForOptimization = true;
+data.optimizationInput = planWorkflow.precompute.OptimizationInput.build( ...
+    data.ct,data.cst,data.pln,data.stf,referenceDij(), ...
+    'nominal','reference');
 data.robustPlans = {robustDataWithPenaltyVariants(planConfig)};
 end
 
 function robustData = robustDataWithPenaltyVariants(planConfig)
 robustData = struct();
 robustData.planConfig = planConfig;
-robustData.dij = struct();
 robustData.cst = cstWithPenalty(11);
 robustData.cstByVariant = {cstWithPenalty(11),cstWithPenalty(22)};
 robustData.objectiveInfo = objectiveInfo();
 robustData.objectiveInfoByVariant = {objectiveInfo(),objectiveInfo()};
 robustData.ctScenProb = 1;
+robustData.ct = struct();
 robustData.pln = struct('propOpt',struct());
-robustData.stf = struct();
+robustData.stf = struct('totalNumOfBixels',1);
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    robustData.ct,robustData.cst,robustData.pln, ...
+    robustData.stf,referenceDij(),'nominal','robust');
 robustData.strategy = struct('name','INTERVAL2');
+end
+
+function dij = referenceDij()
+dij = struct('totalNumOfBixels',1);
 end
 
 function sourceData = robustBuildSourceData()

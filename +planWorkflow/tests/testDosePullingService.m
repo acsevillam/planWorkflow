@@ -130,10 +130,10 @@ runConfig.dose_pulling2_criteria = 'meanQiTarget';
 robustData = struct();
 robustData.planConfig = cleanPlan('INTERVAL2', ...
     struct('id','theta_1','label','Variant 1','theta1',1));
-robustData.dij = struct();
 robustData.cst = pullingCst(1);
 robustData.ctScenProb = 1;
 robustData.pln = struct('propOpt',struct());
+robustData = attachOptimizationInput(robustData);
 messages = {};
 context = planWorkflow.precompute.DosePulling.context( ...
     runConfig,@runOptimization,@runAnalysis,@runMetrics,@runPolicy, ...
@@ -182,12 +182,12 @@ variants = [struct('id','theta_1','label','Theta 1','theta1',1) ...
     struct('id','theta_5','label','Theta 5','theta1',5)];
 robustData = struct();
 robustData.planConfig = cleanPlan('INTERVAL2',variants);
-robustData.dij = struct();
 robustData.cst = robustHeuristicCst(3,50);
 robustData.cstByVariant = {robustHeuristicCst(3,50), ...
     robustHeuristicCst(7,101)};
 robustData.ctScenProb = 1;
 robustData.pln = struct('propOpt',struct());
+robustData = attachOptimizationInput(robustData);
 context = planWorkflow.precompute.DosePulling.context( ...
     runConfig,@runOptimization,@runAnalysis,@runMetrics,@runPolicy, ...
     @logMessage);
@@ -210,10 +210,10 @@ variants = [struct('id','theta_1','label','Theta 1','theta1',1) ...
 planConfig = cleanPlan('INTERVAL2',variants);
 robustData = struct();
 robustData.planConfig = planConfig;
-robustData.dij = struct();
 robustData.cst = pullingCst(1);
 robustData.ctScenProb = 1;
 robustData.pln = struct('propOpt',struct());
+robustData = attachOptimizationInput(robustData);
 callCount = 0;
 context = planWorkflow.precompute.DosePulling.context( ...
     dosePullingRunConfig(),@runOptimization,@runAnalysis, ...
@@ -254,10 +254,10 @@ function verifyDosePullingVariantCount(testCase,strategy,variants)
 planConfig = cleanPlan(strategy,variants);
 robustData = struct();
 robustData.planConfig = planConfig;
-robustData.dij = struct();
 robustData.cst = {};
 robustData.ctScenProb = 1;
 robustData.pln = struct('propOpt',struct());
+robustData = attachOptimizationInput(robustData);
 
 callCount = 0;
     context = dosePullingContext(@runOptimization);
@@ -390,6 +390,23 @@ cst{1,6} = {targetObjective};
 cst{2,2} = 'RECTUM';
 cst{2,4} = {1:3};
 cst{2,6} = {oarObjective};
+end
+
+function robustData = attachOptimizationInput(robustData)
+robustData.ct = struct();
+robustData.stf = struct();
+cst = robustData.cst;
+if isempty(cst)
+    cst = {1};
+end
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    robustData.ct,cst,robustData.pln,robustData.stf, ...
+    referenceDij(),'nominal','test');
+end
+
+function dij = referenceDij()
+dij = struct();
 end
 
 function cst = scoringCst(pullingStep,vMaxPercent)

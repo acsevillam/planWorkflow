@@ -251,6 +251,19 @@ verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 end
 
+function testScenarioContractWithNominalObjectivesDoesNotRequireNominalDij(testCase)
+plan = cleanPlan('cowc','COWC');
+
+plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,contract('COWC',true));
+
+verifyTrue(testCase,plans.hasNominalObjectives);
+verifyFalse(testCase,plans.requiresNominalDij);
+verifyTrue(testCase,plans.requiresScenarioDij);
+verifyFalse(testCase,plans.requiresIntervalDij);
+verifyFalse(testCase,plans.requiresProb2Dij);
+end
+
 function testDosePrecomputeDefaultsAndNormalization(testCase)
 cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
 plan = cleanPlan('interval3','INTERVAL3');
@@ -302,12 +315,14 @@ function value = contract(robustnessMode,hasNominal)
 value = planWorkflow.config.RobustPlanConfig.defaultRobustnessContract();
 value.robustnessMode = robustnessMode;
 value.hasNominalObjectives = logical(hasNominal);
-value.requiresNominalDij = logical(hasNominal) || strcmp(robustnessMode,'none');
 value.requiresScenarioDij = any(strcmp(robustnessMode, ...
     {'STOCH','COWC','c-COWC'}));
 value.requiresIntervalDij = any(strcmp(robustnessMode, ...
     {'INTERVAL2','INTERVAL3'}));
 value.requiresProb2Dij = strcmp(robustnessMode,'PROB2');
+value.requiresNominalDij = strcmp(robustnessMode,'none') || ...
+    (logical(hasNominal) && (value.requiresIntervalDij || ...
+    value.requiresProb2Dij));
 end
 
 function variant = penaltyVariant( ...

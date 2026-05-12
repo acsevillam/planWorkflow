@@ -26,7 +26,7 @@ robustData = ...
 verifyFalse(testCase,isfield(robustData,'dij'));
 verifyEqual(testCase,robustData.dij_interval.stubMode,'INTERVAL2');
 verifyEqual(testCase,robustData.dij_interval.stubNargin,5);
-verifyEqual(testCase,robustData.dij_intervalContext.stubNargin,5);
+verifyEqual(testCase,robustData.dijIntervalContext.stubNargin,5);
 verifyTrue(testCase, ...
     planWorkflow.performance.PrecomputeTiming.isValid( ...
     robustData.dijPrecomputingTiming));
@@ -56,7 +56,7 @@ robustData = ...
 
 verifyFalse(testCase,isfield(robustData,'dij'));
 verifyEqual(testCase,robustData.dijNominal, ...
-    robustData.dij_intervalContext);
+    robustData.dijIntervalContext);
 verifyEqual(testCase,robustData.stfNominal,robustData.stf);
 verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
     'dij_interval'));
@@ -73,7 +73,7 @@ robustData = ...
 verifyFalse(testCase,isfield(robustData,'dij'));
 verifyEqual(testCase,robustData.dij_interval.stubMode,'INTERVAL3');
 verifyEqual(testCase,robustData.dij_interval.stubNargin,5);
-verifyEqual(testCase,robustData.dij_intervalContext.stubNargin,5);
+verifyEqual(testCase,robustData.dijIntervalContext.stubNargin,5);
 end
 
 function testReferenceIntervalStreamingPrecomputeIsSelfReferenced(testCase)
@@ -107,7 +107,7 @@ robustData = ...
 verifyFalse(testCase,isfield(robustData,'dij'));
 verifyEqual(testCase,robustData.dij_prob2.stubMode,'PROB2');
 verifyEqual(testCase,robustData.dij_prob2.stubNargin,5);
-verifyEqual(testCase,robustData.dij_prob2Context.stubNargin,5);
+verifyEqual(testCase,robustData.dijProb2Context.stubNargin,5);
 verifyTrue(testCase, ...
     planWorkflow.performance.PrecomputeTiming.isValid( ...
     robustData.dijPrecomputingTiming));
@@ -156,7 +156,7 @@ robustData = ...
     context,robustData);
 
 verifyFalse(testCase,isfield(robustData,'dij'));
-verifyEqual(testCase,robustData.dijNominal,robustData.dij_prob2Context);
+verifyEqual(testCase,robustData.dijNominal,robustData.dijProb2Context);
 verifyEqual(testCase,robustData.stfNominal,robustData.stf);
 verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
     'dij_prob2'));

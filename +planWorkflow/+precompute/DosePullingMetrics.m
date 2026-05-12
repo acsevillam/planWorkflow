@@ -185,13 +185,13 @@ classdef DosePullingMetrics
                 end
             end
             doseCube = reshape(full(doseVector), ...
-                robustData.dij_intervalContext.doseGrid.dimensions);
+                robustData.dijIntervalContext.doseGrid.dimensions);
         end
 
         function doseCube = prob2DoseCube(robustData,w)
             doseVector = robustData.dij_prob2.expected*w;
             doseCube = reshape(full(doseVector), ...
-                robustData.dij_prob2Context.doseGrid.dimensions);
+                robustData.dijProb2Context.doseGrid.dimensions);
         end
 
         function rows = intervalTargetRows(runConfig,cst,dijInterval)

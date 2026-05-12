@@ -60,6 +60,48 @@ verifyEqual(testCase,planSet.samplingConfig.sampling_scen_mode, ...
 verifyEqual(testCase,numel(planSet.metadata),3);
 end
 
+function testSamplingStageContextKeepsReferenceOptimizationInput(testCase)
+runConfig = makeRunConfig();
+data = samplingData(runConfig);
+taskRunner = @(varargin) [];
+logFn = @(varargin) [];
+reportFn = @(varargin) [];
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','comparison_001');
+
+context = planWorkflow.stages.SamplingStage.context( ...
+    runConfig,data,taskRunner,logFn,template,reportFn);
+
+verifyTrue(testCase,isfield(context.data,'optimizationInput'));
+verifyEqual(testCase,context.data.optimizationInput.stf, ...
+    data.optimizationInput.stf);
+end
+
+function testLinkedSamplingGeometryUsesOptimizationInput(testCase)
+runConfig = makeRunConfig();
+runConfig.sampling_linkToOptimization = true;
+data = samplingData(runConfig);
+data.ct = struct('source','legacy');
+data.cst = minimalCst();
+ctForOptimization = struct('source','optimization');
+cstForOptimization = minimalCst();
+cstForOptimization{1,2} = 'OPT_BODY';
+data.optimizationInput = planWorkflow.precompute.OptimizationInput.build( ...
+    ctForOptimization,cstForOptimization,data.pln,data.stf, ...
+    referenceDij(), ...
+    'nominal','reference');
+context = struct( ...
+    'runConfig',runConfig, ...
+    'data',data, ...
+    'reportGuiStageProgress',@(varargin) []);
+
+[ctSampling,cstSampling] = ...
+    planWorkflow.sampling.SamplingService.samplingGeometry(context);
+
+verifyEqual(testCase,ctSampling.source,'optimization');
+verifyEqual(testCase,cstSampling{1,2},'OPT_BODY');
+end
+
 function testSamplingScenarioBasisStoresEffectiveCtProbabilities(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
@@ -211,6 +253,7 @@ runConfig = makeRunConfig();
 data = samplingData(runConfig);
 data.robustPlans{2}.planConfig.variants(1).theta1 = 5;
 data.robustPlans{2}.pln.propOpt.theta1 = 1;
+data.robustPlans{2}.optimizationInput.pln = data.robustPlans{2}.pln;
 data.robustPlans{2}.variantResults = ...
     planWorkflow.results.VariantResults.create( ...
     data.robustPlans{2},1,struct('w',1));
@@ -222,39 +265,58 @@ verifyEqual(testCase,planSet.entries(3).pln.propOpt.theta1,5);
 verifyFalse(testCase,isfield(data.robustPlans{2}.variantResults,'pln'));
 end
 
-function testSamplingPlanSetUsesNominalStfForNominalRobustOptimization(testCase)
+function testSamplingPlanSetUsesStfForOptimization(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
 robustData = data.robustPlans{1};
-robustData.usesNominalDijForOptimization = true;
 robustData.stf = struct('totalNumOfBixels',1,'source','robust');
 robustData.stfNominal = struct('totalNumOfBixels',1,'source','nominal');
+optimizationStf = struct('totalNumOfBixels',1,'source','optimization');
+robustData.optimizationInput = ...
+    planWorkflow.precompute.OptimizationInput.build( ...
+    robustData.ct,robustData.cst,robustData.pln,optimizationStf, ...
+    referenceDij(),'nominal','test');
 data.robustPlans{1} = robustData;
 
 planSet = planWorkflow.sampling.SamplingPlanSet.fromData( ...
     runConfig,data);
 
-verifyEqual(testCase,planSet.entries(2).stf.source,'nominal');
+verifyEqual(testCase,planSet.entries(2).stf.source,'optimization');
 end
 
-function testSamplingPlanSetRequiresNominalStfForNominalRobustOptimization(testCase)
+function testSamplingPlanSetRequiresStfForOptimization(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
-data.robustPlans{1}.usesNominalDijForOptimization = true;
+data.robustPlans{1} = rmfield(data.robustPlans{1}, ...
+    'optimizationInput');
 
 verifyError(testCase,@() ...
     planWorkflow.sampling.SamplingPlanSet.fromData(runConfig,data), ...
-    'planWorkflow:sampling:SamplingPlanSet:MissingNominalStf');
+    'planWorkflow:precompute:OptimizationInput:MissingOptimizationInput');
 end
 
 function testSamplingPlanSetRejectsWeightSteeringMismatch(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
-data.robustPlans{1}.stf = struct('totalNumOfBixels',2);
+data.robustPlans{1}.optimizationInput.stf = ...
+    struct('totalNumOfBixels',2);
+data.robustPlans{1}.optimizationInput.dij = ...
+    struct('totalNumOfBixels',2);
 
 verifyError(testCase,@() ...
     planWorkflow.sampling.SamplingPlanSet.fromData(runConfig,data), ...
-    'planWorkflow:sampling:SamplingPlanSet:WeightSteeringMismatch');
+    'planWorkflow:precompute:OptimizationInput:WeightSteeringMismatch');
+end
+
+function testSamplingPlanSetRejectsReferenceWeightSteeringMismatch(testCase)
+runConfig = makeRunConfig();
+data = samplingData(runConfig);
+data.optimizationInput.stf = struct('totalNumOfBixels',2);
+data.optimizationInput.dij = struct('totalNumOfBixels',2);
+
+verifyError(testCase,@() ...
+    planWorkflow.sampling.SamplingPlanSet.fromData(runConfig,data), ...
+    'planWorkflow:precompute:OptimizationInput:WeightSteeringMismatch');
 end
 
 function testVariantResultsAreRequiredWhenResultGUIExists(testCase)
@@ -354,26 +416,39 @@ end
 function data = samplingData(runConfig)
 data = struct();
 data.cst = minimalCst();
+data.ct = struct();
 data.stf = struct('totalNumOfBixels',1);
 data.pln = struct();
 data.pln.propStf.isoCenter = [0 0 1];
 data.resultGUIReference = struct('w',1);
 data.objectiveInfo = objectiveInfo();
+data.optimizationInput = planWorkflow.precompute.OptimizationInput.build( ...
+    data.ct,data.cst,data.pln,data.stf,referenceDij(), ...
+    'nominal','reference');
 plans = planWorkflow.config.RobustPlanConfig.plansFromRunConfig( ...
     runConfig);
 data.robustPlans = cell(1,numel(plans));
 for planIx = 1:numel(plans)
     robustData = struct();
     robustData.planConfig = plans(planIx);
+    robustData.ct = data.ct;
     robustData.cst = minimalCst();
     robustData.stf = data.stf;
     robustData.pln = data.pln;
     robustData.objectiveInfo = objectiveInfo();
+    robustData.optimizationInput = ...
+        planWorkflow.precompute.OptimizationInput.build( ...
+        robustData.ct,robustData.cst,robustData.pln, ...
+        robustData.stf,referenceDij(),'nominal','robust');
     robustData.variantResults = ...
         planWorkflow.results.VariantResults.create( ...
         robustData,1,struct('w',planIx));
     data.robustPlans{planIx} = robustData;
 end
+end
+
+function dij = referenceDij()
+dij = struct('totalNumOfBixels',1);
 end
 
 function info = objectiveInfo()
