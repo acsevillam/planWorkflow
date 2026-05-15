@@ -11,12 +11,31 @@ verifyEqual(testCase,analysis.robustnessCriteria,[5 5]);
 verifyEqual(testCase,analysis.robustnessTargetMode,'all');
 verifyEqual(testCase,analysis.robustnessTargets,[]);
 verifyTrue(testCase,isfield(analysis,'doseWindowDvh'));
+verifyEqual(testCase,analysis.figures.save,true);
+verifyEqual(testCase,analysis.figures.visible,'auto');
+verifyEqual(testCase,analysis.figures.closeAfterSave,true);
 end
 
 function testNormalizeRejectsUnsupportedFields(testCase)
 verifyError(testCase, ...
     @() planWorkflow.config.Analysis.normalize(struct('sampling',true)), ...
     'planWorkflow:config:Analysis:UnsupportedField');
+end
+
+function testNormalizeFigurePolicy(testCase)
+analysis = planWorkflow.config.Analysis.normalize(struct( ...
+    'figures',struct('save',false,'visible',false)));
+
+verifyFalse(testCase,analysis.figures.save);
+verifyEqual(testCase,analysis.figures.visible,'off');
+verifyTrue(testCase,analysis.figures.closeAfterSave);
+end
+
+function testNormalizeRejectsUnsupportedFigureFields(testCase)
+verifyError(testCase, ...
+    @() planWorkflow.config.Analysis.normalize(struct( ...
+    'figures',struct('legacy',true))), ...
+    'planWorkflow:config:Analysis:UnsupportedFigureField');
 end
 
 function testPrescriptionDefaultsUseTotalDose(testCase)

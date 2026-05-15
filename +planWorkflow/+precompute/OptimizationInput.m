@@ -25,6 +25,14 @@ classdef OptimizationInput
             if nargin < 2 || isempty(context)
                 context = 'optimization';
             end
+            input = planWorkflow.precompute.OptimizationInput.requireFullDij( ...
+                owner,context);
+        end
+
+        function input = requireLight(owner,context)
+            if nargin < 2 || isempty(context)
+                context = 'optimization';
+            end
             if ~isstruct(owner) || ~isfield(owner,'optimizationInput') || ...
                     isempty(owner.optimizationInput)
                 error(['planWorkflow:precompute:OptimizationInput:' ...
@@ -32,6 +40,44 @@ classdef OptimizationInput
                     '%s requires optimizationInput.',char(context));
             end
             input = owner.optimizationInput;
+            planWorkflow.precompute.OptimizationInput.validateLight( ...
+                input,char(context));
+        end
+
+        function input = requireFullDij(owner,context,runConfig,cachePath, ...
+                rootData,logFn)
+            if nargin < 2 || isempty(context)
+                context = 'optimization';
+            end
+            planWorkflow.precompute.OptimizationInput.rejectFullDijForLightStage( ...
+                context);
+            input = planWorkflow.precompute.OptimizationInput.requireLight( ...
+                owner,context);
+            if ~planWorkflow.precompute.OptimizationInput.hasFullDij(input)
+                if nargin < 3 || isempty(runConfig)
+                    error(['planWorkflow:precompute:OptimizationInput:' ...
+                        'MissingFullDij'], ...
+                        ['%s requires optimizationInput.dij. The workflow ' ...
+                         'data only contains a lazy dose-influence artifact.'], ...
+                        char(context));
+                end
+                if nargin < 4 || isempty(cachePath)
+                    cachePath = [];
+                end
+                if nargin < 5 || isempty(rootData)
+                    rootData = owner;
+                end
+                if nargin < 6
+                    logFn = [];
+                end
+                [input,loaded] = ...
+                    planWorkflow.persistence.WorkflowDataArtifact.loadOptimizationInputDij( ...
+                    owner,runConfig,cachePath,rootData,context);
+                if loaded && ~isempty(logFn)
+                    logFn(sprintf(['Loaded full dose influence for %s ' ...
+                        'from workflow artifact/cache.'],char(context)));
+                end
+            end
             planWorkflow.precompute.OptimizationInput.validate( ...
                 input,char(context));
         end
@@ -45,6 +91,18 @@ classdef OptimizationInput
             if nargin < 2 || isempty(context)
                 context = 'optimizationInput';
             end
+            planWorkflow.precompute.OptimizationInput.validateLight( ...
+                input,context);
+            planWorkflow.precompute.OptimizationInput.requireInputField( ...
+                input,'dij',context);
+            planWorkflow.precompute.OptimizationInput.assertDijStfMatch( ...
+                input,context);
+        end
+
+        function validateLight(input,context)
+            if nargin < 2 || isempty(context)
+                context = 'optimizationInput';
+            end
             planWorkflow.precompute.OptimizationInput.requireInputField( ...
                 input,'ct',context);
             planWorkflow.precompute.OptimizationInput.requireInputField( ...
@@ -53,8 +111,6 @@ classdef OptimizationInput
                 input,'pln',context);
             planWorkflow.precompute.OptimizationInput.requireInputField( ...
                 input,'stf',context);
-            planWorkflow.precompute.OptimizationInput.requireInputField( ...
-                input,'dij',context);
             planWorkflow.precompute.OptimizationInput.validateDijKind( ...
                 input,context);
             planWorkflow.precompute.OptimizationInput.assertDijStfMatch( ...
@@ -72,7 +128,7 @@ classdef OptimizationInput
             if nargin < 5 || isempty(purpose)
                 purpose = 'optimization result';
             end
-            planWorkflow.precompute.OptimizationInput.validate( ...
+            planWorkflow.precompute.OptimizationInput.validateLight( ...
                 input,purpose);
             if ~isstruct(resultGUI) || ~isfield(resultGUI,'w') || ...
                     isempty(resultGUI.w)
@@ -109,6 +165,11 @@ classdef OptimizationInput
             end
         end
 
+        function tf = hasFullDij(input)
+            tf = isstruct(input) && isfield(input,'dij') && ...
+                ~isempty(input.dij);
+        end
+
         function metadata = emptyCtReferenceView()
             metadata = struct( ...
                 'active',false, ...
@@ -143,7 +204,7 @@ classdef OptimizationInput
         function assertDijStfMatch(input,context)
             dijBixels = ...
                 planWorkflow.precompute.OptimizationInput.totalNumOfBixels( ...
-                input.dij);
+                planWorkflow.precompute.OptimizationInput.dijHandle(input));
             stfBixels = ...
                 planWorkflow.precompute.OptimizationInput.totalNumOfBixels( ...
                 input.stf);
@@ -156,6 +217,36 @@ classdef OptimizationInput
                     ['%s selected a dij with %d bixels, but ' ...
                      'optimizationInput.stf has %d bixels.'], ...
                     char(context),dijBixels,stfBixels);
+            end
+        end
+
+        function value = dijHandle(input)
+            value = [];
+            if ~isstruct(input)
+                return;
+            end
+            if isfield(input,'dij') && ~isempty(input.dij)
+                value = input.dij;
+                return;
+            end
+            if isfield(input,'dijRef') && ~isempty(input.dijRef)
+                value = input.dijRef;
+                return;
+            end
+            if isfield(input,'dijInline') && ~isempty(input.dijInline)
+                value = input.dijInline;
+            end
+        end
+
+        function rejectFullDijForLightStage(context)
+            text = lower(char(context));
+            if ~isempty(strfind(text,'sampling')) || ...
+                    ~isempty(strfind(text,'analysis'))
+                error(['planWorkflow:precompute:OptimizationInput:' ...
+                    'FullDijNotAllowed'], ...
+                    ['%s must use requireLight; sampling and analysis ' ...
+                     'must not rehydrate full dose-influence matrices.'], ...
+                    char(context));
             end
         end
     end

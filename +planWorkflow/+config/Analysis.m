@@ -18,6 +18,10 @@ classdef Analysis
             analysis.robustnessTargets = [];
             analysis.endpoints = [];
             analysis.endpointsFile = '';
+            analysis.figures = struct( ...
+                'save',true, ...
+                'visible','auto', ...
+                'closeAfterSave',true);
         end
 
         function analysis = normalize(analysis)
@@ -38,6 +42,9 @@ classdef Analysis
             analysis.endpointsFile = ...
                 planWorkflow.analysis.ClinicalEndpointCatalog.normalizeFileSelection( ...
                 analysis.endpointsFile);
+            analysis.figures = ...
+                planWorkflow.config.Analysis.normalizeFigures( ...
+                analysis.figures);
 
             [~,analysis.evaluationMode] = matRad_convertToEvaluationMode( ...
                 [],struct('numOfFractions',1),analysis.evaluationMode);
@@ -77,6 +84,76 @@ classdef Analysis
                         'Unsupported analysis field "%s". Valid fields are: %s.', ...
                         analysisFields{i},strjoin(defaultFields',', '));
                 end
+            end
+        end
+
+        function figures = normalizeFigures(figures)
+            defaults = planWorkflow.config.Analysis.defaults();
+            defaults = defaults.figures;
+            if nargin < 1 || isempty(figures)
+                figures = defaults;
+                return;
+            end
+            if ~isstruct(figures) || ~isscalar(figures)
+                error('planWorkflow:config:Analysis:InvalidFigures', ...
+                    'runConfig.analysis.figures must be a scalar struct.');
+            end
+            allowedFields = fieldnames(defaults);
+            fields = fieldnames(figures);
+            for i = 1:numel(fields)
+                if ~isfield(defaults,fields{i})
+                    error('planWorkflow:config:Analysis:UnsupportedFigureField', ...
+                        ['Unsupported analysis.figures field "%s". ' ...
+                         'Valid fields are: %s.'],fields{i}, ...
+                        strjoin(allowedFields',', '));
+                end
+            end
+            for i = 1:numel(allowedFields)
+                fieldName = allowedFields{i};
+                if ~isfield(figures,fieldName)
+                    figures.(fieldName) = defaults.(fieldName);
+                end
+            end
+            figures.save = planWorkflow.config.ConfigValue.logicalScalar( ...
+                figures.save,'runConfig.analysis.figures.save', ...
+                'planWorkflow:config:Analysis:InvalidFigureSave');
+            figures.closeAfterSave = ...
+                planWorkflow.config.ConfigValue.logicalScalar( ...
+                figures.closeAfterSave, ...
+                'runConfig.analysis.figures.closeAfterSave', ...
+                'planWorkflow:config:Analysis:InvalidFigureCloseAfterSave');
+            figures.visible = ...
+                planWorkflow.config.Analysis.normalizeFigureVisibility( ...
+                figures.visible);
+        end
+
+        function value = normalizeFigureVisibility(value)
+            if isstring(value) && isscalar(value)
+                value = char(value);
+            end
+            if islogical(value) || isnumeric(value)
+                if ~isscalar(value)
+                    error('planWorkflow:config:Analysis:InvalidFigureVisibility', ...
+                        ['runConfig.analysis.figures.visible must be ' ...
+                         '''auto'', ''on'', ''off'', or a logical scalar.']);
+                end
+                if logical(value)
+                    value = 'on';
+                else
+                    value = 'off';
+                end
+                return;
+            end
+            if ~ischar(value)
+                error('planWorkflow:config:Analysis:InvalidFigureVisibility', ...
+                    ['runConfig.analysis.figures.visible must be ' ...
+                     '''auto'', ''on'', ''off'', or a logical scalar.']);
+            end
+            value = lower(strtrim(value));
+            if ~any(strcmp(value,{'auto','on','off'}))
+                error('planWorkflow:config:Analysis:InvalidFigureVisibility', ...
+                    ['runConfig.analysis.figures.visible must be ' ...
+                     '''auto'', ''on'', ''off'', or a logical scalar.']);
             end
         end
     end

@@ -1,0 +1,164 @@
+{
+  "structureObjectives": [
+    {
+      "name": "BODY",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_SquaredOverdosing",
+          "parameters": {
+            "penalty": 10,
+            "dMax": {
+              "ref": "prescriptionDose",
+              "scale": 0.5
+            }
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CTV",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MinDVH",
+          "parameters": {
+            "penalty": 30,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMinPercent": 100
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_SquaredDeviation",
+          "parameters": {
+            "penalty": 0.01,
+            "dRef": {
+              "ref": "prescriptionDose"
+            }
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 10,
+            "dRef": {
+              "ref": "prescriptionDose",
+              "scale": 1.04
+            },
+            "vMaxPercent": 5
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose",
+              "scale": 1.07
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PTV",
+      "objectives": []
+    },
+    {
+      "name": "HEART",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MeanDose",
+          "parameters": {
+            "penalty": 2,
+            "dMeanRef": 0,
+            "fDiff": "Quadratic"
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "LEFT LUNG",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 2,
+            "dRef": 20,
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        },
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "c-COWC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RIGHT LUNG",
+      "objectives": []
+    },
+    {
+      "name": "CONTRALATERAL BREAST",
+      "objectives": []
+    },
+    {
+      "name": "SKIN",
+      "objectives": []
+    }
+  ],
+  "ringObjectives": []
+}

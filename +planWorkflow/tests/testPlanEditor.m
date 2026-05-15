@@ -1082,6 +1082,45 @@ verifyEqual(testCase,numel(robustPlans(2).variants),1);
 verifyTrue(testCase,isfield(robustPlans(2).variants,'theta1'));
 end
 
+function testTemplateSelectionResetsRobustPlansToSelectedTemplate(testCase)
+runConfig = baseRunConfig();
+runConfig.plan_template = 'COWC_001';
+cowcTemplate = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','COWC_001');
+runConfig = planWorkflow.gui.PlanEditorContract.alignPrecomputeWithTemplate( ...
+    runConfig,cowcTemplate);
+
+patch = planWorkflow.gui.panels.PrepareTemplateSelection.selectTemplate( ...
+    runConfig,{'COWC_001','PROB2_001'},2,false);
+
+robustPlans = patch.runConfig.precompute.robustPlans;
+verifyEqual(testCase,numel(robustPlans),1);
+verifyEqual(testCase,robustPlans(1).id,'MeanVariance');
+verifyEqual(testCase,robustPlans(1).objectiveSetName,'MeanVariance');
+verifyEqual(testCase,robustPlans(1).robustnessMode,'PROB2');
+end
+
+function testTemplateSelectionRegeneratesComparisonRobustPlans(testCase)
+runConfig = baseRunConfig();
+runConfig.plan_template = 'COWC_001';
+cowcTemplate = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','COWC_001');
+runConfig = planWorkflow.gui.PlanEditorContract.alignPrecomputeWithTemplate( ...
+    runConfig,cowcTemplate);
+
+patch = planWorkflow.gui.panels.PrepareTemplateSelection.selectTemplate( ...
+    runConfig,{'COWC_001','comparison_001'},2,false);
+
+robustPlans = patch.runConfig.precompute.robustPlans;
+robustObjectiveSets = ...
+    planWorkflow.templates.PlanTemplate.robustObjectiveSets( ...
+    patch.template);
+verifyEqual(testCase,{robustPlans.id},{robustObjectiveSets.id});
+verifyEqual(testCase,{robustPlans.objectiveSetName}, ...
+    {robustObjectiveSets.id});
+verifyEqual(testCase,{robustPlans.label},{robustObjectiveSets.label});
+end
+
 function testRobustPlanAlignmentRejectsPositionalFallback(testCase)
 template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
     'prostate','interval2_001');

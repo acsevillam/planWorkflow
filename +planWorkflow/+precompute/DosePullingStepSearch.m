@@ -44,6 +44,9 @@ classdef DosePullingStepSearch
                 results,targetTol,runConfig);
             best = planWorkflow.precompute.DosePullingScoring.chooseBest( ...
                 results,targetTol,runConfig);
+            stopReason = ...
+                planWorkflow.precompute.DosePullingStepSearch.canonicalStopReason( ...
+                best,stopReason,maxIter);
 
             search = struct();
             search.results = ...
@@ -58,6 +61,9 @@ classdef DosePullingStepSearch
                 search.states,best.step);
             search.coarseSchedule = schedule;
             search.stopReason = stopReason;
+            search.trace = ...
+                planWorkflow.precompute.DosePullingStepSearch.traceFromResults( ...
+                search.results,best,stopReason);
             search.localBracket = [leftStep rightStep];
         end
 
@@ -82,7 +88,7 @@ classdef DosePullingStepSearch
             states = [];
             bestPrimary = Inf;
             misses = 0;
-            stopReason = 'reached schedule end';
+            stopReason = 'maxIterReached';
 
             for i = 1:numel(schedule)
                 [state,result] = evaluator(state,schedule(i));
@@ -101,15 +107,77 @@ classdef DosePullingStepSearch
                 end
 
                 if result.primaryScore == 0
-                    stopReason = sprintf( ...
-                        'target satisfied at coarse step %d',result.step);
+                    stopReason = 'converged';
                     break;
                 end
                 if misses >= patience
-                    stopReason = sprintf( ...
-                        'no primary improvement for %d coarse probes', ...
-                        patience);
+                    stopReason = 'stagnated';
                     break;
+                end
+            end
+        end
+
+        function stopReason = canonicalStopReason(best,coarseStopReason, ...
+                maxIter)
+            if isfield(best,'isSatisfied') && best.isSatisfied && ...
+                    (~isfield(best,'isFeasible') || best.isFeasible)
+                stopReason = 'converged';
+                return;
+            end
+            if isfield(best,'isFeasible') && ~best.isFeasible
+                stopReason = 'infeasible';
+                return;
+            end
+            if strcmp(char(coarseStopReason),'stagnated')
+                stopReason = 'stagnated';
+                return;
+            end
+            if isfield(best,'step') && best.step >= maxIter
+                stopReason = 'maxIterReached';
+                return;
+            end
+            stopReason = 'maxIterReached';
+        end
+
+        function trace = traceFromResults(results,best,stopReason)
+            trace = struct('step',{},'metrics',{},'isFeasible',{}, ...
+                'candidate',{},'isSelected',{},'stopReason',{});
+            for i = 1:numel(results)
+                result = results(i);
+                metrics = struct();
+                fields = {'values','limits','primaryScore','limitDiffSq', ...
+                    'oarScore','isSatisfied','selectionScore', ...
+                    'targetScore','oarPenaltyScore','stepPenaltyScore'};
+                for fieldIx = 1:numel(fields)
+                    fieldName = fields{fieldIx};
+                    if isfield(result,fieldName)
+                        metrics.(fieldName) = result.(fieldName);
+                    end
+                end
+                trace(i).step = result.step; %#ok<AGROW>
+                trace(i).metrics = metrics;
+                if isfield(result,'isFeasible')
+                    trace(i).isFeasible = result.isFeasible;
+                else
+                    trace(i).isFeasible = true;
+                end
+                trace(i).candidate = ...
+                    planWorkflow.precompute.DosePullingStepSearch.candidateSummary( ...
+                    result);
+                trace(i).isSelected = result.step == best.step;
+                trace(i).stopReason = char(stopReason);
+            end
+        end
+
+        function candidate = candidateSummary(result)
+            candidate = struct();
+            fields = {'targetNames','criteria','criteriaLabels', ...
+                'selectedCriterion','meanQiTarget','minQiTarget', ...
+                'rectumPull','bladderPull','channelObjective'};
+            for fieldIx = 1:numel(fields)
+                fieldName = fields{fieldIx};
+                if isfield(result,fieldName)
+                    candidate.(fieldName) = result.(fieldName);
                 end
             end
         end

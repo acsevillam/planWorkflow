@@ -66,8 +66,9 @@ classdef ScenarioSpec
             scenario.mode = char(scenario.mode);
             planWorkflow.config.ScenarioSpec.validateMode( ...
                 scenario.mode,[context '.mode']);
-            scenario.ctActive = planWorkflow.config.ScenarioSpec.logicalScalar( ...
-                scenario.ctActive,[context '.ctActive']);
+            scenario.ctActive = planWorkflow.config.ConfigValue.logicalScalar( ...
+                scenario.ctActive,[context '.ctActive'], ...
+                'planWorkflow:config:ScenarioSpec:InvalidLogical');
             scenario.ctReferenceScenId = ...
                 planWorkflow.config.ScenarioSpec.positiveIntegerScalar( ...
                 scenario.ctReferenceScenId,[context '.ctReferenceScenId']);
@@ -86,8 +87,9 @@ classdef ScenarioSpec
             for i = 1:numel(activeFields)
                 fieldName = activeFields{i};
                 scenario.(fieldName) = ...
-                    planWorkflow.config.ScenarioSpec.logicalScalar( ...
-                    scenario.(fieldName),[context '.' fieldName]);
+                    planWorkflow.config.ConfigValue.logicalScalar( ...
+                    scenario.(fieldName),[context '.' fieldName], ...
+                    'planWorkflow:config:ScenarioSpec:InvalidLogical');
             end
 
             numericFields = {'shiftSD','wcSigma','rangeAbsSD', ...
@@ -392,8 +394,9 @@ classdef ScenarioSpec
                         dimensionConfig.(fieldName),fieldName);
                 else
                     dimensionConfig.(fieldName) = ...
-                        planWorkflow.config.ScenarioSpec.logicalScalar( ...
-                        dimensionConfig.(fieldName),fieldName);
+                        planWorkflow.config.ConfigValue.logicalScalar( ...
+                        dimensionConfig.(fieldName),fieldName, ...
+                        'planWorkflow:config:ScenarioSpec:InvalidLogical');
                 end
             end
         end
@@ -458,26 +461,6 @@ classdef ScenarioSpec
                 if ~isfield(merged,fieldName) || isempty(merged.(fieldName))
                     merged.(fieldName) = defaults.(fieldName);
                 end
-            end
-        end
-
-        function value = logicalScalar(value,context)
-            if ischar(value) || (isstring(value) && isscalar(value))
-                switch lower(char(value))
-                    case {'true','1','yes','on'}
-                        value = true;
-                    case {'false','0','no','off'}
-                        value = false;
-                    otherwise
-                        error('planWorkflow:config:ScenarioSpec:InvalidLogical', ...
-                            '%s must be scalar logical.',context);
-                end
-            else
-                value = logical(value);
-            end
-            if ~isscalar(value)
-                error('planWorkflow:config:ScenarioSpec:InvalidLogical', ...
-                    '%s must be scalar logical.',context);
             end
         end
 

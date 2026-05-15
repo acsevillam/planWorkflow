@@ -9,6 +9,8 @@ classdef StageExecutor
             context = feval([descriptor.stageClass '.workflowContext'], ...
                 runConfig,data,runtime);
             patch = feval([descriptor.stageClass '.run'],context);
+            patch = planWorkflow.resources.StageDataLifecycle.afterStage( ...
+                stageName,patch,runConfig,runtime.logFn());
         end
     end
 end

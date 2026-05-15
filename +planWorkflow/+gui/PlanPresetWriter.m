@@ -275,11 +275,6 @@ classdef PlanPresetWriter
                 [options,provided] = ...
                     planWorkflow.gui.PlanPresetWriter.applyMacroOptionPatch( ...
                     options,provided,varargin{1});
-            elseif planWorkflow.gui.PlanPresetWriter.usesPositionalMacroOptions( ...
-                    varargin{:})
-                [options,provided] = ...
-                    planWorkflow.gui.PlanPresetWriter.applyPositionalMacroOptions( ...
-                    options,provided,varargin{:});
             else
                 [options,provided] = ...
                     planWorkflow.gui.PlanPresetWriter.applyNameValueMacroOptions( ...
@@ -646,43 +641,6 @@ classdef PlanPresetWriter
             end
         end
 
-        function tf = usesPositionalMacroOptions(varargin)
-            tf = false;
-            if isempty(varargin)
-                return;
-            end
-            allowedFields = ...
-                planWorkflow.gui.PlanPresetWriter.macroOptionFields();
-            if numel(varargin) > numel(allowedFields)
-                return;
-            end
-
-            firstArg = varargin{1};
-            if ~(ischar(firstArg) || isstring(firstArg))
-                return;
-            end
-
-            firstText = char(string(firstArg));
-            tf = ~any(strcmp(firstText,allowedFields));
-        end
-
-        function [options,provided] = applyPositionalMacroOptions( ...
-                options,provided,varargin)
-            fields = planWorkflow.gui.PlanPresetWriter.macroOptionFields();
-            if numel(varargin) > numel(fields)
-                error('planWorkflow:gui:PlanPresetWriter:InvalidMacroOptions', ...
-                    ['Use at most three positional macro options: ' ...
-                     'caseID, rootPath, cacheRootPath.']);
-            end
-            for i = 1:numel(varargin)
-                fieldName = fields{i};
-                options.(fieldName) = ...
-                    planWorkflow.gui.PlanPresetWriter.macroOptionCharValue( ...
-                    varargin{i},fieldName);
-                provided.(fieldName) = true;
-            end
-        end
-
         function [options,provided] = applyNameValueMacroOptions( ...
                 options,provided,varargin)
             if mod(numel(varargin),2) ~= 0
@@ -691,7 +649,18 @@ classdef PlanPresetWriter
             end
             patch = struct();
             for i = 1:2:numel(varargin)
+                if ~(ischar(varargin{i}) || ...
+                        (isstring(varargin{i}) && isscalar(varargin{i})))
+                    error(['planWorkflow:gui:PlanPresetWriter:' ...
+                        'InvalidMacroOptions'], ...
+                        'Macro option names must be text scalars.');
+                end
                 name = char(string(varargin{i}));
+                if ~isvarname(name)
+                    error(['planWorkflow:gui:PlanPresetWriter:' ...
+                        'InvalidMacroOptions'], ...
+                        'Invalid macro option name "%s".',name);
+                end
                 patch.(name) = varargin{i + 1};
             end
             [options,provided] = ...

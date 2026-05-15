@@ -21,6 +21,54 @@ verifyDosePullingVariantCount(testCase,'c-COWC', ...
     struct('id','bounds_2','label','Bounds 2','p1',2,'p2',3)]);
 end
 
+function testRobustDosePullingMetricsUsesVectorCtScenarioWeights(testCase)
+[runConfig,cst,pln,resultGUI] = ...
+    dosePullingMetricsFixture([2 0.4; 3 0.6]);
+
+metrics = planWorkflow.precompute.DosePullingMetrics.robust( ...
+    runConfig,cst,pln,resultGUI,[0.25 0.75],3,struct());
+
+verifyEqual(testCase,metrics.meanQiTarget,0.75,'AbsTol',1e-12);
+verifyEqual(testCase,metrics.minQiTarget,0,'AbsTol',1e-12);
+verifyEqual(testCase,metrics.iteration,3);
+end
+
+function testRobustDosePullingMetricsUsesModelWeightsWhenOverrideEmpty(testCase)
+[runConfig,cst,pln,resultGUI] = ...
+    dosePullingMetricsFixture([2 0.4; 3 0.6]);
+
+metrics = planWorkflow.precompute.DosePullingMetrics.robust( ...
+    runConfig,cst,pln,resultGUI,[],0,struct());
+
+verifyEqual(testCase,metrics.meanQiTarget,0.6,'AbsTol',1e-12);
+verifyEqual(testCase,metrics.minQiTarget,0,'AbsTol',1e-12);
+end
+
+function testRobustDosePullingMetricsAcceptsLegacyScenarioDoseFields( ...
+        testCase)
+[runConfig,cst,pln,resultGUI] = ...
+    dosePullingMetricsFixture([2 0.4; 3 0.6]);
+resultGUI.physicalDose_1 = resultGUI.physicalDose_scen1;
+resultGUI.physicalDose_2 = resultGUI.physicalDose_scen2;
+resultGUI = rmfield(resultGUI,{'physicalDose_scen1','physicalDose_scen2'});
+
+metrics = planWorkflow.precompute.DosePullingMetrics.robust( ...
+    runConfig,cst,pln,resultGUI,[0.25 0.75],3,struct());
+
+verifyEqual(testCase,metrics.meanQiTarget,0.75,'AbsTol',1e-12);
+end
+
+function testRobustDosePullingMetricsRejectsMismatchedCtScenarioVector( ...
+        testCase)
+[runConfig,cst,pln,resultGUI] = ...
+    dosePullingMetricsFixture([1 0.2; 2 0.3; 3 0.5]);
+
+verifyError(testCase,@() ...
+    planWorkflow.precompute.DosePullingMetrics.robust( ...
+    runConfig,cst,pln,resultGUI,[0.25 0.75],0,struct()), ...
+    'planWorkflow:precompute:DosePulling:InvalidCtScenProb');
+end
+
 function testHeuristicStepSearchSelectsNormalizedKneeStep(testCase)
 runConfig = heuristicRunConfig();
 runConfig.dose_pulling_max_iter = 10;
@@ -144,6 +192,9 @@ context = planWorkflow.precompute.DosePulling.context( ...
 
 verifyEqual(testCase,report.selected.step,24);
 verifyEqual(testCase,report.selected.oarScore,0);
+verifyEqual(testCase,report.stopReason,'converged');
+verifyTrue(testCase,isfield(report,'trace'));
+verifyTrue(testCase,any([report.trace.isSelected]));
 verifyTrue(testCase,any(contains(messages, ...
     'meanQiTarget(COV1)_CTV')));
 
@@ -196,6 +247,8 @@ context = planWorkflow.precompute.DosePulling.context( ...
     context,robustData);
 
 verifyFalse(testCase,report.selected.isFeasible);
+verifyEqual(testCase,report.stopReason,'infeasible');
+verifyEqual(testCase,report.trace(1).stopReason,'infeasible');
 verifyEqual(testCase,report.selected.rectumPull,101);
 verifyEqual(testCase,report.selected.channelObjective,7);
 
@@ -284,6 +337,37 @@ plan.objectiveSetName = 'robust_1';
 plan.robustnessMode = robustnessMode;
 plan.variants = variants;
 plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1);
+end
+
+function [runConfig,cst,pln,resultGUI] = ...
+        dosePullingMetricsFixture(ctScenProb)
+runConfig = dosePullingRunConfig();
+runConfig.dose_pulling2_target = {'CTV'};
+runConfig.dose_pulling1_criteria = {'COV1'};
+runConfig.dose_pulling2_limit = 0;
+
+ct = struct('numOfCtScen',max(ctScenProb(:,1)));
+pln = struct();
+pln.numOfFractions = 10;
+pln.bioParam = struct('quantityVis','physicalDose');
+pln.multScen = matRad_NominalScenario(ct);
+pln.multScen.ctScenProb = ctScenProb;
+
+cst = dosePullingMetricsCst();
+resultGUI = struct();
+resultGUI.physicalDose_scen1 = 0.5 * ones(3,1);
+resultGUI.physicalDose_scen2 = 1.5 * ones(3,1);
+end
+
+function cst = dosePullingMetricsCst()
+objective = DoseObjectives.matRad_SquaredDeviation(1,10);
+cst = cell(1,6);
+cst{1,1} = 1;
+cst{1,2} = 'CTV';
+cst{1,3} = 'TARGET';
+cst{1,4} = {1:3};
+cst{1,5} = struct('Visible',true,'Priority',1);
+cst{1,6} = {objective};
 end
 
 function testDosePullingContextRequiresExplicitDependencies(testCase)

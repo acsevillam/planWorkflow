@@ -229,7 +229,7 @@ verifyError(testCase,@() planWorkflow.gui.PlanPresetWriter.saveMacro( ...
     'planWorkflow:gui:PlanPresetWriter:UnknownTemplate');
 end
 
-function testMacroOptionsSupportNameValueStructAndPositional(testCase)
+function testMacroOptionsSupportNameValueAndStructOnly(testCase)
 defaults = struct('caseID','3482','rootPath','/tmp/userdata', ...
     'cacheRootPath','/tmp/userdata/output/cache');
 
@@ -245,11 +245,9 @@ verifyEqual(testCase,options.caseID,'3482');
 verifyEqual(testCase,options.rootPath,'/tmp/userdata');
 verifyEqual(testCase,options.cacheRootPath,'/tmp/cache');
 
-options = planWorkflow.gui.PlanPresetWriter.parseMacroOptions( ...
-    defaults,'4136','/tmp/positional','/tmp/positional-cache');
-verifyEqual(testCase,options.caseID,'4136');
-verifyEqual(testCase,options.rootPath,'/tmp/positional');
-verifyEqual(testCase,options.cacheRootPath,'/tmp/positional-cache');
+verifyError(testCase,@() planWorkflow.gui.PlanPresetWriter.parseMacroOptions( ...
+    defaults,'4136','/tmp/rejected'), ...
+    'planWorkflow:gui:PlanPresetWriter:InvalidMacroOptions');
 
 verifyError(testCase,@() planWorkflow.gui.PlanPresetWriter.parseMacroOptions( ...
     defaults,'randomSeed',42), ...
@@ -545,7 +543,6 @@ runConfig.quantityOpt = 'physicalDose';
 runConfig.plan_beams = '9F';
 runConfig.resolution = [3 3 3];
 runConfig.runId = '';
-runConfig.n_cores = 1;
 runConfig.rootPath = rootPath;
 runConfig.outputRootPath = fullfile(rootPath,'output');
 runConfig.patientDataPath = fullfile(rootPath,'patients');

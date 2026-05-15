@@ -304,6 +304,50 @@ verifyError(testCase,@() ...
     'MixedCompactPrecomputeModes']);
 end
 
+function testApplyRobustnessContractIsPublicAndModeScoped(testCase)
+modes = {'none','COWC','PROB2','INTERVAL2'};
+hasNominalObjectives = [true true false true];
+
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    plan = cleanPlan(lower(mode),mode);
+    value = contract(mode,hasNominalObjectives(modeIx));
+
+    plan = planWorkflow.config.RobustPlanConfig.applyRobustnessContract( ...
+        plan,value);
+
+    verifyEqual(testCase,plan.robustnessMode,value.robustnessMode);
+    verifyEqual(testCase,plan.hasNominalObjectives, ...
+        value.hasNominalObjectives);
+    verifyEqual(testCase,plan.requiresNominalDij, ...
+        value.requiresNominalDij);
+    verifyEqual(testCase,plan.requiresScenarioDij, ...
+        value.requiresScenarioDij);
+    verifyEqual(testCase,plan.requiresIntervalDij, ...
+        value.requiresIntervalDij);
+    verifyEqual(testCase,plan.requiresProb2Dij, ...
+        value.requiresProb2Dij);
+end
+end
+
+function testApplyRobustnessContractRejectsInvalidLogicalFlags(testCase)
+plan = cleanPlan('bad','Bad logical');
+value = contract('COWC',true);
+value.requiresScenarioDij = [true false];
+
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.applyRobustnessContract( ...
+    plan,value), ...
+    'planWorkflow:config:RobustPlanConfig:InvalidLogical');
+
+value = contract('COWC',true);
+value.requiresScenarioDij = 2;
+verifyError(testCase,@() ...
+    planWorkflow.config.RobustPlanConfig.applyRobustnessContract( ...
+    plan,value), ...
+    'planWorkflow:config:RobustPlanConfig:InvalidLogical');
+end
+
 function plan = cleanPlan(id,label)
 plan = planWorkflow.config.RobustPlanConfig.defaultPlan();
 plan.id = id;

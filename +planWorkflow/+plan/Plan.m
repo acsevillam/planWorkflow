@@ -61,6 +61,7 @@ classdef Plan
             pln.multScen = planWorkflow.scenario.createModel(ct, ...
                 referenceScenarioConfig.scen_mode, ...
                 referenceScenarioConfig,'optimization');
+            pln = planWorkflow.plan.Plan.applyDoseParallelism(pln,runConfig);
         end
 
         function numOfBeams = numOfBeams(pln)
@@ -80,6 +81,32 @@ classdef Plan
             pln.propDoseCalc.doseGrid.resolution.x = runConfig.doseResolution(1);
             pln.propDoseCalc.doseGrid.resolution.y = runConfig.doseResolution(2);
             pln.propDoseCalc.doseGrid.resolution.z = runConfig.doseResolution(3);
+        end
+
+        function pln = applyDoseParallelism(pln,runConfig)
+            if ~isstruct(pln)
+                return;
+            end
+            hasRunConfig = nargin >= 2;
+            if ~hasRunConfig
+                runConfig = [];
+            end
+            if ~isfield(pln,'propDoseCalc') || isempty(pln.propDoseCalc)
+                pln.propDoseCalc = struct();
+            end
+            useParallel = ...
+                planWorkflow.plan.Plan.supportsParallelScenarioDij(pln);
+            if isstruct(pln.propDoseCalc)
+                pln.propDoseCalc.UseParallel = useParallel;
+                pln.propDoseCalc = ...
+                    planWorkflow.plan.Plan.applyDoseParallelOptions( ...
+                    pln.propDoseCalc,useParallel,runConfig,hasRunConfig);
+            elseif isobject(pln.propDoseCalc) && ...
+                    isprop(pln.propDoseCalc,'UseParallel')
+                pln.propDoseCalc.UseParallel = useParallel;
+                planWorkflow.plan.Plan.applyDoseEngineParallelOptions( ...
+                    pln.propDoseCalc,useParallel,runConfig,hasRunConfig);
+            end
         end
     end
 
@@ -105,6 +132,96 @@ classdef Plan
 
         function tf = bioModelRequiresLet(bioModel)
             tf = any(strcmp(char(bioModel),{'MCN','WED','HEL','LEM'}));
+        end
+
+        function tf = supportsParallelScenarioDij(pln)
+            tf = false;
+            if ~planWorkflow.plan.Plan.hasMultipleScenarios(pln)
+                return;
+            end
+            if exist('matRad_supportsParallelScenarioDij','file') ~= 2
+                planWorkflow.plan.Plan.warnMissingParallelScenarioCapability();
+                return;
+            end
+            [tf,~] = matRad_supportsParallelScenarioDij(pln);
+        end
+
+        function warnMissingParallelScenarioCapability()
+            persistent warnedMissingHelper
+            if ~isempty(warnedMissingHelper) && warnedMissingHelper
+                return;
+            end
+            warning(['planWorkflow:plan:Plan:' ...
+                'MissingParallelScenarioCapability'], ...
+                ['matRad_supportsParallelScenarioDij is unavailable; ' ...
+                 'multi-scenario dose influence calculation will run ' ...
+                 'serially.']);
+            warnedMissingHelper = true;
+        end
+
+        function tf = hasMultipleScenarios(pln)
+            tf = false;
+            if ~isstruct(pln) || ~isfield(pln,'multScen') || ...
+                    isempty(pln.multScen)
+                return;
+            end
+            numScenarios = ...
+                planWorkflow.plan.Plan.scenarioCount(pln.multScen);
+            tf = ~isempty(numScenarios) && numScenarios > 1;
+        end
+
+        function numScenarios = scenarioCount(multScen)
+            numScenarios = [];
+            if isstruct(multScen)
+                if isfield(multScen,'totNumScen') && ...
+                        ~isempty(multScen.totNumScen)
+                    numScenarios = multScen.totNumScen;
+                elseif isfield(multScen,'ctScenProb') && ...
+                        ~isempty(multScen.ctScenProb)
+                    numScenarios = size(multScen.ctScenProb,1);
+                end
+            elseif isobject(multScen)
+                if isprop(multScen,'totNumScen') && ...
+                        ~isempty(multScen.totNumScen)
+                    numScenarios = multScen.totNumScen;
+                elseif isprop(multScen,'ctScenProb') && ...
+                        ~isempty(multScen.ctScenProb)
+                    numScenarios = size(multScen.ctScenProb,1);
+                end
+            end
+        end
+
+        function propDoseCalc = applyDoseParallelOptions( ...
+                propDoseCalc,useParallel,runConfig,hasRunConfig)
+            if isfield(propDoseCalc,'parallelOptions')
+                propDoseCalc = rmfield(propDoseCalc,'parallelOptions');
+            end
+            if ~useParallel || ~hasRunConfig
+                return;
+            end
+            parallelOptions = ...
+                planWorkflow.config.Resources.doseParallelOptions( ...
+                runConfig);
+            if ~isempty(fieldnames(parallelOptions))
+                propDoseCalc.parallelOptions = parallelOptions;
+            end
+        end
+
+        function applyDoseEngineParallelOptions( ...
+                propDoseCalc,useParallel,runConfig,hasRunConfig)
+            if isprop(propDoseCalc,'parallelOptions')
+                propDoseCalc.parallelOptions = struct();
+            end
+            if ~useParallel || ~hasRunConfig || ...
+                    ~isprop(propDoseCalc,'parallelOptions')
+                return;
+            end
+            parallelOptions = ...
+                planWorkflow.config.Resources.doseParallelOptions( ...
+                runConfig);
+            if ~isempty(fieldnames(parallelOptions))
+                propDoseCalc.parallelOptions = parallelOptions;
+            end
         end
 
         function scenarioConfig = referenceScenarioConfig(runConfig)

@@ -6,6 +6,10 @@ tracking, dose influence matrix caching, and plan-analysis helpers.
 
 This repository is a standalone MATLAB toolbox. It depends on a compatible
 matRad checkout at runtime, but matRad is not vendored here.
+Parallel multi-scenario dose-influence calculation uses the
+`matRad_supportsParallelScenarioDij` helper when the active matRad checkout
+provides it. If the helper is unavailable, the toolbox falls back to serial
+scenario dose calculation and emits a warning.
 
 ## Layout
 
@@ -83,6 +87,9 @@ config.analysis.robustnessCriteria = [5 5];
 config.analysis.robustnessTargetMode = 'include';
 config.analysis.robustnessTargets = {'CTV'};
 
+config.resources.doseCalculation.workerUpperBound = [];
+config.resources.doseCalculation.releasePoolAfterStage = false;
+
 workflow = planWorkflow.Workflow(config);
 
 workflow.gui();
@@ -110,6 +117,19 @@ stages: `Prepare`, `Precompute`, `Dose pulling`, `Optimize`, `Sampling`, and
 `Analysis`. Each tab edits the parameters consumed by that stage; the `Prepare`
 tab also exposes the objective-defined target, beam set parameters, dose grid
 resolution, and a single objective table with a `Structure` column.
+
+`resources.sampling.workerUpperBound` and
+`resources.doseCalculation.workerUpperBound` may be empty or a finite positive
+integer. `workerUpperBound = 1` is valid and can force serial execution when at
+least two workers would be required. `resources.doseCalculation.releasePoolAfterStage`
+defaults to `false`, so pools created outside the workflow are not closed unless
+the run explicitly opts into that cleanup.
+
+The robust scenario defaults and catalog presets are photon-oriented examples.
+When selecting catalog robust plans for proton, carbon, or helium workflows,
+call `RobustPlanCatalog.select/all` with `radiationMode` and an explicit
+`robustScenario` that defines the range-uncertainty policy. The catalog does
+not infer range uncertainty for particles.
 
 ## Tests
 

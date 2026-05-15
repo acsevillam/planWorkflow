@@ -323,6 +323,16 @@ classdef (Abstract) WorkflowBase < handle
             configFields = fieldnames(stageConfig);
             for i = 1:numel(configFields)
                 if ~any(strcmp(configFields{i},allowedFields))
+                    replacement = ...
+                        planWorkflow.config.StageConfigSchema.unsupportedFieldReplacement( ...
+                        stageName,configFields{i});
+                    if ~isempty(replacement)
+                        error('planWorkflow:WorkflowBase:UnsupportedStageConfigField', ...
+                            ['Unsupported %s config field "%s". Use ' ...
+                             '"%s" instead. Valid fields are: %s.'], ...
+                            stageName,configFields{i},replacement, ...
+                            strjoin(allowedFields,', '));
+                    end
                     error('planWorkflow:WorkflowBase:UnsupportedStageConfigField', ...
                         'Unsupported %s config field "%s". Valid fields are: %s.', ...
                         stageName,configFields{i},strjoin(allowedFields,', '));
@@ -487,11 +497,23 @@ classdef (Abstract) WorkflowBase < handle
             timing.lastProcessMemoryDeltaBytes = NaN;
             timing.lastMaxObservedProcessMemoryBytes = NaN;
             timing.peakObservedProcessMemoryBytes = NaN;
+            timing.lastStartChildProcessMemoryBytes = NaN;
+            timing.lastEndChildProcessMemoryBytes = NaN;
+            timing.lastChildProcessMemoryDeltaBytes = NaN;
+            timing.lastHighWaterMainProcessMemoryBytes = NaN;
+            timing.lastHighWaterChildProcessMemoryBytes = NaN;
+            timing.lastHighWaterTotalProcessMemoryBytes = NaN;
+            timing.lastChildProcessBuckets = ...
+                planWorkflow.resources.ResourceSampler.disabledSummary().childProcessBuckets;
+            timing.peakHighWaterMainProcessMemoryBytes = NaN;
+            timing.peakHighWaterChildProcessMemoryBytes = NaN;
+            timing.peakHighWaterTotalProcessMemoryBytes = NaN;
             timing.lastStartDataMemoryBytes = NaN;
             timing.lastEndDataMemoryBytes = NaN;
             timing.lastDataMemoryDeltaBytes = NaN;
             timing.peakDataMemoryBytes = NaN;
             timing.memorySource = '';
+            timing.memoryUnavailableCause = '';
             timing.lastErrorMessage = '';
             timing.history = {};
         end
@@ -529,7 +551,7 @@ classdef (Abstract) WorkflowBase < handle
             startTime = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
             wallTimer = tic;
             startCpuTime = cputime;
-            startProcessMemory = obj.processMemorySnapshot();
+            resourceSampler = obj.startResourceSampler();
             startDataMemoryBytes = obj.matlabVariableBytes(obj.data);
             obj.reportGuiStageStarted(stageName);
 
@@ -539,7 +561,7 @@ classdef (Abstract) WorkflowBase < handle
                 obj.assertGuiExecutionNotStopped();
                 wallTimeSeconds = toc(wallTimer);
                 cpuTimeSeconds = cputime - startCpuTime;
-                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                memoryRecord = obj.stageMemoryRecord(resourceSampler, ...
                     startDataMemoryBytes);
                 obj.recordStageTiming(stageName,completedStageName,startTime, ...
                     wallTimeSeconds,cpuTimeSeconds,'completed','', ...
@@ -548,7 +570,7 @@ classdef (Abstract) WorkflowBase < handle
             catch ME
                 wallTimeSeconds = toc(wallTimer);
                 cpuTimeSeconds = cputime - startCpuTime;
-                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                memoryRecord = obj.stageMemoryRecord(resourceSampler, ...
                     startDataMemoryBytes);
                 obj.recordStageTiming(stageName,completedStageName,startTime, ...
                     wallTimeSeconds,cpuTimeSeconds,'failed', ...
@@ -564,7 +586,7 @@ classdef (Abstract) WorkflowBase < handle
             startTime = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
             wallTimer = tic;
             startCpuTime = cputime;
-            startProcessMemory = obj.processMemorySnapshot();
+            resourceSampler = obj.startResourceSampler();
             startDataMemoryBytes = obj.matlabVariableBytes(obj.data);
             taskOutputs = {};
 
@@ -579,7 +601,7 @@ classdef (Abstract) WorkflowBase < handle
                 obj.assertGuiExecutionNotStopped();
                 wallTimeSeconds = toc(wallTimer);
                 cpuTimeSeconds = cputime - startCpuTime;
-                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                memoryRecord = obj.stageMemoryRecord(resourceSampler, ...
                     startDataMemoryBytes);
                 detail = obj.planTaskResourceDetail(stageName,role,label, ...
                     taskName,robustPlanId,variantId,taskOutputs);
@@ -589,7 +611,7 @@ classdef (Abstract) WorkflowBase < handle
             catch ME
                 wallTimeSeconds = toc(wallTimer);
                 cpuTimeSeconds = cputime - startCpuTime;
-                memoryRecord = obj.stageMemoryRecord(startProcessMemory, ...
+                memoryRecord = obj.stageMemoryRecord(resourceSampler, ...
                     startDataMemoryBytes);
                 obj.recordPlanTiming(stageName,role,label,taskName, ...
                     robustPlanId,variantId,startTime,wallTimeSeconds, ...
@@ -618,10 +640,25 @@ classdef (Abstract) WorkflowBase < handle
                 memoryRecord.processMemoryDeltaBytes;
             record.maxObservedProcessMemoryBytes = ...
                 memoryRecord.maxObservedProcessMemoryBytes;
+            record.startChildProcessMemoryBytes = ...
+                memoryRecord.startChildProcessMemoryBytes;
+            record.endChildProcessMemoryBytes = ...
+                memoryRecord.endChildProcessMemoryBytes;
+            record.childProcessMemoryDeltaBytes = ...
+                memoryRecord.childProcessMemoryDeltaBytes;
+            record.highWaterMainProcessMemoryBytes = ...
+                memoryRecord.highWaterMainProcessMemoryBytes;
+            record.highWaterChildProcessMemoryBytes = ...
+                memoryRecord.highWaterChildProcessMemoryBytes;
+            record.highWaterTotalProcessMemoryBytes = ...
+                memoryRecord.highWaterTotalProcessMemoryBytes;
+            record.childProcessBuckets = memoryRecord.childProcessBuckets;
             record.startDataMemoryBytes = memoryRecord.startDataMemoryBytes;
             record.endDataMemoryBytes = memoryRecord.endDataMemoryBytes;
             record.dataMemoryDeltaBytes = memoryRecord.dataMemoryDeltaBytes;
             record.memorySource = memoryRecord.memorySource;
+            record.memoryUnavailableCause = ...
+                memoryRecord.memoryUnavailableCause;
 
             timing = obj.state.stageTimings.(stageName);
             timing.stage = stageName;
@@ -646,38 +683,95 @@ classdef (Abstract) WorkflowBase < handle
             timing.peakObservedProcessMemoryBytes = obj.maxFinite([ ...
                 timing.peakObservedProcessMemoryBytes ...
                 memoryRecord.maxObservedProcessMemoryBytes]);
+            timing.lastStartChildProcessMemoryBytes = ...
+                memoryRecord.startChildProcessMemoryBytes;
+            timing.lastEndChildProcessMemoryBytes = ...
+                memoryRecord.endChildProcessMemoryBytes;
+            timing.lastChildProcessMemoryDeltaBytes = ...
+                memoryRecord.childProcessMemoryDeltaBytes;
+            timing.lastHighWaterMainProcessMemoryBytes = ...
+                memoryRecord.highWaterMainProcessMemoryBytes;
+            timing.lastHighWaterChildProcessMemoryBytes = ...
+                memoryRecord.highWaterChildProcessMemoryBytes;
+            timing.lastHighWaterTotalProcessMemoryBytes = ...
+                memoryRecord.highWaterTotalProcessMemoryBytes;
+            timing.lastChildProcessBuckets = memoryRecord.childProcessBuckets;
+            timing.peakHighWaterMainProcessMemoryBytes = obj.maxFinite([ ...
+                timing.peakHighWaterMainProcessMemoryBytes ...
+                memoryRecord.highWaterMainProcessMemoryBytes]);
+            timing.peakHighWaterChildProcessMemoryBytes = obj.maxFinite([ ...
+                timing.peakHighWaterChildProcessMemoryBytes ...
+                memoryRecord.highWaterChildProcessMemoryBytes]);
+            timing.peakHighWaterTotalProcessMemoryBytes = obj.maxFinite([ ...
+                timing.peakHighWaterTotalProcessMemoryBytes ...
+                memoryRecord.highWaterTotalProcessMemoryBytes]);
             timing.lastStartDataMemoryBytes = memoryRecord.startDataMemoryBytes;
             timing.lastEndDataMemoryBytes = memoryRecord.endDataMemoryBytes;
             timing.lastDataMemoryDeltaBytes = memoryRecord.dataMemoryDeltaBytes;
             timing.peakDataMemoryBytes = obj.maxFinite([ ...
                 timing.peakDataMemoryBytes memoryRecord.endDataMemoryBytes]);
             timing.memorySource = memoryRecord.memorySource;
+            timing.memoryUnavailableCause = memoryRecord.memoryUnavailableCause;
             timing.lastErrorMessage = errorMessage;
             timing.history{end + 1} = record;
 
             obj.state.stageTimings.(stageName) = timing;
         end
 
-        function memoryRecord = stageMemoryRecord(obj,startProcessMemory, ...
+        function memoryRecord = stageMemoryRecord(obj,resourceSampler, ...
                 startDataMemoryBytes)
-            endProcessMemory = obj.processMemorySnapshot();
+            if isempty(resourceSampler)
+                resourceSummary = ...
+                    planWorkflow.resources.ResourceSampler.disabledSummary();
+            else
+                resourceSummary = resourceSampler.finish();
+            end
             endDataMemoryBytes = obj.matlabVariableBytes(obj.data);
             memoryRecord = struct();
             memoryRecord.startProcessMemoryBytes = ...
-                startProcessMemory.processMemoryBytes;
+                resourceSummary.startMainProcessMemoryBytes;
             memoryRecord.endProcessMemoryBytes = ...
-                endProcessMemory.processMemoryBytes;
+                resourceSummary.endMainProcessMemoryBytes;
             memoryRecord.processMemoryDeltaBytes = ...
                 obj.finiteDelta(memoryRecord.endProcessMemoryBytes, ...
                 memoryRecord.startProcessMemoryBytes);
             memoryRecord.maxObservedProcessMemoryBytes = obj.maxFinite([ ...
                 memoryRecord.startProcessMemoryBytes ...
-                memoryRecord.endProcessMemoryBytes]);
+                memoryRecord.endProcessMemoryBytes ...
+                resourceSummary.highWaterMainProcessMemoryBytes]);
+            memoryRecord.startChildProcessMemoryBytes = ...
+                resourceSummary.startChildProcessMemoryBytes;
+            memoryRecord.endChildProcessMemoryBytes = ...
+                resourceSummary.endChildProcessMemoryBytes;
+            memoryRecord.childProcessMemoryDeltaBytes = ...
+                obj.finiteDelta(memoryRecord.endChildProcessMemoryBytes, ...
+                memoryRecord.startChildProcessMemoryBytes);
+            memoryRecord.highWaterMainProcessMemoryBytes = ...
+                resourceSummary.highWaterMainProcessMemoryBytes;
+            memoryRecord.highWaterChildProcessMemoryBytes = ...
+                resourceSummary.highWaterChildProcessMemoryBytes;
+            memoryRecord.highWaterTotalProcessMemoryBytes = ...
+                resourceSummary.highWaterTotalProcessMemoryBytes;
+            memoryRecord.childProcessBuckets = ...
+                resourceSummary.childProcessBuckets;
             memoryRecord.startDataMemoryBytes = startDataMemoryBytes;
             memoryRecord.endDataMemoryBytes = endDataMemoryBytes;
             memoryRecord.dataMemoryDeltaBytes = obj.finiteDelta( ...
                 endDataMemoryBytes,startDataMemoryBytes);
-            memoryRecord.memorySource = endProcessMemory.source;
+            memoryRecord.memorySource = resourceSummary.source;
+            memoryRecord.memoryUnavailableCause = ...
+                resourceSummary.unavailableCause;
+        end
+
+        function sampler = startResourceSampler(obj)
+            resources = planWorkflow.config.Resources.fromRunConfig( ...
+                obj.runConfig);
+            if ~resources.memory.enabled
+                sampler = [];
+                return;
+            end
+            sampler = planWorkflow.resources.ResourceSampler.start( ...
+                resources.memory);
         end
 
         function sample = processMemorySnapshot(~)
@@ -745,7 +839,8 @@ classdef (Abstract) WorkflowBase < handle
             stageSummary.cpuTimeUnit = 'seconds';
             stageSummary.memoryUnit = 'bytes';
             stageSummary.processMemoryMetric = ...
-                'MATLAB process resident set size';
+                ['MATLAB process-tree resident set size sampled via ps ' ...
+                '(main, child, and total high-water fields)'];
             stageSummary.dataMemoryMetric = ...
                 'MATLAB bytes reported by whos for obj.data';
             stageSummary.stageTimings = obj.state.stageTimings;
@@ -841,10 +936,24 @@ classdef (Abstract) WorkflowBase < handle
                 memoryRecord.processMemoryDeltaBytes;
             record.maxObservedProcessMemoryBytes = ...
                 memoryRecord.maxObservedProcessMemoryBytes;
+            record.startChildProcessMemoryBytes = ...
+                memoryRecord.startChildProcessMemoryBytes;
+            record.endChildProcessMemoryBytes = ...
+                memoryRecord.endChildProcessMemoryBytes;
+            record.childProcessMemoryDeltaBytes = ...
+                memoryRecord.childProcessMemoryDeltaBytes;
+            record.highWaterMainProcessMemoryBytes = ...
+                memoryRecord.highWaterMainProcessMemoryBytes;
+            record.highWaterChildProcessMemoryBytes = ...
+                memoryRecord.highWaterChildProcessMemoryBytes;
+            record.highWaterTotalProcessMemoryBytes = ...
+                memoryRecord.highWaterTotalProcessMemoryBytes;
+            record.childProcessBuckets = memoryRecord.childProcessBuckets;
             record.startDataMemoryBytes = memoryRecord.startDataMemoryBytes;
             record.endDataMemoryBytes = memoryRecord.endDataMemoryBytes;
             record.dataMemoryDeltaBytes = memoryRecord.dataMemoryDeltaBytes;
             record.memorySource = memoryRecord.memorySource;
+            record.memoryUnavailableCause = memoryRecord.memoryUnavailableCause;
 
             obj.data.performance.planTimings(end + 1) = record;
         end
@@ -880,10 +989,19 @@ classdef (Abstract) WorkflowBase < handle
             timing.endProcessMemoryBytes = NaN;
             timing.processMemoryDeltaBytes = NaN;
             timing.maxObservedProcessMemoryBytes = NaN;
+            timing.startChildProcessMemoryBytes = NaN;
+            timing.endChildProcessMemoryBytes = NaN;
+            timing.childProcessMemoryDeltaBytes = NaN;
+            timing.highWaterMainProcessMemoryBytes = NaN;
+            timing.highWaterChildProcessMemoryBytes = NaN;
+            timing.highWaterTotalProcessMemoryBytes = NaN;
+            timing.childProcessBuckets = ...
+                planWorkflow.resources.ResourceSampler.disabledSummary().childProcessBuckets;
             timing.startDataMemoryBytes = NaN;
             timing.endDataMemoryBytes = NaN;
             timing.dataMemoryDeltaBytes = NaN;
             timing.memorySource = '';
+            timing.memoryUnavailableCause = '';
             timing.errorMessage = '';
         end
 
@@ -986,17 +1104,31 @@ classdef (Abstract) WorkflowBase < handle
             dataMetadata.workflowData = workflowDataMetadata;
             dataArtifact = struct('data',workflowData, ...
                 'dataMetadata',dataMetadata);
-            obj.saveStructArtifact(obj.dataFile,dataArtifact);
+            dataSaveTelemetry = ...
+                obj.saveStructArtifact(obj.dataFile,dataArtifact,'data');
 
             resultsArtifact = struct('results',workflowResults, ...
                 'resultsMetadata',obj.artifactMetadata('results'));
-            obj.saveStructArtifact(obj.resultsFile,resultsArtifact);
+            resultsSaveTelemetry = ...
+                obj.saveStructArtifact(obj.resultsFile,resultsArtifact, ...
+                'results');
 
+            performance = obj.performanceSummary();
+            artifactSaveTelemetry = struct();
+            artifactSaveTelemetry.data = dataSaveTelemetry;
+            artifactSaveTelemetry.results = resultsSaveTelemetry;
             performanceArtifact = struct( ...
-                'performance',obj.performanceSummary(), ...
+                'performance',performance, ...
                 'stageTimings',obj.state.stageTimings, ...
                 'performanceMetadata',obj.artifactMetadata('performance'));
-            obj.saveStructArtifact(obj.performanceFile,performanceArtifact);
+            artifactSaveTelemetry.performance = ...
+                obj.pendingSaveTelemetry( ...
+                'performance',obj.performanceFile,performanceArtifact);
+            performanceArtifact.performance.artifactSaveTelemetry = ...
+                artifactSaveTelemetry;
+            performanceSaveTelemetry = ...
+                obj.saveStructArtifact(obj.performanceFile,performanceArtifact, ...
+                'performance');
 
             stateSnapshot = rmfield(obj.state,'stageTimings');
             manifest = struct( ...
@@ -1006,12 +1138,43 @@ classdef (Abstract) WorkflowBase < handle
                 'paths',paths, ...
                 'className',class(obj), ...
                 'artifactFiles',artifactFiles);
-            obj.saveStructArtifact(obj.stateFile,manifest);
+            manifest.artifactSaveTelemetry = artifactSaveTelemetry;
+            manifest.artifactSaveTelemetry.performance = ...
+                performanceSaveTelemetry;
+            obj.saveStructArtifact(obj.stateFile,manifest,'state');
             obj.log(sprintf('Workflow state saved to %s.',obj.stateFile));
         end
 
-        function saveStructArtifact(~,filePath,artifact) %#ok<INUSD>
+        function telemetry = saveStructArtifact(obj,filePath,artifact,kind)
+            if nargin < 4
+                kind = '';
+            end
+            telemetry = obj.pendingSaveTelemetry(kind,filePath,artifact);
+            saveTimer = tic;
             builtin('save',filePath,'-struct','artifact','-v7.3');
+            telemetry.saveSeconds = toc(saveTimer);
+            telemetry.fileBytes = obj.fileBytes(filePath);
+            telemetry.savedAt = char(datetime('now','Format', ...
+                'yyyy-MM-dd HH:mm:ss'));
+        end
+
+        function telemetry = pendingSaveTelemetry(~,kind,filePath,artifact)
+            info = whos('artifact');
+            telemetry = struct();
+            telemetry.artifactKind = char(kind);
+            telemetry.filePath = char(filePath);
+            telemetry.saveSeconds = NaN;
+            telemetry.fileBytes = NaN;
+            telemetry.logicalBytes = info.bytes;
+            telemetry.savedAt = '';
+        end
+
+        function bytes = fileBytes(~,filePath)
+            bytes = NaN;
+            info = dir(filePath);
+            if ~isempty(info)
+                bytes = info.bytes;
+            end
         end
 
         function loadState(obj,stateFile)

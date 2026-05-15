@@ -54,6 +54,9 @@ classdef PrepareTemplateSelection
                 selectedBeamIx = 1;
                 runConfig.plan_beams = beamIds{selectedBeamIx};
             end
+            [runConfig,template] = ...
+                planWorkflow.gui.PlanEditorContract.resetPrecomputeForTemplateSelection( ...
+                runConfig,template);
 
             patch = struct();
             patch.runConfig = runConfig;

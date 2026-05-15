@@ -67,7 +67,7 @@ classdef StageConfigSchema
                         planWorkflow.config.StageConfigSchema.sourceFieldsForTargets( ...
                         'pullDose',fields);
                 case 'optimize'
-                    fields = {'optimizer'};
+                    fields = {'optimizer','optimizerOptions'};
                 case 'sampling'
                     fields = ...
                         planWorkflow.config.WorkflowParameterSchema.samplingParameterFields( ...
@@ -174,7 +174,7 @@ classdef StageConfigSchema
                     fields = planWorkflow.config.StageConfigSchema.sourceFields( ...
                         'pullDose');
                 case 'optimize'
-                    fields = {'optimizer'};
+                    fields = {'optimizer','optimizerOptions'};
                 case 'sampling'
                     fields = planWorkflow.config.StageConfigSchema.sourceFields( ...
                         'sampling');
@@ -184,6 +184,19 @@ classdef StageConfigSchema
                     else
                         fields = fieldnames(analysisDefaults)';
                     end
+            end
+        end
+
+        function replacement = unsupportedFieldReplacement(stageName,fieldName)
+            stageName = ...
+                planWorkflow.config.StageConfigSchema.canonicalStageName( ...
+                stageName);
+            fieldName = char(fieldName);
+            replacement = '';
+            if strcmp(stageName,'prepare') && strcmp(fieldName,'n_cores')
+                replacement = ...
+                    ['resources.sampling.workerUpperBound or ' ...
+                     'resources.sampling.autoLimitWorkers'];
             end
         end
 

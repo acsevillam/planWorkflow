@@ -10,6 +10,47 @@ verifyError(testCase,@() planWorkflow.Workflow(config), ...
     'planWorkflow:Engine:UnsupportedConfigField');
 end
 
+function testLegacyNCoresIsRejected(testCase)
+config = baseEngineConfig(testCase);
+config.n_cores = 8;
+
+verifyError(testCase,@() planWorkflow.Workflow(config), ...
+    'planWorkflow:Engine:UnsupportedConfigField');
+end
+
+function testLegacyPrepareNCoresIsRejected(testCase)
+config = baseEngineConfig(testCase);
+config.prepare = struct('n_cores',8);
+
+verifyError(testCase,@() planWorkflow.Workflow(config), ...
+    'planWorkflow:WorkflowBase:UnsupportedStageConfigField');
+end
+
+function testResourcesAndOptimizerOptionsAreNormalized(testCase)
+config = baseEngineConfig(testCase);
+config.optimizerOptions = struct('max_iter',7);
+config.resources = struct();
+config.resources.sampling = struct('workerUpperBound',2);
+config.resources.doseCalculation = struct('workerUpperBound',3);
+
+workflow = planWorkflowTest.EngineProbe(config);
+
+verifyEqual(testCase,workflow.runConfig.optimizerOptions.max_iter,7);
+verifyTrue(testCase,workflow.runConfig.resources.memory.enabled);
+verifyEqual(testCase, ...
+    workflow.runConfig.resources.sampling.workerUpperBound,2);
+verifyEqual(testCase, ...
+    workflow.runConfig.resources.sampling.workerMemorySafetyFactor,1.2);
+verifyEqual(testCase, ...
+    workflow.runConfig.resources.sampling.minWorkerMemoryBytes, ...
+    2 * 1024^3);
+verifyEqual(testCase, ...
+    workflow.runConfig.resources.doseCalculation.workerUpperBound,3);
+verifyEqual(testCase, ...
+    workflow.runConfig.resources.doseCalculation.minWorkerMemoryBytes, ...
+    4 * 1024^3);
+end
+
 function testSingleRobustPlanUsesCanonicalRobustnessMode(testCase)
 config = baseEngineConfig(testCase);
 config.precompute.robustPlans = robustPlanConfig( ...
@@ -621,7 +662,11 @@ intervalConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
 cacheContext = workflow.intervalCacheContextPublic(robustData);
 
 verifyTrue(testCase,intervalConfig.UseParallel);
+verifyTrue(testCase,isfield(intervalConfig,'parallelOptions'));
+verifyEqual(testCase, ...
+    intervalConfig.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyFalse(testCase,isfield(cacheContext.interval,'UseParallel'));
+verifyFalse(testCase,isfield(cacheContext.interval,'parallelOptions'));
 
 robustData.planConfig.robustnessOptions.radiusMode = 'extreme';
 intervalConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
@@ -635,10 +680,10 @@ end
 
 function testStreamingDoseConfigCarriesSecondPassOptions(testCase)
 config = baseEngineConfig(testCase);
-config.plan_template = 'interval3_001';
+config.plan_template = 'interval2_001';
 cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
 config.precompute.robustPlans = robustPlanConfig( ...
-    'intervalPlan','INTERVAL3','Interval3','INTERVAL3','wcScen', ...
+    'intervalPlan','INTERVAL2','Interval2','INTERVAL2','wcScen', ...
     [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
 config.precompute.robustPlans.dosePrecompute.useStreaming = true;
 config.precompute.robustPlans.dosePrecompute.SecondPassStrategy = 'recompute';
@@ -661,7 +706,12 @@ streamingConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
     workflow.intervalDoseInfluenceContext(),robustData,true);
 
 verifyFalse(testCase,isfield(legacyConfig,'SecondPassStrategy'));
+verifyFalse(testCase,isfield(legacyConfig,'UseParallel'));
 verifyEqual(testCase,streamingConfig.SecondPassStrategy,'recompute');
+verifyTrue(testCase,streamingConfig.UseParallel);
+verifyTrue(testCase,isfield(streamingConfig,'parallelOptions'));
+verifyEqual(testCase, ...
+    streamingConfig.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyTrue(testCase,streamingConfig.KeepCache);
 verifyEqual(testCase,streamingConfig.CacheRoot,cacheRoot);
 end
@@ -691,8 +741,38 @@ prob2Config = planWorkflow.precompute.Prob2DoseInfluence.doseConfig( ...
     workflow.intervalDoseInfluenceContext(),robustData,true);
 
 verifyEqual(testCase,prob2Config.SecondPassStrategy,'disk');
+verifyTrue(testCase,prob2Config.UseParallel);
+verifyTrue(testCase,isfield(prob2Config,'parallelOptions'));
+verifyEqual(testCase, ...
+    prob2Config.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyTrue(testCase,prob2Config.KeepCache);
 verifyFalse(testCase,isfield(prob2Config,'CacheRoot'));
+end
+
+function testDoseParallelismUsesEngineCapabilityAndResources(testCase)
+pln = parallelScenarioPlan( ...
+    DoseEngines.matRad_PhotonPencilBeamSVDEngine(),3);
+
+pln = planWorkflow.plan.Plan.applyDoseParallelism(pln);
+
+verifyFalse(testCase,pln.propDoseCalc.UseParallel);
+verifyEqual(testCase,pln.propDoseCalc.parallelOptions,struct());
+
+pln = parallelScenarioPlan( ...
+    DoseEngines.matRad_ParticleHongPencilBeamEngine(),3);
+runConfig.resources = planWorkflow.config.Resources.defaults();
+runConfig.resources.doseCalculation.workerUpperBound = 4;
+pln = planWorkflow.plan.Plan.applyDoseParallelism(pln,runConfig);
+
+if exist('matRad_supportsParallelScenarioDij','file') == 2
+    verifyTrue(testCase,pln.propDoseCalc.UseParallel);
+    verifyEqual(testCase,pln.propDoseCalc.parallelOptions.workerUpperBound,4);
+    verifyEqual(testCase, ...
+        pln.propDoseCalc.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
+else
+    verifyFalse(testCase,pln.propDoseCalc.UseParallel);
+    verifyEqual(testCase,pln.propDoseCalc.parallelOptions,struct());
+end
 end
 
 function testReferenceCompactCacheIdentityUsesReferencePlan(testCase)
@@ -2523,6 +2603,12 @@ for scenarioIx = 1:numScenarios
 end
 cst{1,5} = struct();
 cst{1,6} = [];
+end
+
+function pln = parallelScenarioPlan(engine,numScenarios)
+pln = struct();
+pln.propDoseCalc = engine;
+pln.multScen = struct('totNumScen',numScenarios);
 end
 
 function verifyDerivedKeyUsesInputStem(testCase,derivedKey,robustKey)

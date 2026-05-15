@@ -11,6 +11,9 @@ toolbox repository whose root folder is on the MATLAB path.
 - `planWorkflow.Workflow`: public robust optimization workflow entrypoint.
 - `planWorkflow.Engine`: internal robust workflow implementation used by `planWorkflow.Workflow`.
 - `planWorkflow.config.Analysis`: strict analysis defaults, validation, and prescription-based dose windows.
+- `planWorkflow.config.RobustPlanCatalog`: robust-plan presets derived from
+  template objective sets, with reusable plan selection and validation for
+  macros.
 - `planWorkflow.analysis.ExpectedQi`: QI calculation from the expected DVH curve used by trustband plots.
 - `planWorkflow.analysis.ResultLogger`: compact console formatting for final analysis summaries.
 - `planWorkflow.analysis.PlanAnalysis`, `planWorkflow.analysis.Figures`: plan-analysis and sampling-figure helpers.
@@ -79,6 +82,11 @@ objective set and 10000 internal variants after combining with robust
 parameter variants. A penalty vector is rejected on objectives using a
 `dose_pulling_2` channel; keep those objectives scalar or move the sweep to a
 non-pulled objective.
+
+`RobustPlanCatalog` defaults are photon-oriented. For proton, carbon, and
+helium catalog selections, pass `radiationMode` and an explicit
+`robustScenario`; the catalog will not infer a particle range-uncertainty
+policy.
 
 ## Resume
 
