@@ -367,6 +367,10 @@ planConfig = robustPlanConfig('robust_1','Robust','PTV', ...
     robustVariantConfig('variant_1','Variant 1',1,1,1,1));
 planConfig.scenario.ctActive = true;
 planConfig.scenario.ctReferenceScenId = 2;
+planConfig.scenario.rangeActive = true;
+planConfig.scenario.rangeAbsSD = 1;
+planConfig.scenario.rangeRelSD = 3.5;
+planConfig.scenario.numOfRangeGridPoints = 3;
 
 ct = struct('numOfCtScen',3);
 pln = struct();
@@ -549,6 +553,7 @@ scenario.setupActive = true;
 scenario.rangeActive = true;
 scenario.rangeAbsSD = 1;
 scenario.rangeRelSD = 3.5;
+scenario.numOfRangeGridPoints = 3;
 
 [viewData,scenarioForComputation,metadata] = ...
     planWorkflow.precompute.CtReferenceDataView.apply( ...
@@ -944,7 +949,8 @@ dijIntervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 cacheMetadata.dijPrecomputingSize = ...
@@ -1024,7 +1030,8 @@ dijIntervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 cacheMetadata.dijPrecomputingSize = struct( ...
@@ -1082,7 +1089,8 @@ dijProbContext = probDijContext(dij_prob); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     probTag,robustData.pln,cacheContext);
 cacheMetadata.probabilisticMode = 'PROB';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_prob');
 cacheMetadata.dijPrecomputingSize = ...
@@ -1161,7 +1169,8 @@ dijProbContext.physicalDose = {sparse(1,1,5, ...
 cacheMetadata = workflow.cacheMetadataPublic( ...
     probTag,robustData.pln,cacheContext);
 cacheMetadata.probabilisticMode = 'PROB';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_prob');
 cacheMetadata.dijPrecomputingSize = ...
@@ -1214,7 +1223,8 @@ dijIntervalContext.physicalDose = {sparse(1,1,7, ...
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 cacheMetadata.dijPrecomputingSize = ...
@@ -1436,7 +1446,8 @@ dijIntervalContext.RBExDose = ...
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
 cacheMetadata.intervalMode = 'INTERVAL2';
-cacheMetadata.scenarioFingerprint = scenarioModel.fingerprint();
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
 cacheMetadata.dijPrecomputingTiming = ...
     sampleDijPrecomputingTiming('dij_interval');
 cacheMetadata.dijPrecomputingSize = ...
@@ -2018,9 +2029,12 @@ verifyFalse(testCase,any(strcmp(multScen.scenarioDimensionActive,'couch')));
 verifyEqual(testCase,multScen.gantryAngleSD,2);
 verifyEqual(testCase,multScen.couchAngleSD,0);
 verifyEqual(testCase,multScen.numOfBeams,2);
-verifyEqual(testCase,size(multScen.linearMask,2),5);
-verifyGreaterThan(testCase,max(multScen.linearMask(:,4)),1);
-verifyTrue(testCase,all(multScen.linearMask(:,5) == 1));
+verifyEqual(testCase,multScen.scenarioStoragePolicy, ...
+    'compact-realization');
+verifyEqual(testCase,size(multScen.scenarioStorageSubscripts,2),2);
+verifyEqual(testCase,multScen.numScenarios(),config.random_size);
+verifyTrue(testCase,any(abs(multScen.gantryAngleOffset(:)) > 0));
+verifyTrue(testCase,all(abs(multScen.couchAngleOffset(:)) <= eps));
 end
 
 function testRandomScenarioAcceptsCouchOnlyAngularDimension(testCase)
@@ -2040,9 +2054,12 @@ verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'couch')));
 verifyEqual(testCase,multScen.gantryAngleSD,0);
 verifyEqual(testCase,multScen.couchAngleSD,3);
 verifyEqual(testCase,multScen.numOfBeams,2);
-verifyEqual(testCase,size(multScen.linearMask,2),5);
-verifyTrue(testCase,all(multScen.linearMask(:,4) == 1));
-verifyGreaterThan(testCase,max(multScen.linearMask(:,5)),1);
+verifyEqual(testCase,multScen.scenarioStoragePolicy, ...
+    'compact-realization');
+verifyEqual(testCase,size(multScen.scenarioStorageSubscripts,2),2);
+verifyEqual(testCase,multScen.numScenarios(),config.random_size);
+verifyTrue(testCase,all(abs(multScen.gantryAngleOffset(:)) <= eps));
+verifyTrue(testCase,any(abs(multScen.couchAngleOffset(:)) > 0));
 end
 
 function testRandomScenarioAcceptsBeamCountWithoutAngularDimensions(testCase)

@@ -42,6 +42,7 @@ end
 
 validateAngularDimensionSupport(scenarioMode,activeDimensionNames, ...
     numOfBeams);
+validateGriddedScenarioSupport(scenarioMode,runConfig);
 
 switch scenarioMode
     case 'nomScen'
@@ -86,7 +87,7 @@ switch scenarioMode
         multScen.updateScenarios();
 
     case 'random'
-        multScen = matRad_createScenarioModel(ct,'random');
+        multScen = matRad_createScenarioModel(ct,'rndScen');
         multScen = applyScenarioDimensions(multScen,activeDimensionNames, ...
             shiftSD,rangeAbsSD,rangeRelSD,gantryAngleSD,couchAngleSD, ...
             numOfBeams);
@@ -103,6 +104,52 @@ switch scenarioMode
              'impScen_permuted7, permuted *_truncated variants, or random.'], ...
              scenarioMode);
 end
+end
+
+function validateGriddedScenarioSupport(scenarioMode,runConfig)
+if ~isLegacyGriddedScenarioMode(scenarioMode)
+    return;
+end
+
+activeDimensionNames = planWorkflow.scenario.activeDimensionNames( ...
+    runConfig);
+if ~any(strcmp(activeDimensionNames,'setup')) || ...
+        ~any(strcmp(activeDimensionNames,'range'))
+    error('planWorkflow:scenario:createModel:InvalidGriddedDimensions', ...
+        ['The current matRad gridded scenario models require active ' ...
+         'setup and range dimensions. Use rndScen/random for sparse or ' ...
+         'extended dimension subsets.']);
+end
+
+shiftSD = getConfigValue(runConfig,'shiftSD',[5 10 5]);
+rangeAbsSD = getConfigValue(runConfig,'rangeAbsSD',1);
+rangeRelSD = getConfigValue(runConfig,'rangeRelSD',3.5);
+numOfRangeGridPoints = getConfigValue(runConfig,'numOfRangeGridPoints',3);
+validUncertaintyScale = all(shiftSD(:) > 0) && ...
+    rangeAbsSD > 0 && rangeRelSD > 0;
+if ~validUncertaintyScale
+    error('planWorkflow:scenario:createModel:InvalidGriddedScale', ...
+        ['The current matRad gridded scenario models require positive ' ...
+         'setup and range uncertainty scales.']);
+end
+
+validRangeGrid = isnumeric(numOfRangeGridPoints) && ...
+    isscalar(numOfRangeGridPoints) && isfinite(numOfRangeGridPoints) && ...
+    round(numOfRangeGridPoints) == numOfRangeGridPoints && ...
+    numOfRangeGridPoints >= 3;
+if ~validRangeGrid
+    error('planWorkflow:scenario:createModel:InvalidRangeGrid', ...
+        ['The current matRad gridded scenario models require at least ' ...
+         'three range grid points to preserve non-singleton legacy ' ...
+         'ct/setup/range storage.']);
+end
+end
+
+function tf = isLegacyGriddedScenarioMode(scenarioMode)
+tf = any(strcmp(char(scenarioMode), ...
+    {'wcScen','impScen','impScen5','impScen7', ...
+     'impScen_permuted5','impScen_permuted7', ...
+     'impScen_permuted5_truncated','impScen_permuted7_truncated'}));
 end
 
 function applyRandomSeed(multScen,randomSeed)

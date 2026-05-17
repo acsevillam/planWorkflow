@@ -337,7 +337,9 @@ classdef DoseInfluenceCache
                 metadata.machine = pln.machine;
             end
             if isfield(pln,'multScen') && isa(pln.multScen,'matRad_ScenarioModel')
-                metadata.scenarioFingerprint = pln.multScen.fingerprint();
+                metadata.scenarioFingerprint = ...
+                    planWorkflow.cache.CacheIdentity.scenarioFingerprint( ...
+                    pln.multScen);
                 metadata.numOfScenarios = pln.multScen.numScenarios();
             end
             metadata.className = 'planWorkflow.cache.DoseInfluenceCache';
@@ -362,7 +364,8 @@ classdef DoseInfluenceCache
                 return;
             end
             tf = strcmp(cached.cacheMetadata.scenarioFingerprint, ...
-                pln.multScen.fingerprint());
+                planWorkflow.cache.CacheIdentity.scenarioFingerprint( ...
+                pln.multScen));
             if tf && isfield(cached,'dij') && isfield(cached.dij,'numOfScenarios')
                 tf = cached.dij.numOfScenarios == pln.multScen.numScenarios();
             end
