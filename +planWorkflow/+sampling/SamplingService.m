@@ -178,21 +178,55 @@ classdef SamplingService
         end
 
         function pln = samplingPlan(pln)
-            if ~isstruct(pln) || ~isfield(pln,'bioModel') || ...
-                    ~isobject(pln.bioModel) || ...
-                    ~isa(pln.bioModel,'matRad_BiologicalModel')
+            if ~isstruct(pln)
                 return;
             end
 
+            modelName = ...
+                planWorkflow.sampling.SamplingService.bioModelName(pln);
+            if ~isempty(modelName)
+                pln.bioModel = modelName;
+            end
+
+            if isfield(pln,'bioParam') && isobject(pln.bioParam) && ...
+                    isa(pln.bioParam,'matRad_BiologicalModel')
+                pln = rmfield(pln,'bioParam');
+            end
+        end
+
+        function modelName = bioModelName(pln)
             modelName = '';
-            if isprop(pln.bioModel,'model')
-                modelName = pln.bioModel.model;
+            if isfield(pln,'bioModel')
+                modelName = ...
+                    planWorkflow.sampling.SamplingService.modelNameFromValue( ...
+                    pln.bioModel);
+            end
+            if isempty(modelName) && isfield(pln,'bioParam')
+                modelName = ...
+                    planWorkflow.sampling.SamplingService.modelNameFromValue( ...
+                    pln.bioParam);
+            end
+        end
+
+        function modelName = modelNameFromValue(value)
+            modelName = '';
+            if ischar(value)
+                modelName = value;
+                return;
+            end
+            if isstring(value) && isscalar(value)
+                modelName = char(value);
+                return;
+            end
+            if isobject(value) && isprop(value,'model')
+                modelName = value.model;
+            elseif isstruct(value) && isfield(value,'model')
+                modelName = value.model;
             end
             if isstring(modelName) && isscalar(modelName)
                 modelName = char(modelName);
-            end
-            if ischar(modelName) && ~isempty(modelName)
-                pln.bioModel = modelName;
+            elseif ~ischar(modelName)
+                modelName = '';
             end
         end
 

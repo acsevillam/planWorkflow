@@ -100,11 +100,13 @@ end
 function testSamplingPlanUsesBioModelNameCopy(testCase)
 pln = struct();
 pln.bioModel = matRad_EmptyBiologicalModel();
+pln.bioParam = pln.bioModel;
 
 plnForSampling = planWorkflow.sampling.SamplingService.samplingPlan(pln);
 
 verifyTrue(testCase,isa(pln.bioModel,'matRad_BiologicalModel'));
 verifyEqual(testCase,plnForSampling.bioModel,'none');
+verifyFalse(testCase,isfield(plnForSampling,'bioParam'));
 end
 
 function config = workflowConfigWithPlan(plan)
