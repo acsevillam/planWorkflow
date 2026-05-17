@@ -163,8 +163,11 @@ classdef SamplingService
             samplingOptions = ...
                 planWorkflow.config.Resources.samplingNameValuePairs( ...
                 context.runConfig);
+            plnForSampling = ...
+                planWorkflow.sampling.SamplingService.samplingPlan(pln);
             [caSamp,mSampDose,plnSamp,resultGUINomScen] = matRad_sampling( ...
-                ctSampling,stf,cstForSampling,pln,resultGUI.w,structSel, ...
+                ctSampling,stf,cstForSampling,plnForSampling, ...
+                resultGUI.w,structSel, ...
                 multScen,'dvhDoseWindow',dvhDoseWindow,samplingOptions{:});
 
             sample = struct();
@@ -172,6 +175,25 @@ classdef SamplingService
             sample.mSampDose = mSampDose;
             sample.pln = plnSamp;
             sample.resultGUINomScen = resultGUINomScen;
+        end
+
+        function pln = samplingPlan(pln)
+            if ~isstruct(pln) || ~isfield(pln,'bioModel') || ...
+                    ~isobject(pln.bioModel) || ...
+                    ~isa(pln.bioModel,'matRad_BiologicalModel')
+                return;
+            end
+
+            modelName = '';
+            if isprop(pln.bioModel,'model')
+                modelName = pln.bioModel.model;
+            end
+            if isstring(modelName) && isscalar(modelName)
+                modelName = char(modelName);
+            end
+            if ischar(modelName) && ~isempty(modelName)
+                pln.bioModel = modelName;
+            end
         end
 
         function entry = samplingEntry(cstSampling)

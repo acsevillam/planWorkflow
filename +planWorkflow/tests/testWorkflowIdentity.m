@@ -76,6 +76,37 @@ identityB = planWorkflow.results.WorkflowIdentity.fromRunConfig( ...
 verifyEqual(testCase,identityA.hash,identityB.hash);
 end
 
+function testCacheIdentityUsesPropOptQuantityWithoutBioModelWarning(testCase)
+runConfig = struct( ...
+    'radiationMode','photons', ...
+    'machine','Generic', ...
+    'bioModel','none', ...
+    'description','cache-identity-test');
+pln = struct();
+pln.radiationMode = 'photons';
+pln.machine = 'Generic';
+pln.propOpt = struct('quantityOpt','physicalDose');
+pln.bioParam = matRad_EmptyBiologicalModel();
+
+consoleText = evalc( ...
+    'descriptor = planWorkflow.cache.CacheIdentity.build(runConfig,''reference'',pln);');
+
+verifyFalse(testCase,contains(consoleText, ...
+    'Property quantityOpt is deprecated from bioModel'));
+verifyEqual(testCase,descriptor.identity.modality.quantityOpt, ...
+    'physicalDose');
+end
+
+function testSamplingPlanUsesBioModelNameCopy(testCase)
+pln = struct();
+pln.bioModel = matRad_EmptyBiologicalModel();
+
+plnForSampling = planWorkflow.sampling.SamplingService.samplingPlan(pln);
+
+verifyTrue(testCase,isa(pln.bioModel,'matRad_BiologicalModel'));
+verifyEqual(testCase,plnForSampling.bioModel,'none');
+end
+
 function config = workflowConfigWithPlan(plan)
 precompute = planWorkflow.config.RobustPlanConfig.defaults();
 precompute.robustPlans = plan;

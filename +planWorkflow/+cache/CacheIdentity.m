@@ -223,15 +223,16 @@ classdef CacheIdentity
             if isstruct(pln) && isfield(pln,'machine')
                 identity.machine = char(pln.machine);
             end
-            if isstruct(pln) && isfield(pln,'bioParam')
+            if isstruct(pln)
                 identity.quantityOpt = ...
-                    planWorkflow.cache.CacheIdentity.bioParamField( ...
-                    pln.bioParam,'quantityOpt');
+                    planWorkflow.cache.CacheIdentity.planQuantityOpt(pln);
+            else
+                identity.quantityOpt = '';
+            end
+            if isstruct(pln) && isfield(pln,'bioParam')
                 identity.bioModel = ...
                     planWorkflow.cache.CacheIdentity.bioParamField( ...
                     pln.bioParam,'model',identity.bioModel);
-            else
-                identity.quantityOpt = '';
             end
         end
 
@@ -587,11 +588,26 @@ classdef CacheIdentity
             value = defaultValue;
             if isstruct(bioParam) && isfield(bioParam,fieldName)
                 value = bioParam.(fieldName);
-            elseif isobject(bioParam) && isprop(bioParam,fieldName)
+            elseif isobject(bioParam) && isprop(bioParam,fieldName) && ...
+                    ~any(strcmp(fieldName,{'quantityOpt','quantityVis'}))
                 value = bioParam.(fieldName);
             end
             if ischar(value) || isstring(value)
                 value = char(value);
+            end
+        end
+
+        function value = planQuantityOpt(pln)
+            value = '';
+            if isfield(pln,'propOpt') && isstruct(pln.propOpt) && ...
+                    isfield(pln.propOpt,'quantityOpt') && ...
+                    ~isempty(pln.propOpt.quantityOpt)
+                value = char(pln.propOpt.quantityOpt);
+            elseif isfield(pln,'quantityOpt') && ~isempty(pln.quantityOpt)
+                value = char(pln.quantityOpt);
+            elseif isfield(pln,'bioParam') && isstruct(pln.bioParam) && ...
+                    isfield(pln.bioParam,'quantityOpt')
+                value = char(pln.bioParam.quantityOpt);
             end
         end
 
