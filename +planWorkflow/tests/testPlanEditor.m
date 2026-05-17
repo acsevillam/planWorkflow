@@ -1434,6 +1434,8 @@ includeFields = ...
 
 verifyFalse(testCase,any(strcmp(allFields,'robustnessTargets')));
 verifyTrue(testCase,any(strcmp(includeFields,'robustnessTargets')));
+verifyTrue(testCase,any(strcmp(allFields,'doseWindowExpectedDoseDifference')));
+verifyFalse(testCase,any(strcmp(allFields,'doseWindowUvh')));
 end
 
 function testMultiSelectParameterControlIsTall(testCase)

@@ -11,6 +11,8 @@ verifyEqual(testCase,analysis.robustnessCriteria,[5 5]);
 verifyEqual(testCase,analysis.robustnessTargetMode,'all');
 verifyEqual(testCase,analysis.robustnessTargets,[]);
 verifyTrue(testCase,isfield(analysis,'doseWindowDvh'));
+verifyTrue(testCase,isfield(analysis,'doseWindowExpectedDoseDifference'));
+verifyFalse(testCase,isfield(analysis,'doseWindowUvh'));
 verifyEqual(testCase,analysis.figures.save,true);
 verifyEqual(testCase,analysis.figures.visible,'auto');
 verifyEqual(testCase,analysis.figures.closeAfterSave,true);
@@ -46,6 +48,8 @@ analysis = planWorkflow.config.Analysis.applyPrescriptionDefaults( ...
 verifyEqual(testCase,analysis.doseWindow,[0 100],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowDvh,[0 128],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowUncertainty,[0 40],'AbsTol',1e-12);
+verifyEqual(testCase,analysis.doseWindowExpectedDoseDifference,[-40 40], ...
+    'AbsTol',1e-12);
 end
 
 function testPrescriptionDefaultsUsePerFractionDose(testCase)
@@ -56,4 +60,6 @@ analysis = planWorkflow.config.Analysis.applyPrescriptionDefaults( ...
 verifyEqual(testCase,analysis.doseWindow,[0 5],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowDvh,[0 6.4],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowUncertainty,[0 2],'AbsTol',1e-12);
+verifyEqual(testCase,analysis.doseWindowExpectedDoseDifference,[-2 2], ...
+    'AbsTol',1e-12);
 end

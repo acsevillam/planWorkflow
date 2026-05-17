@@ -204,7 +204,10 @@ function testShowResultsShowsSamplingFigurePanel(testCase)
 fixture = testCase.applyFixture( ...
     matlab.unittest.fixtures.TemporaryFolderFixture);
 figureFile = fullfile(fixture.Folder,'reference_gamma.fig');
+expectedDoseDifferenceFile = ...
+    fullfile(fixture.Folder,'reference_expected_dose_difference.fig');
 touchFile(figureFile);
+touchFile(expectedDoseDifferenceFile);
 
 guiFig = figure('Visible','off');
 cleanupGui = onCleanup(@() closeFigure(guiFig));
@@ -217,7 +220,9 @@ reporter = planWorkflow.gui.PlanProgressReporter( ...
     guiFig,fill,status,details,stopButton,tabGroup);
 
 results = struct();
-results.sampling.reference.figureFiles = struct('gamma',figureFile);
+results.sampling.reference.figureFiles = struct( ...
+    'gamma',figureFile, ...
+    'expectedDoseDifference',expectedDoseDifferenceFile);
 
 reporter.showResults(results);
 
@@ -234,8 +239,11 @@ verifyNotEmpty(testCase,folderFields);
 figureFields = findall(figurePanels(1),'Style','edit', ...
     'String','reference_gamma.fig');
 verifyNotEmpty(testCase,figureFields);
+expectedDoseDifferenceFields = findall(figurePanels(1),'Style','edit', ...
+    'String','reference_expected_dose_difference.fig');
+verifyNotEmpty(testCase,expectedDoseDifferenceFields);
 openButtons = findall(figureTabs(1),'Style','pushbutton','String','Open');
-verifyGreaterThanOrEqual(testCase,numel(openButtons),2);
+verifyGreaterThanOrEqual(testCase,numel(openButtons),3);
 end
 
 function testSamplingExpectedQiUsesSeparateTab(testCase)
