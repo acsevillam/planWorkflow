@@ -714,6 +714,40 @@ verifyError(testCase,@() ...
     'UnsupportedWorkflowDataSchema']);
 end
 
+function testSaveStructArtifactSanitizesBioModelWithoutDeprecatedWarnings(testCase)
+workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+artifactFile = fullfile(fixture.Folder,'bio_model_artifact.mat');
+
+artifact = struct();
+artifact.pln = struct();
+artifact.pln.bioModel = matRad_EmptyBiologicalModel();
+artifact.pln.propOpt = struct('quantityOpt','physicalDose', ...
+                              'quantityVis','physicalDose');
+
+consoleText = evalc( ...
+    'workflow.saveStructArtifactForTest(artifactFile,artifact,''test'');');
+
+verifyFalse(testCase,contains(consoleText, ...
+    'Property quantityOpt is deprecated from bioModel'));
+verifyFalse(testCase,contains(consoleText, ...
+    'Property quantityVis is deprecated from bioModel'));
+verifyTrue(testCase,isa(artifact.pln.bioModel,'matRad_BiologicalModel'));
+
+saved = load(artifactFile,'pln');
+verifyEqual(testCase,saved.pln.propOpt.quantityOpt,'physicalDose');
+verifyEqual(testCase,saved.pln.propOpt.quantityVis,'physicalDose');
+verifyTrue(testCase,isstruct(saved.pln.bioModel));
+verifyEqual(testCase,saved.pln.bioModel.bioModelClass, ...
+    'matRad_EmptyBiologicalModel');
+verifyEqual(testCase,saved.pln.bioModel.model,'none');
+verifyEqual(testCase,saved.pln.bioModel.defaultReportQuantity, ...
+    'physicalDose');
+verifyEqual(testCase,saved.pln.bioModel.quantityOpt,'physicalDose');
+verifyEqual(testCase,saved.pln.bioModel.quantityVis,'physicalDose');
+end
+
 function testReleaseMemoryClearsOnlyInMemoryData(testCase)
 workflow = planWorkflowTest.SyntheticWorkflow(baseSyntheticConfig(testCase));
 workflow.prepare();

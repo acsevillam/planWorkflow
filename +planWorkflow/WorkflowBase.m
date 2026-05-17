@@ -1149,9 +1149,12 @@ classdef (Abstract) WorkflowBase < handle
             if nargin < 4
                 kind = '';
             end
-            telemetry = obj.pendingSaveTelemetry(kind,filePath,artifact);
+            saveArtifact = ...
+                planWorkflow.persistence.sanitizeArtifactForSave( ...
+                artifact);
+            telemetry = obj.pendingSaveTelemetry(kind,filePath,saveArtifact);
             saveTimer = tic;
-            builtin('save',filePath,'-struct','artifact','-v7.3');
+            builtin('save',filePath,'-struct','saveArtifact','-v7.3');
             telemetry.saveSeconds = toc(saveTimer);
             telemetry.fileBytes = obj.fileBytes(filePath);
             telemetry.savedAt = char(datetime('now','Format', ...

@@ -8,6 +8,11 @@ classdef SyntheticWorkflow < planWorkflow.WorkflowBase
             end
             obj@planWorkflow.WorkflowBase(config);
         end
+
+        function telemetry = saveStructArtifactForTest(obj,filePath, ...
+                artifact,kind)
+            telemetry = obj.saveStructArtifact(filePath,artifact,kind);
+        end
     end
 
     methods (Access = protected)
