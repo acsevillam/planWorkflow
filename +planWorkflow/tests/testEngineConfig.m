@@ -1909,6 +1909,25 @@ verifyError(testCase,@() planWorkflow.scenario.createModel( ...
     'planWorkflow:config:ScenarioSpec:IncompatibleCtScenProb');
 end
 
+function testGriddedSamplingScenarioAcceptsSetupWithoutRange(testCase)
+config = genericScenarioConfig();
+config.scen_mode = 'impScen_permuted5';
+config.ctActive = true;
+config.setupActive = true;
+config.rangeActive = false;
+config.rangeAbsSD = 0;
+config.rangeRelSD = 0;
+config.numOfRangeGridPoints = 1;
+ct = struct('numOfCtScen',2);
+
+multScen = planWorkflow.scenario.createModel( ...
+    ct,'impScen_permuted5',config,'sampling');
+
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'ct')));
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'setup')));
+verifyFalse(testCase,any(strcmp(multScen.scenarioDimensionActive,'range')));
+end
+
 function testPrepareDoseCalculationFieldsAreRejected(testCase)
 config = baseEngineConfig(testCase);
 config.prepare.doseResolution = [3 3 3];

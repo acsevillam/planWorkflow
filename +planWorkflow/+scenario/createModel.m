@@ -61,9 +61,11 @@ switch scenarioMode
         planWorkflow.scenario.applyCtScenarioSelection( ...
             multScen,ct,runConfig);
         multScen.wcSigma = wcSigma;
-        multScen.numOfRangeGridPoints = rangeGridPoints;
         multScen.combinations = 'none';
-        multScen.combineRange = true;
+        if any(strcmp(activeDimensionNames,'range'))
+            multScen.numOfRangeGridPoints = rangeGridPoints;
+            multScen.combineRange = true;
+        end
         multScen.updateScenarios();
 
     case {'impScen','impScen5','impScen7','impScen_permuted5','impScen_permuted7', ...
@@ -80,10 +82,14 @@ switch scenarioMode
             multScen,ct,runConfig);
         multScen.wcSigma = wcSigma;
         [setupGridPoints,combinations] = importanceScenarioSettings(scenarioMode);
-        multScen.numOfSetupGridPoints = setupGridPoints;
-        multScen.numOfRangeGridPoints = rangeGridPoints;
-        multScen.combinations = combinations;
-        multScen.combineRange = true;
+        if any(strcmp(activeDimensionNames,'setup'))
+            multScen.numOfSetupGridPoints = setupGridPoints;
+            multScen.combinations = combinations;
+        end
+        if any(strcmp(activeDimensionNames,'range'))
+            multScen.numOfRangeGridPoints = rangeGridPoints;
+            multScen.combineRange = true;
+        end
         multScen.updateScenarios();
 
     case {'random','truncatedRndScen'}
@@ -115,35 +121,47 @@ end
 
 activeDimensionNames = planWorkflow.scenario.activeDimensionNames( ...
     runConfig);
-if ~any(strcmp(activeDimensionNames,'setup')) || ...
-        ~any(strcmp(activeDimensionNames,'range'))
+unsupportedDimensions = setdiff(activeDimensionNames,{'ct','setup','range'});
+if ~isempty(unsupportedDimensions)
     error('planWorkflow:scenario:createModel:InvalidGriddedDimensions', ...
-        ['The current matRad gridded scenario models require active ' ...
-         'setup and range dimensions. Use random or truncatedRndScen ' ...
-         'for sparse or extended dimension subsets.']);
+        ['The current matRad gridded scenario models support only ' ...
+         'ct/setup/range uncertainty dimensions. Use random or ' ...
+         'truncatedRndScen for angular or extended dimension subsets.']);
+end
+
+if isempty(activeDimensionNames)
+    error('planWorkflow:scenario:createModel:InvalidGriddedDimensions', ...
+        ['The current matRad gridded scenario models require at least ' ...
+         'one active legacy uncertainty dimension.']);
 end
 
 shiftSD = getConfigValue(runConfig,'shiftSD',[5 10 5]);
 rangeAbsSD = getConfigValue(runConfig,'rangeAbsSD',1);
 rangeRelSD = getConfigValue(runConfig,'rangeRelSD',3.5);
 numOfRangeGridPoints = getConfigValue(runConfig,'numOfRangeGridPoints',3);
-validUncertaintyScale = all(shiftSD(:) > 0) && ...
-    rangeAbsSD > 0 && rangeRelSD > 0;
-if ~validUncertaintyScale
+
+if any(strcmp(activeDimensionNames,'setup')) && any(shiftSD(:) <= 0)
     error('planWorkflow:scenario:createModel:InvalidGriddedScale', ...
         ['The current matRad gridded scenario models require positive ' ...
-         'setup and range uncertainty scales.']);
+         'setup uncertainty scales when setupActive is true.']);
 end
 
 validRangeGrid = isnumeric(numOfRangeGridPoints) && ...
     isscalar(numOfRangeGridPoints) && isfinite(numOfRangeGridPoints) && ...
     round(numOfRangeGridPoints) == numOfRangeGridPoints && ...
     numOfRangeGridPoints >= 3;
-if ~validRangeGrid
-    error('planWorkflow:scenario:createModel:InvalidRangeGrid', ...
-        ['The current matRad gridded scenario models require at least ' ...
-         'three range grid points to preserve non-singleton legacy ' ...
-         'ct/setup/range storage.']);
+if any(strcmp(activeDimensionNames,'range'))
+    validRangeScale = rangeAbsSD > 0 && rangeRelSD > 0;
+    if ~validRangeScale
+        error('planWorkflow:scenario:createModel:InvalidGriddedScale', ...
+            ['The current matRad gridded scenario models require ' ...
+             'positive range uncertainty scales when rangeActive is true.']);
+    end
+    if ~validRangeGrid
+        error('planWorkflow:scenario:createModel:InvalidRangeGrid', ...
+            ['The current matRad gridded scenario models require at least ' ...
+             'three range grid points when rangeActive is true.']);
+    end
 end
 end
 
@@ -214,9 +232,13 @@ end
 if isprop(multScen,'couchAngleSD')
     multScen.couchAngleSD = couchAngleSD;
 end
-multScen.shiftSD = shiftSD;
-multScen.rangeAbsSD = rangeAbsSD;
-multScen.rangeRelSD = rangeRelSD;
+if any(strcmp(activeDimensionNames,'setup'))
+    multScen.shiftSD = shiftSD;
+end
+if any(strcmp(activeDimensionNames,'range'))
+    multScen.rangeAbsSD = rangeAbsSD;
+    multScen.rangeRelSD = rangeRelSD;
+end
 end
 
 function validateAngularDimensionSupport(scenarioMode,activeDimensionNames, ...
