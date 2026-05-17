@@ -102,6 +102,62 @@ verifyEqual(testCase,ctSampling.source,'optimization');
 verifyEqual(testCase,cstSampling{1,2},'OPT_BODY');
 end
 
+function testLinkedSamplingGeometryLoadsFullCtWhenReferenceView(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+runConfig = makeRunConfig();
+runConfig.sampling_linkToOptimization = true;
+runConfig.patientDataPath = fullfile(fixture.Folder,'patients');
+runConfig.sampling_caseID = 'sampling-case';
+runConfig.sampling_AcquisitionType = 'mat';
+data = samplingData(runConfig);
+
+ctReferenceView = ...
+    planWorkflow.precompute.OptimizationInput.emptyCtReferenceView();
+ctReferenceView.active = true;
+data.optimizationInput = planWorkflow.precompute.OptimizationInput.build( ...
+    struct('source','optimization','numOfCtScen',1), ...
+    minimalCst(),data.pln,data.stf,referenceDij(), ...
+    'nominal','reference',ctReferenceView);
+
+ctFull = multiScenarioCt(5,'sampling');
+cstFull = minimalCst(5);
+planWorkflow.io.saveGeometry(runConfig,"sampling",ctFull,cstFull);
+
+context = struct( ...
+    'runConfig',runConfig, ...
+    'data',data, ...
+    'planTemplate',minimalPlanTemplate(runConfig), ...
+    'log',@(varargin) [], ...
+    'reportGuiStageProgress',@(varargin) []);
+
+[ctSampling,cstSampling] = ...
+    planWorkflow.sampling.SamplingService.samplingGeometry(context);
+
+verifyEqual(testCase,ctSampling.source,'sampling');
+verifyEqual(testCase,ctSampling.numOfCtScen,5);
+verifyEqual(testCase,cstSampling{1,2},'BODY');
+verifyEqual(testCase,numel(cstSampling{1,4}),5);
+end
+
+function testSamplingScenarioModelUsesAllActiveCtScenarios(testCase)
+runConfig = makeRunConfig();
+ct = struct('numOfCtScen',5);
+samplingScenarioConfig = planWorkflow.config.ScenarioSpec.fromRunConfig( ...
+    runConfig,'sampling');
+samplingScenarioConfig = planWorkflow.config.ScenarioSpec.matRadScenario( ...
+    samplingScenarioConfig);
+
+multScen = planWorkflow.scenario.createModel( ...
+    ct,samplingScenarioConfig.scen_mode,samplingScenarioConfig, ...
+    'sampling');
+scenarioIds = multScen.scenarioIds();
+ctScenIds = arrayfun(@(id) multScen.getCtScenario(id),scenarioIds);
+
+verifyEqual(testCase,multScen.ctScenProb,[(1:5)' 0.2 * ones(5,1)]);
+verifyEqual(testCase,unique(ctScenIds(:))',(1:5));
+end
+
 function testSamplingScenarioBasisStoresEffectiveCtProbabilities(testCase)
 runConfig = makeRunConfig();
 data = samplingData(runConfig);
@@ -462,7 +518,56 @@ info.ixRing2 = [];
 info.ringIndices = [];
 end
 
-function cst = minimalCst()
+function ct = multiScenarioCt(numOfCtScen,source)
+ct = struct();
+ct.source = source;
+ct.numOfCtScen = numOfCtScen;
+ct.refScen = 1;
+ct.cubeDim = [1 1 1];
+ct.dvf = cell(1,numOfCtScen);
+ct.dvfMetadata = struct('dvfType','pull');
+end
+
+function template = minimalPlanTemplate(runConfig)
+structures = repmat(struct('name','','role','','priority',0),1,3);
+structureNames = {'BODY','CTV','PTV'};
+structureRoles = {'OAR','TARGET','OAR'};
+for i = 1:numel(structureNames)
+    structures(i).name = structureNames{i};
+    structures(i).role = structureRoles{i};
+    structures(i).priority = i;
+end
+
+structureObjectives = repmat(struct('name','','objectives',[]),1,3);
+for i = 1:numel(structureNames)
+    structureObjectives(i).name = structureNames{i};
+    structureObjectives(i).objectives = [];
+end
+
+template = struct();
+template.schemaVersion = 1;
+template.id = 'minimal_test_template';
+template.description = runConfig.description;
+template.prescriptionDose = 1;
+template.dosePulling = struct();
+template.radiationModes = struct('id',runConfig.radiationMode);
+template.beamSets = struct('id',runConfig.plan_beams, ...
+    'numOfFractions',1,'gantryAngles',0,'bixelWidth',5);
+template.targets = {'CTV'};
+template.primaryTarget = 'CTV';
+template.structures = structures;
+template.rings = repmat(struct('name','','role','','priority',0, ...
+    'innerMarginMm',0,'outerMarginMm',0,'visibleColor',[]),0,1);
+template.objectiveSets = struct();
+template.objectiveSets.reference = struct( ...
+    'structureObjectives',structureObjectives, ...
+    'ringObjectives',repmat(struct('name','','objectives',[]),0,1));
+end
+
+function cst = minimalCst(numOfCtScen)
+if nargin < 1
+    numOfCtScen = 1;
+end
 cst = cell(3,6);
 names = {'BODY','CTV','PTV'};
 roles = {'OAR','TARGET','OAR'};
@@ -470,7 +575,7 @@ for i = 1:3
     cst{i,1} = i - 1;
     cst{i,2} = names{i};
     cst{i,3} = roles{i};
-    cst{i,4} = {i};
+    cst{i,4} = repmat({i},1,numOfCtScen);
     cst{i,5} = struct('Priority',i);
     cst{i,6} = [];
 end

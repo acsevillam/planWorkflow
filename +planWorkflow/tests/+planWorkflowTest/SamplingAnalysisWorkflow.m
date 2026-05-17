@@ -114,9 +114,11 @@ classdef SamplingAnalysisWorkflow < planWorkflow.WorkflowBase
             cst{1,5} = struct();
             cst{1,6} = [];
 
-            reference = planWorkflowTest.SamplingAnalysisWorkflow.sample( ...
+            reference = ...
+                planWorkflowTest.SamplingAnalysisWorkflow.sampleFixture( ...
                 'reference',pln,1);
-            robust = planWorkflowTest.SamplingAnalysisWorkflow.sample( ...
+            robust = ...
+                planWorkflowTest.SamplingAnalysisWorkflow.sampleFixture( ...
                 'robust',pln,2);
 
             samplingData = struct();
@@ -133,7 +135,7 @@ classdef SamplingAnalysisWorkflow < planWorkflow.WorkflowBase
             samplingData.robust = {robust};
         end
 
-        function sample = sample(label,pln,scale)
+        function sample = sampleFixture(label,pln,scale)
             sample = struct();
             sample.label = char(label);
             sample.pln = pln;
