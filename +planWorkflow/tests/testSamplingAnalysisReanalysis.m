@@ -61,6 +61,33 @@ verifyCompactedSamplingData(testCase,resumed.data.sampling, ...
     resumed.cachePath);
 end
 
+function testSamplingAnalysisFiguresIncludeExpectedDoseDifference(testCase)
+cleanup = installSamplingAnalysisStubs(testCase); %#ok<NASGU>
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+analysis = planWorkflow.config.Analysis.defaults();
+analysis.figures.save = true;
+analysis.figures.visible = 'off';
+analysis.figures.closeAfterSave = true;
+
+expectedFig = figure('Visible','off');
+cleanupFig = onCleanup(@() closeFigureIfOpen(expectedFig)); %#ok<NASGU>
+samplingData = struct('ct',struct(),'cst',{{}});
+sample = struct('pln',struct(),'caSamp',[]);
+doseStat = struct('meanCubeW',[],'stdCubeW',[]);
+
+figureFiles = ...
+    planWorkflow.analysis.Figures.saveSamplingAnalysisFigures( ...
+    fixture.Folder,'reference',[],[],[],expectedFig,samplingData, ...
+    sample,doseStat,analysis,1);
+
+expectedFile = fullfile(fixture.Folder, ...
+    'reference_expected_dose_difference.fig');
+verifyTrue(testCase,isfield(figureFiles,'expectedDoseDifference'));
+verifyEqual(testCase,figureFiles.expectedDoseDifference,expectedFile);
+verifyTrue(testCase,exist(expectedFile,'file') == 2);
+end
+
 function verifyCompactedSamplingData(testCase,samplingData,cachePath)
 verifyTrue(testCase,isfield(samplingData,'samplingPayloadRef'));
 verifyTrue(testCase,isfield(samplingData.reference,'samplingPayloadRef'));
@@ -114,7 +141,7 @@ function writeMatRadSamplingAnalysisStub(folder)
 fid = fopen(fullfile(folder,'matRad_samplingAnalysis.m'),'w');
 fprintf(fid,[ ...
     'function [cstStat,doseStat,meta,gammaFig,robustnessFig1, ...\n' ...
-    '    robustnessFig2] = matRad_samplingAnalysis(~,~,~,caSamp, ...\n' ...
+    '    robustnessFig2,expectedDoseDifferenceFig] = matRad_samplingAnalysis(~,~,~,caSamp, ...\n' ...
     '    mSampDose,resultGUINomScen,varargin)\n' ...
     'dvh = struct(''doseGrid'',[0; 1; 2],''volumePoints'',[100; 50; 0]);\n' ...
     'cstStat = struct(''name'',''CTV'',''dvhStat'',struct(''mean'',dvh,''std'',dvh));\n' ...
@@ -134,6 +161,7 @@ fprintf(fid,[ ...
     'gammaFig = [];\n' ...
     'robustnessFig1 = [];\n' ...
     'robustnessFig2 = [];\n' ...
+    'expectedDoseDifferenceFig = [];\n' ...
     'end\n']);
 fclose(fid);
 end
@@ -156,4 +184,10 @@ if any(strcmp(pathEntries,folder))
     rmpath(folder);
 end
 clear matRad_samplingAnalysis matRad_convertToEvaluationMode;
+end
+
+function closeFigureIfOpen(fig)
+if ishghandle(fig)
+    close(fig);
+end
 end

@@ -6,27 +6,34 @@ function testFigureEntriesUseSavedSamplingFiguresOnly(testCase)
 fixture = testCase.applyFixture( ...
     matlab.unittest.fixtures.TemporaryFolderFixture);
 gammaFile = fullfile(fixture.Folder,'reference_gamma.fig');
+expectedDoseDifferenceFile = ...
+    fullfile(fixture.Folder,'reference_expected_dose_difference.fig');
 meanDoseFile = fullfile(fixture.Folder,'reference_mean_dose.fig');
 missingFile = fullfile(fixture.Folder,'missing.fig');
 touchFile(gammaFile);
+touchFile(expectedDoseDifferenceFile);
 touchFile(meanDoseFile);
 
 planResults = struct();
 planResults.figureFiles = struct();
 planResults.figureFiles.gamma = gammaFile;
 planResults.figureFiles.robustness1 = missingFile;
+planResults.figureFiles.expectedDoseDifference = expectedDoseDifferenceFile;
 planResults.figureFiles.meanDose = string(meanDoseFile);
 planResults.figureFiles.stdDose = '';
 
 entries = planWorkflow.gui.PlanProgressReporter.figureEntries(planResults);
 rows = planWorkflow.gui.PlanProgressReporter.figureTableRows(entries);
 
-verifyEqual(testCase,{entries.id},{'gamma','meanDose'});
-verifyEqual(testCase,{entries.label},{'Gamma','Mean dose'});
+verifyEqual(testCase,{entries.id}, ...
+    {'gamma','expectedDoseDifference','meanDose'});
+verifyEqual(testCase,{entries.label}, ...
+    {'Gamma','Expected dose difference','Mean dose'});
 verifyEqual(testCase,{entries.filePath}, ...
-    {gammaFile,meanDoseFile});
-verifyEqual(testCase,rows(:,1),{'Gamma';'Mean dose'});
-verifyEqual(testCase,rows(:,3),{'Open';'Open'});
+    {gammaFile,expectedDoseDifferenceFile,meanDoseFile});
+verifyEqual(testCase,rows(:,1), ...
+    {'Gamma';'Expected dose difference';'Mean dose'});
+verifyEqual(testCase,rows(:,3),{'Open';'Open';'Open'});
 verifyEqual(testCase,size(rows,2),3);
 verifyEqual(testCase, ...
     planWorkflow.gui.PlanProgressReporter.figureFolder(entries), ...

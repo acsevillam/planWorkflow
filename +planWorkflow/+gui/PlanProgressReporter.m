@@ -207,9 +207,11 @@ classdef PlanProgressReporter < handle
 
             figureFiles = planResults.figureFiles;
             figureOrder = {'gamma','robustness1','robustness2', ...
-                'meanDose','stdDose','dvhMultiscenario','dvhTrustband'};
+                'expectedDoseDifference','meanDose','stdDose', ...
+                'dvhMultiscenario','dvhTrustband'};
             figureLabels = {'Gamma','Robustness 1','Robustness 2', ...
-                'Mean dose','Std dose','DVH multi','DVH trustband'};
+                'Expected dose difference','Mean dose','Std dose', ...
+                'DVH multi','DVH trustband'};
             entries = repmat(emptyEntry,1,numel(figureOrder));
             entryCount = 0;
             for i = 1:numel(figureOrder)
