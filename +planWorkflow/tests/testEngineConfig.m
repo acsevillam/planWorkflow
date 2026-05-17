@@ -1954,6 +1954,30 @@ verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'setup')));
 verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'range')));
 end
 
+function testSupportedScenarioModesIncludeTruncatedRndScen(testCase)
+modes = planWorkflow.matRadCapabilitiesReader.supportedScenarioModes();
+
+verifyTrue(testCase,any(strcmp(modes,'truncatedRndScen')));
+end
+
+function testTruncatedRndScenOptimizationScenarioUsesRandomSize(testCase)
+config = genericScenarioConfig();
+config.random_size = 13;
+config.sampling_size = 21;
+config.rangeAbsSD = 1;
+config.rangeRelSD = 1;
+config.rangeActive = true;
+
+multScen = planWorkflow.scenario.createModel( ...
+    [],'truncatedRndScen',config,'optimization');
+
+verifyEqual(testCase,multScen.nSamples,13);
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'ct')));
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'setup')));
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'range')));
+verifyEqual(testCase,multScen.shortName,'truncatedRndScen');
+end
+
 function testRandomSamplingScenarioUsesSamplingSize(testCase)
 config = genericScenarioConfig();
 config.random_size = 13;
@@ -1968,6 +1992,21 @@ multScen = planWorkflow.scenario.createModel( ...
 verifyEqual(testCase,multScen.nSamples,21);
 end
 
+function testTruncatedRndScenSamplingScenarioUsesSamplingSize(testCase)
+config = genericScenarioConfig();
+config.random_size = 13;
+config.sampling_size = 21;
+config.rangeAbsSD = 1;
+config.rangeRelSD = 1;
+config.rangeActive = true;
+
+multScen = planWorkflow.scenario.createModel( ...
+    [],'truncatedRndScen',config,'sampling');
+
+verifyEqual(testCase,multScen.nSamples,21);
+verifyEqual(testCase,multScen.shortName,'truncatedRndScen');
+end
+
 function testRandomScenarioAppliesOptionalRandomSeed(testCase)
 config = genericScenarioConfig();
 config.randomSeed = 42;
@@ -1979,6 +2018,20 @@ multScen = planWorkflow.scenario.createModel( ...
     [],'random',config,'optimization');
 
 verifyEqual(testCase,multScen.randomSeed,42);
+end
+
+function testTruncatedRndScenAppliesOptionalRandomSeed(testCase)
+config = genericScenarioConfig();
+config.randomSeed = 42;
+config.rangeAbsSD = 1;
+config.rangeRelSD = 1;
+config.rangeActive = true;
+
+multScen = planWorkflow.scenario.createModel( ...
+    [],'truncatedRndScen',config,'optimization');
+
+verifyEqual(testCase,multScen.randomSeed,42);
+verifyEqual(testCase,multScen.shortName,'truncatedRndScen');
 end
 
 function testInvalidRandomSeedIsRejected(testCase)
@@ -2010,6 +2063,26 @@ verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'couch')));
 verifyEqual(testCase,multScen.gantryAngleSD,2);
 verifyEqual(testCase,multScen.couchAngleSD,3);
 verifyEqual(testCase,multScen.numOfBeams,2);
+end
+
+function testTruncatedRndScenAcceptsAngularDimensions(testCase)
+config = genericScenarioConfig();
+config.scen_mode = 'truncatedRndScen';
+config.gantryActive = true;
+config.couchActive = true;
+config.gantryAngleSD = 2;
+config.couchAngleSD = 3;
+config.numOfBeams = 2;
+
+multScen = planWorkflow.scenario.createModel( ...
+    [],'truncatedRndScen',config,'optimization');
+
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'gantry')));
+verifyTrue(testCase,any(strcmp(multScen.scenarioDimensionActive,'couch')));
+verifyEqual(testCase,multScen.gantryAngleSD,2);
+verifyEqual(testCase,multScen.couchAngleSD,3);
+verifyEqual(testCase,multScen.numOfBeams,2);
+verifyEqual(testCase,multScen.shortName,'truncatedRndScen');
 end
 
 function testRandomScenarioAcceptsGantryOnlyAngularDimension(testCase)
@@ -2081,7 +2154,28 @@ verifyEqual(testCase,size(multScen.linearMask,1), ...
     multScen.numScenarios());
 end
 
-function testAngularDimensionsRequireRandomScenarioMode(testCase)
+function testRandomAndTruncatedRndScenFingerprintsDiffer(testCase)
+config = genericScenarioConfig();
+config.random_size = 11;
+config.randomSeed = 7;
+config.rangeAbsSD = 1;
+config.rangeRelSD = 1;
+config.rangeActive = true;
+
+randomScen = planWorkflow.scenario.createModel( ...
+    [],'random',config,'optimization');
+truncatedScen = planWorkflow.scenario.createModel( ...
+    [],'truncatedRndScen',config,'optimization');
+
+randomFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(randomScen);
+truncatedFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(truncatedScen);
+
+verifyNotEqual(testCase,randomFingerprint,truncatedFingerprint);
+end
+
+function testAngularDimensionsRequireSampledScenarioMode(testCase)
 config = genericScenarioConfig();
 config.gantryActive = true;
 config.gantryAngleSD = 2;
@@ -2089,7 +2183,8 @@ config.numOfBeams = 2;
 
 verifyError(testCase,@() planWorkflow.scenario.createModel( ...
     [],'wcScen',config,'optimization'), ...
-    'planWorkflow:scenario:createModel:AngularDimensionsRequireRandom');
+    ['planWorkflow:scenario:createModel:' ...
+     'AngularDimensionsRequireSampledScenario']);
 end
 
 function testConflictingNestedStageConfigIsRejected(testCase)

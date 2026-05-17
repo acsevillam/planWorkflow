@@ -125,10 +125,10 @@ classdef HelpText
                     text = 'Enables range uncertainty components for scenario generation.';
                 case 'gantryActive'
                     text = ['Enables per-beam gantry angle uncertainty ' ...
-                        'components for random scenario generation.'];
+                        'components for sampled scenario generation.'];
                 case 'couchActive'
                     text = ['Enables per-beam couch angle uncertainty ' ...
-                        'components for random scenario generation.'];
+                        'components for sampled scenario generation.'];
                 case 'gantryAngleSD'
                     text = ['Standard deviation in degrees for active ' ...
                         'gantry angle uncertainty components.'];
@@ -137,8 +137,8 @@ classdef HelpText
                         'couch angle uncertainty components.'];
                 case 'randomSeed'
                     text = ['Optional non-negative integer seed for ' ...
-                        'reproducible random scenario generation. Leave ' ...
-                        'empty to use matRad default random behavior.'];
+                        'reproducible sampled scenario generation. Leave ' ...
+                        'empty to use matRad default behavior.'];
                 case 'robustnessTargetMode'
                     text = ['Controls whether robustness analysis uses all ' ...
                         'target structures or only selected targets.'];
