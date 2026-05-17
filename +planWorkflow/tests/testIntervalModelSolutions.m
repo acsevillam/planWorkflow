@@ -65,7 +65,7 @@ planConfig.robustnessMode = robustness;
 planConfig.requiresIntervalDij = true;
 planConfig.requiresNominalDij = false;
 planConfig.requiresScenarioDij = false;
-planConfig.requiresProb2Dij = false;
+planConfig.requiresProbDij = false;
 planConfig.optimization4D = ...
     planWorkflow.config.RobustPlanConfig.defaultOptimization4D();
 planConfig.variants = ...

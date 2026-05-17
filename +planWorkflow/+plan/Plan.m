@@ -50,10 +50,15 @@ classdef Plan
             pln.propOpt.runSequencing = 0;
             pln.propOpt.runDAO = 0;
             pln.propOpt.optimizer = runConfig.optimizer;
-            pln.bioParam = matRad_bioModel(pln.radiationMode,quantityOpt,modelName);
+            pln.propOpt.quantityOpt = quantityOpt;
+            pln.bioParam = matRad_bioModel( ...
+                pln.radiationMode,modelName, ...
+                planWorkflow.plan.Plan.bioModelInputQuantities(modelName));
+            pln.bioModel = pln.bioParam;
             quantityVis = ...
                 planWorkflow.plan.DoseQuantityResolver.visualFromPlan( ...
                 pln,quantityOpt);
+            pln.propOpt.quantityVis = quantityVis;
             referenceScenarioConfig = ...
                 planWorkflow.plan.Plan.referenceScenarioConfig(runConfig);
             referenceScenarioConfig.numOfBeams = ...
@@ -132,6 +137,18 @@ classdef Plan
 
         function tf = bioModelRequiresLet(bioModel)
             tf = any(strcmp(char(bioModel),{'MCN','WED','HEL','LEM'}));
+        end
+
+        function quantities = bioModelInputQuantities(bioModel)
+            quantities = {'physicalDose'};
+            if planWorkflow.plan.Plan.bioModelRequiresLet(bioModel)
+                quantities{end + 1} = 'LET';
+            end
+            if strcmp(char(bioModel),'LEM')
+                quantities = {'physicalDose','alpha','beta'};
+            elseif strcmp(char(bioModel),'TAB')
+                quantities = {'physicalDose','spectra'};
+            end
         end
 
         function tf = supportsParallelScenarioDij(pln)

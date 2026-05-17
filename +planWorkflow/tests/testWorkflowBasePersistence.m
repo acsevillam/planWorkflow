@@ -352,12 +352,12 @@ for modeIx = 1:numel(modes)
                 robustData);
         case 'PROB2'
             verifyTrue(testCase,all(ismember( ...
-                {'dij_prob2','dijProb2Context'},loadedFields)),mode);
+                {'dij_prob','dijProbContext'},loadedFields)),mode);
             verifyTrue(testCase, ...
-                isfield(robustData.dijProb2Context,'scenarioModel'), ...
+                isfield(robustData.dijProbContext,'scenarioModel'), ...
                 mode);
             robustData = ...
-                planWorkflow.precompute.Prob2DoseInfluence.restoreOptimizationPlan( ...
+                planWorkflow.precompute.ProbDoseInfluence.restoreOptimizationPlan( ...
                 robustData);
     end
 
@@ -537,7 +537,7 @@ verifyNotEmpty(testCase,cacheMetadata.scenarioFingerprint,mode);
 if any(strcmp(char(mode),{'INTERVAL2','INTERVAL3'}))
     verifyTrue(testCase,isfield(identity,'interval'),mode);
 elseif strcmp(char(mode),'PROB2')
-    verifyTrue(testCase,isfield(identity,'prob2'),mode);
+    verifyTrue(testCase,isfield(identity,'prob'),mode);
 end
 end
 
@@ -650,10 +650,10 @@ for modeIx = 1:numel(modes)
             builtin('save',cacheFile,'dij_interval', ...
                 'dijIntervalContext','cacheMetadata','-v7.3');
         case 'PROB2'
-            dij_prob2 = cached.dij_prob2; %#ok<NASGU>
-            dijProb2Context = cached.dijProb2Context; %#ok<NASGU>
-            builtin('save',cacheFile,'dij_prob2', ...
-                'dijProb2Context','cacheMetadata','-v7.3');
+            dij_prob = cached.dij_prob; %#ok<NASGU>
+            dijProbContext = cached.dijProbContext; %#ok<NASGU>
+            builtin('save',cacheFile,'dij_prob', ...
+                'dijProbContext','cacheMetadata','-v7.3');
     end
 
     verifyError(testCase,@() ...
@@ -845,7 +845,7 @@ plan.hasNominalObjectives = false;
 plan.requiresNominalDij = false;
 plan.requiresScenarioDij = true;
 plan.requiresIntervalDij = false;
-plan.requiresProb2Dij = false;
+plan.requiresProbDij = false;
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen');
 plan.variants = planWorkflow.config.RobustPlanConfig.defaultVariants( ...
@@ -874,7 +874,7 @@ plan.hasNominalObjectives = false;
 plan.requiresNominalDij = false;
 plan.requiresScenarioDij = any(strcmp(mode,{'COWC','c-COWC','STOCH'}));
 plan.requiresIntervalDij = any(strcmp(mode,{'INTERVAL2','INTERVAL3'}));
-plan.requiresProb2Dij = strcmp(mode,'PROB2');
+plan.requiresProbDij = strcmp(mode,'PROB2');
 plan.scenario = planWorkflow.config.RobustPlanConfig.defaultScenario( ...
     'wcScen');
 plan.robustnessOptions = robustnessOptionsForMode(mode);
@@ -1048,24 +1048,24 @@ switch char(mode)
             planWorkflow.precompute.OptimizationInput.build( ...
             ct,cst,pln,stf,dijIntervalContext,'interval','interval');
     case 'PROB2'
-        dij_prob2 = prob2Dij();
-        dijProb2Context = derivedDijContext(pln.multScen);
+        dij_prob = probDij();
+        dijProbContext = derivedDijContext(pln.multScen);
         planId = planIdForMode(mode);
         runConfig = persistenceRunConfig(testCase,mode,planId);
-        tag = ['prob2_' planId];
+        tag = ['prob_' planId];
         data = robustPlanData(ct,cst,stf,pln,mode,planId);
-        [cacheFile,cacheMetadata] = writeProb2DijCache( ...
-            cachePath,runConfig,data,dij_prob2,dijProb2Context);
+        [cacheFile,cacheMetadata] = writeProbDijCache( ...
+            cachePath,runConfig,data,dij_prob,dijProbContext);
         expectedRef = planWorkflow.cache.DoseInfluenceCacheRef.create( ...
-            'prob2',tag,cacheFile,cachePath,cacheMetadata, ...
-            {'dij_prob2','dijProb2Context'}, ...
-            dijProb2Context.totalNumOfBixels);
-        data.dij_prob2 = dij_prob2;
-        data.dijProb2Context = dijProb2Context;
-        data.dijCacheRefs.prob2 = expectedRef;
+            'prob',tag,cacheFile,cachePath,cacheMetadata, ...
+            {'dij_prob','dijProbContext'}, ...
+            dijProbContext.totalNumOfBixels);
+        data.dij_prob = dij_prob;
+        data.dijProbContext = dijProbContext;
+        data.dijCacheRefs.prob = expectedRef;
         data.optimizationInput = ...
             planWorkflow.precompute.OptimizationInput.build( ...
-            ct,cst,pln,stf,dijProb2Context,'prob2','prob2');
+            ct,cst,pln,stf,dijProbContext,'prob','prob');
     otherwise
         error('Unsupported test robustness mode "%s".',char(mode));
 end
@@ -1126,22 +1126,22 @@ payload = struct('dij_interval',dij_interval, ...
 builtin('save',cacheFile,'-struct','payload','-v7.3');
 end
 
-function [cacheFile,cacheMetadata] = writeProb2DijCache(cachePath, ...
-        runConfig,robustData,dij_prob2,dijProb2Context)
+function [cacheFile,cacheMetadata] = writeProbDijCache(cachePath, ...
+        runConfig,robustData,dij_prob,dijProbContext)
 context = persistenceCacheContext(runConfig,cachePath);
-tag = planWorkflow.precompute.Prob2DoseInfluence.cacheTag(robustData);
-cacheContext = planWorkflow.precompute.Prob2DoseInfluence.cacheContext( ...
+tag = planWorkflow.precompute.ProbDoseInfluence.cacheTag(robustData);
+cacheContext = planWorkflow.precompute.ProbDoseInfluence.cacheContext( ...
     context,robustData);
 cacheFile = context.cache.file(tag,robustData.pln,cacheContext);
 ensureFolder(fileparts(cacheFile));
 cacheMetadata = context.cache.metadata(tag,robustData.pln,cacheContext);
-cacheMetadata.probabilisticMode = 'PROB2';
-cacheMetadata.probabilisticQuantity = dij_prob2.quantity;
-cacheMetadata.probabilisticQuantityField = dij_prob2.quantityField;
+cacheMetadata.probabilisticMode = 'PROB';
+cacheMetadata.probabilisticQuantity = dij_prob.quantity;
+cacheMetadata.probabilisticQuantityField = dij_prob.quantityField;
 cacheMetadata = attachPrecomputeMetadata( ...
-    cacheMetadata,dijProb2Context,'test',tag,'dij_prob2');
-payload = struct('dij_prob2',dij_prob2, ...
-    'dijProb2Context',dijProb2Context, ...
+    cacheMetadata,dijProbContext,'test',tag,'dij_prob');
+payload = struct('dij_prob',dij_prob, ...
+    'dijProbContext',dijProbContext, ...
     'cacheMetadata',cacheMetadata); %#ok<NASGU>
 builtin('save',cacheFile,'-struct','payload','-v7.3');
 end
@@ -1253,14 +1253,14 @@ if strcmp(char(mode),'INTERVAL3')
 end
 end
 
-function dij_prob2 = prob2Dij()
-dij_prob2 = struct();
-dij_prob2.expected = sparse(1,3);
-dij_prob2.Omega = sparse(3,3);
-dij_prob2.voiSubIx = [];
-dij_prob2.quantity = 'physicalDose';
-dij_prob2.quantityField = 'physicalDose';
-dij_prob2.probabilisticMode = 'PROB2';
+function dij_prob = probDij()
+dij_prob = struct();
+dij_prob.expected = sparse(1,3);
+dij_prob.Omega = sparse(3,3);
+dij_prob.voiSubIx = [];
+dij_prob.quantity = 'physicalDose';
+dij_prob.quantityField = 'physicalDose';
+dij_prob.probabilisticMode = 'PROB';
 end
 
 function dijContext = derivedDijContext(scenarioModel)

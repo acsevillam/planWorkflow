@@ -123,9 +123,9 @@ classdef CacheIdentity
             elseif startsWith(tag,'interval_')
                 artifact.kind = 'interval';
                 artifact.planId = char(extractAfter(tag,'interval_'));
-            elseif startsWith(tag,'prob2_')
+            elseif startsWith(tag,'prob_')
                 artifact.kind = 'prob';
-                artifact.planId = char(extractAfter(tag,'prob2_'));
+                artifact.planId = char(extractAfter(tag,'prob_'));
             end
             artifact.planId = char(artifact.planId);
             artifact.variantId = char(artifact.variantId);
@@ -175,8 +175,8 @@ classdef CacheIdentity
                     context);
             end
             if strcmp(artifact.kind,'prob')
-                identity.prob2 = ...
-                    planWorkflow.cache.CacheIdentity.prob2Identity(context);
+                identity.prob = ...
+                    planWorkflow.cache.CacheIdentity.probIdentity(context);
             end
             if isfield(context,'stf')
                 identity.stf = context.stf;
@@ -306,12 +306,12 @@ classdef CacheIdentity
             identity = context.interval;
         end
 
-        function identity = prob2Identity(context)
+        function identity = probIdentity(context)
             identity = struct();
-            if ~isfield(context,'prob2') || isempty(context.prob2)
+            if ~isfield(context,'prob') || isempty(context.prob)
                 return;
             end
-            identity = context.prob2;
+            identity = context.prob;
         end
 
         function tag = physicalTag(artifact)
@@ -438,7 +438,7 @@ classdef CacheIdentity
                     ['Robust cache artifacts require an explicit planId. ' ...
                      'Use tags like robust_<planId>, ' ...
                      'robustNominal_<planId>, interval_<planId>, ' ...
-                     'or prob2_<planId>.']);
+                     'or prob_<planId>.']);
             end
 
             if strcmp(char(artifact.planId),'reference')
@@ -536,7 +536,7 @@ classdef CacheIdentity
             inputIdentity = identity;
             inputIdentity.tag = 'dij';
             inputIdentity.artifact = struct('kind','dij');
-            derivedFields = {'interval','prob2'};
+            derivedFields = {'interval','prob'};
             for fieldIx = 1:numel(derivedFields)
                 if isfield(inputIdentity,derivedFields{fieldIx})
                     inputIdentity = rmfield(inputIdentity, ...

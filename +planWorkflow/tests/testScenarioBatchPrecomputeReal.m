@@ -1,12 +1,12 @@
-function tests = testStreamingPrecomputeReal
+function tests = testScenarioBatchPrecomputeReal
 tests = functiontests(localfunctions);
 end
 
-function testInterval2StreamingPrecomputeUsesRealMatRadFunction(testCase)
-assumeRealStreamingFunction(testCase,'matRad_calcDoseInterval2Streaming');
-[ct,cst,pln,stf,objectiveInfo] = photonStreamingFixture(testCase);
-context = realStreamingContext();
-robustData = realStreamingRobustData( ...
+function testInterval2ScenarioBatchPrecomputeUsesRealMatRadFunction(testCase)
+assumeRealScenarioBatchFunction(testCase,'matRad_calcDoseInterval');
+[ct,cst,pln,stf,objectiveInfo] = photonScenarioBatchFixture(testCase);
+context = realScenarioBatchContext();
+robustData = realScenarioBatchRobustData( ...
     'INTERVAL2',ct,cst,pln,stf,objectiveInfo);
 
 robustData = ...
@@ -14,10 +14,10 @@ robustData = ...
     context,robustData);
 
 verifyFalse(testCase,isfield(robustData,'dij'));
-verifyStreamingSize(testCase,robustData.dij_interval, ...
+verifyPrecomputeSize(testCase,robustData.dij_interval, ...
     robustData.dijPrecomputingSize,context.data.dijPrecomputingSize);
 verifyEqual(testCase, ...
-    robustData.dij_interval.precomputeMode,'streaming');
+    robustData.dij_interval.precomputeMode,'scenario-batch');
 verifyEqual(testCase, ...
     robustData.dij_interval.secondPassStrategy,'recompute');
 verifyEqual(testCase,robustData.dij_interval.intervalMode,'INTERVAL2');
@@ -27,44 +27,46 @@ verifyGreaterThan(testCase,nnz(robustData.dij_interval.center),0);
 verifyFalse(testCase,isfield(robustData.dij_interval,'cacheDir'));
 end
 
-function testProb2StreamingPrecomputeUsesRealMatRadFunction(testCase)
-assumeRealStreamingFunction(testCase,'matRad_calcDoseProb2Streaming');
-[ct,cst,pln,stf,objectiveInfo] = photonStreamingFixture(testCase);
-context = realStreamingContext();
-robustData = realStreamingRobustData( ...
+function testProb2ScenarioBatchPrecomputeUsesRealMatRadFunction(testCase)
+assumeRealScenarioBatchFunction(testCase, ...
+    'matRad_calculateProbabilisticQuantities');
+[ct,cst,pln,stf,objectiveInfo] = photonScenarioBatchFixture(testCase);
+context = realScenarioBatchContext();
+robustData = realScenarioBatchRobustData( ...
     'PROB2',ct,cst,pln,stf,objectiveInfo);
 
 robustData = ...
-    planWorkflow.precompute.Prob2DoseInfluence.precompute( ...
+    planWorkflow.precompute.ProbDoseInfluence.precompute( ...
     context,robustData);
 
 verifyFalse(testCase,isfield(robustData,'dij'));
-verifyStreamingSize(testCase,robustData.dij_prob2, ...
+verifyPrecomputeSize(testCase,robustData.dij_prob, ...
     robustData.dijPrecomputingSize,context.data.dijPrecomputingSize);
-verifyEqual(testCase,robustData.dij_prob2.precomputeMode,'streaming');
-verifyEqual(testCase,robustData.dij_prob2.secondPassStrategy,'recompute');
-verifyEqual(testCase,robustData.dij_prob2.probabilisticMode,'PROB2');
-verifyEqual(testCase,size(robustData.dij_prob2.expected,2), ...
-    robustData.dijProb2Context.totalNumOfBixels);
-verifyGreaterThan(testCase,nnz(robustData.dij_prob2.expected),0);
-verifyFalse(testCase,isfield(robustData.dij_prob2,'cacheDir'));
+verifyEqual(testCase,robustData.dij_prob.precomputeMode,'scenario-batch');
+verifyEqual(testCase,robustData.dij_prob.secondPassStrategy,'recompute');
+verifyEqual(testCase,robustData.dij_prob.probabilisticMode,'PROB');
+verifyEqual(testCase,size(robustData.dij_prob.expected,2), ...
+    robustData.dijProbContext.totalNumOfBixels);
+verifyGreaterThan(testCase,nnz(robustData.dij_prob.expected),0);
+verifyFalse(testCase,isfield(robustData.dij_prob,'cacheDir'));
 end
 
-function assumeRealStreamingFunction(testCase,functionName)
+function assumeRealScenarioBatchFunction(testCase,functionName)
 functionPath = which(functionName);
 assumeNotEmpty(testCase,functionPath, ...
     sprintf('%s must be available on the matRad path.',functionName));
-assumeFalse(testCase,contains(functionPath,'streamingStubs'), ...
+assumeFalse(testCase,contains(functionPath,'scenarioBatchStubs'), ...
     sprintf('%s must resolve to the real matRad implementation.', ...
     functionName));
 end
 
-function [ct,cst,pln,stf,objectiveInfo] = photonStreamingFixture(testCase)
+function [ct,cst,pln,stf,objectiveInfo] = photonScenarioBatchFixture(testCase)
 matRadRoot = matRadRootFromPath(testCase);
 testDataPath = fullfile(matRadRoot,'test','testData', ...
     'photons_testData.mat');
 assumeTrue(testCase,isfile(testDataPath), ...
-    'photons_testData.mat must be available for real streaming smoke tests.');
+    ['photons_testData.mat must be available for real scenario-batch ' ...
+     'smoke tests.']);
 data = load(testDataPath,'ct','cst','pln','stf');
 ct = data.ct;
 cst = data.cst;
@@ -83,7 +85,8 @@ end
 function matRadRoot = matRadRootFromPath(testCase)
 matRadRc = which('matRad_rc');
 assumeNotEmpty(testCase,matRadRc, ...
-    'matRad must be initialized before running real streaming smoke tests.');
+    ['matRad must be initialized before running real scenario-batch ' ...
+     'smoke tests.']);
 matRadRoot = fileparts(matRadRc);
 end
 
@@ -91,9 +94,10 @@ function objectiveInfo = robustObjectiveInfo(testCase,cst)
 targetRows = structureRowsByRole(cst,'TARGET');
 oarRows = structureRowsByRole(cst,'OAR');
 assumeFalse(testCase,isempty(targetRows), ...
-    'Real streaming smoke test requires at least one target structure.');
+    ['Real scenario-batch smoke test requires at least one target ' ...
+     'structure.']);
 assumeFalse(testCase,isempty(oarRows), ...
-    'Real streaming smoke test requires at least one OAR structure.');
+    'Real scenario-batch smoke test requires at least one OAR structure.');
 objectiveInfo = struct();
 objectiveInfo.ixTarget = targetRows(1);
 objectiveInfo.targetName = cst{targetRows(1),2};
@@ -112,7 +116,7 @@ for rowIx = 1:size(cst,1)
 end
 end
 
-function context = realStreamingContext()
+function context = realScenarioBatchContext()
 context = struct();
 context.runConfig = struct('writeCache',false,'useCache',false);
 context.data = struct('quantityOpt','physicalDose', ...
@@ -122,40 +126,40 @@ context.data = struct('quantityOpt','physicalDose', ...
 context.log = @(message) [];
 end
 
-function verifyStreamingSize(testCase,compactDij,sizeData,referenceSize)
-verifyTrue(testCase,isfield(compactDij,'streamingSize'));
-streamingSize = compactDij.streamingSize;
-verifyGreaterThan(testCase,streamingSize.compactBytes,0);
-verifyGreaterThanOrEqual(testCase,streamingSize.auxiliaryPeakBytes,0);
-verifyEqual(testCase,streamingSize.totalPrecomputingBytes, ...
-    streamingSize.compactBytes + streamingSize.auxiliaryPeakBytes, ...
+function verifyPrecomputeSize(testCase,compactDij,sizeData,referenceSize)
+verifyTrue(testCase,isfield(compactDij,'precomputeSize'));
+precomputeSize = compactDij.precomputeSize;
+verifyGreaterThan(testCase,precomputeSize.compactBytes,0);
+verifyGreaterThanOrEqual(testCase,precomputeSize.auxiliaryPeakBytes,0);
+verifyEqual(testCase,precomputeSize.totalPrecomputingBytes, ...
+    precomputeSize.compactBytes + precomputeSize.auxiliaryPeakBytes, ...
     'AbsTol',1e-12);
 verifyTrue(testCase, ...
     planWorkflow.performance.PrecomputeSize.isValid(sizeData));
 verifyEqual(testCase,sizeData.totalSizeBytes, ...
-    streamingSize.totalPrecomputingBytes,'AbsTol',1e-12);
+    precomputeSize.totalPrecomputingBytes,'AbsTol',1e-12);
 verifyEqual(testCase,sizeData.relativeSize, ...
-    streamingSize.totalPrecomputingBytes / referenceSize.totalSizeBytes, ...
+    precomputeSize.totalPrecomputingBytes / referenceSize.totalSizeBytes, ...
     'AbsTol',1e-12);
 end
 
-function robustData = realStreamingRobustData( ...
+function robustData = realScenarioBatchRobustData( ...
         mode,ct,cst,pln,stf,objectiveInfo)
 planConfig = planWorkflow.config.RobustPlanConfig.defaultPlan();
-planConfig.id = ['realStreaming' mode];
-planConfig.label = ['Real streaming ' mode];
+planConfig.id = ['realScenarioBatch' mode];
+planConfig.label = ['Real scenario-batch ' mode];
 planConfig.objectiveSetName = planConfig.id;
 planConfig.robustnessMode = mode;
 planConfig.hasNominalObjectives = false;
 planConfig.requiresNominalDij = false;
 planConfig.requiresScenarioDij = false;
 planConfig.requiresIntervalDij = any(strcmp(mode,{'INTERVAL2','INTERVAL3'}));
-planConfig.requiresProb2Dij = strcmp(mode,'PROB2');
+planConfig.requiresProbDij = strcmp(mode,'PROB2');
 planConfig.robustnessOptions = ...
     planWorkflow.config.RobustPlanConfig.defaultRobustnessOptions(mode);
 planConfig.variants = ...
     planWorkflow.config.RobustPlanConfig.defaultVariants(mode);
-planConfig.dosePrecompute.useStreaming = true;
+planConfig.dosePrecompute.useScenarioBatch = true;
 planConfig.dosePrecompute.SecondPassStrategy = 'recompute';
 planConfig.dosePrecompute.KeepCache = false;
 

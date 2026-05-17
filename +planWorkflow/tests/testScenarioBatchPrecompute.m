@@ -1,21 +1,26 @@
-function tests = testStreamingPrecompute
+function tests = testScenarioBatchPrecompute
 tests = functiontests(localfunctions);
 end
 
 function setupOnce(testCase)
 stubFolder = fullfile(fileparts(mfilename('fullpath')), ...
-    'fixtures','streamingStubs');
+    'fixtures','scenarioBatchStubs');
 addpath(stubFolder,'-begin');
-clearStreamingFunctions();
+clearScenarioBatchFunctions();
 testCase.TestData.stubFolder = stubFolder;
+end
+
+function setup(testCase)
+addpath(testCase.TestData.stubFolder,'-begin');
+clearScenarioBatchFunctions();
 end
 
 function teardownOnce(testCase)
 rmpath(testCase.TestData.stubFolder);
-clearStreamingFunctions();
+clearScenarioBatchFunctions();
 end
 
-function testInterval2StreamingPrecomputeCallsStreamingWithoutDij(testCase)
+function testInterval2ScenarioBatchPrecomputeCallsMatRadWithoutDij(testCase)
 context = compactContext();
 robustData = intervalRobustData('INTERVAL2');
 
@@ -35,16 +40,16 @@ verifyTrue(testCase, ...
     robustData.dijPrecomputingSize));
 verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.totalSizeBytes, ...
-    robustData.dij_interval.streamingSize.totalPrecomputingBytes, ...
+    robustData.dij_interval.precomputeSize.totalPrecomputingBytes, ...
     'AbsTol',1e-12);
 verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.relativeSize, ...
-    robustData.dij_interval.streamingSize.totalPrecomputingBytes / ...
+    robustData.dij_interval.precomputeSize.totalPrecomputingBytes / ...
     context.data.dijPrecomputingSize.totalSizeBytes, ...
     'AbsTol',1e-12);
 end
 
-function testIntervalStreamingNominalObjectivesUseContextDij(testCase)
+function testIntervalScenarioBatchNominalObjectivesUseContextDij(testCase)
 context = compactContext();
 robustData = intervalRobustData('INTERVAL2');
 robustData.planConfig.hasNominalObjectives = true;
@@ -62,7 +67,7 @@ verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
     'dij_interval'));
 end
 
-function testInterval3StreamingPrecomputeCallsStreamingWithoutDij(testCase)
+function testInterval3ScenarioBatchPrecomputeCallsMatRadWithoutDij(testCase)
 context = compactContext();
 robustData = intervalRobustData('INTERVAL3');
 
@@ -76,7 +81,7 @@ verifyEqual(testCase,robustData.dij_interval.stubNargin,5);
 verifyEqual(testCase,robustData.dijIntervalContext.stubNargin,5);
 end
 
-function testReferenceIntervalStreamingPrecomputeIsSelfReferenced(testCase)
+function testReferenceIntervalScenarioBatchPrecomputeIsSelfReferenced(testCase)
 context = compactContext();
 robustData = referenceRobustData(intervalRobustData('INTERVAL2'));
 
@@ -96,18 +101,18 @@ verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.totalSizeBytes,'AbsTol',1e-12);
 end
 
-function testProb2StreamingPrecomputeCallsStreamingWithoutDij(testCase)
+function testProb2ScenarioBatchPrecomputeCallsMatRadWithoutDij(testCase)
 context = compactContext();
-robustData = prob2RobustData();
+robustData = probRobustData();
 
 robustData = ...
-    planWorkflow.precompute.Prob2DoseInfluence.precompute( ...
+    planWorkflow.precompute.ProbDoseInfluence.precompute( ...
     context,robustData);
 
 verifyFalse(testCase,isfield(robustData,'dij'));
-verifyEqual(testCase,robustData.dij_prob2.stubMode,'PROB2');
-verifyEqual(testCase,robustData.dij_prob2.stubNargin,5);
-verifyEqual(testCase,robustData.dijProb2Context.stubNargin,5);
+verifyEqual(testCase,robustData.dij_prob.stubMode,'PROB');
+verifyEqual(testCase,robustData.dij_prob.stubNargin,5);
+verifyEqual(testCase,robustData.dijProbContext.stubNargin,5);
 verifyTrue(testCase, ...
     planWorkflow.performance.PrecomputeTiming.isValid( ...
     robustData.dijPrecomputingTiming));
@@ -116,21 +121,21 @@ verifyTrue(testCase, ...
     robustData.dijPrecomputingSize));
 verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.totalSizeBytes, ...
-    robustData.dij_prob2.streamingSize.totalPrecomputingBytes, ...
+    robustData.dij_prob.precomputeSize.totalPrecomputingBytes, ...
     'AbsTol',1e-12);
 verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.relativeSize, ...
-    robustData.dij_prob2.streamingSize.totalPrecomputingBytes / ...
+    robustData.dij_prob.precomputeSize.totalPrecomputingBytes / ...
     context.data.dijPrecomputingSize.totalSizeBytes, ...
     'AbsTol',1e-12);
 end
 
-function testReferenceProb2StreamingPrecomputeIsSelfReferenced(testCase)
+function testReferenceProb2ScenarioBatchPrecomputeIsSelfReferenced(testCase)
 context = compactContext();
-robustData = referenceRobustData(prob2RobustData());
+robustData = referenceRobustData(probRobustData());
 
 robustData = ...
-    planWorkflow.precompute.Prob2DoseInfluence.precompute( ...
+    planWorkflow.precompute.ProbDoseInfluence.precompute( ...
     context,robustData);
 
 verifyEqual(testCase,robustData.dijPrecomputingTiming.relativeTime,1, ...
@@ -145,21 +150,21 @@ verifyEqual(testCase, ...
     robustData.dijPrecomputingSize.totalSizeBytes,'AbsTol',1e-12);
 end
 
-function testProb2StreamingNominalObjectivesUseContextDij(testCase)
+function testProb2ScenarioBatchNominalObjectivesUseContextDij(testCase)
 context = compactContext();
-robustData = prob2RobustData();
+robustData = probRobustData();
 robustData.planConfig.hasNominalObjectives = true;
 robustData.planConfig.requiresNominalDij = true;
 
 robustData = ...
-    planWorkflow.precompute.Prob2DoseInfluence.precompute( ...
+    planWorkflow.precompute.ProbDoseInfluence.precompute( ...
     context,robustData);
 
 verifyFalse(testCase,isfield(robustData,'dij'));
-verifyEqual(testCase,robustData.dijNominal,robustData.dijProb2Context);
+verifyEqual(testCase,robustData.dijNominal,robustData.dijProbContext);
 verifyEqual(testCase,robustData.stfNominal,robustData.stf);
 verifyFalse(testCase,isfield(robustData.plnNominal.propOpt, ...
-    'dij_prob2'));
+    'dij_prob'));
 end
 
 function context = compactContext()
@@ -182,9 +187,9 @@ robustData.planConfig.variants = ...
 robustData.strategy = planWorkflow.robustness.AbstractStrategy.create(mode);
 end
 
-function robustData = prob2RobustData()
+function robustData = probRobustData()
 robustData = baseRobustData('PROB2');
-robustData.planConfig.requiresProb2Dij = true;
+robustData.planConfig.requiresProbDij = true;
 robustData.planConfig.robustnessOptions = ...
     planWorkflow.config.RobustPlanConfig.defaultRobustnessOptions('PROB2');
 robustData.planConfig.variants = ...
@@ -194,16 +199,16 @@ end
 
 function robustData = baseRobustData(mode)
 planConfig = planWorkflow.config.RobustPlanConfig.defaultPlan();
-planConfig.id = ['streaming' mode];
-planConfig.label = ['Streaming ' mode];
+planConfig.id = ['scenarioBatch' mode];
+planConfig.label = ['Scenario-batch ' mode];
 planConfig.objectiveSetName = planConfig.id;
 planConfig.robustnessMode = mode;
 planConfig.hasNominalObjectives = false;
 planConfig.requiresNominalDij = false;
 planConfig.requiresScenarioDij = false;
 planConfig.requiresIntervalDij = false;
-planConfig.requiresProb2Dij = false;
-planConfig.dosePrecompute.useStreaming = true;
+planConfig.requiresProbDij = false;
+planConfig.dosePrecompute.useScenarioBatch = true;
 
 robustData = struct();
 robustData.planConfig = planConfig;
@@ -224,11 +229,10 @@ robustData.planConfig.label = 'Reference';
 robustData.planConfig.objectiveSetName = 'reference';
 end
 
-function clearStreamingFunctions()
+function clearScenarioBatchFunctions()
 functionNames = { ...
-    'matRad_calcDoseInterval2Streaming', ...
-    'matRad_calcDoseInterval3Streaming', ...
-    'matRad_calcDoseProb2Streaming'};
+    'matRad_calcDoseInterval', ...
+    'matRad_calculateProbabilisticQuantities'};
 for functionIx = 1:numel(functionNames)
     clear(functionNames{functionIx});
 end

@@ -130,7 +130,7 @@ classdef ScenarioFreeDoseInfluence
         function tf = requiresCompactPrecompute(planConfig)
             tf = planWorkflow.precompute.ScenarioFreeDoseInfluence.requiresIntervalDij( ...
                 planConfig) || ...
-                planWorkflow.precompute.ScenarioFreeDoseInfluence.requiresProb2Dij( ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.requiresProbDij( ...
                 planConfig);
         end
 
@@ -139,19 +139,19 @@ classdef ScenarioFreeDoseInfluence
                 'requiresIntervalDij') && logical(planConfig.requiresIntervalDij);
         end
 
-        function tf = requiresProb2Dij(planConfig)
+        function tf = requiresProbDij(planConfig)
             tf = isstruct(planConfig) && isfield(planConfig, ...
-                'requiresProb2Dij') && logical(planConfig.requiresProb2Dij);
+                'requiresProbDij') && logical(planConfig.requiresProbDij);
         end
 
-        function tf = useStreamingPrecompute(planConfig)
+        function tf = useScenarioBatchPrecompute(planConfig)
             tf = ...
                 planWorkflow.precompute.ScenarioFreeDoseInfluence.requiresCompactPrecompute( ...
                 planConfig) && isstruct(planConfig) && ...
                 isfield(planConfig,'dosePrecompute') && ...
                 isstruct(planConfig.dosePrecompute) && ...
-                isfield(planConfig.dosePrecompute,'useStreaming') && ...
-                logical(planConfig.dosePrecompute.useStreaming);
+                isfield(planConfig.dosePrecompute,'useScenarioBatch') && ...
+                logical(planConfig.dosePrecompute.useScenarioBatch);
         end
 
         function tf = isReferencePlan(robustData)
@@ -168,7 +168,7 @@ classdef ScenarioFreeDoseInfluence
             end
         end
 
-        function cfg = streamingConfig(planConfig)
+        function cfg = scenarioBatchConfig(planConfig)
             cfg = struct();
             if ~isstruct(planConfig) || ~isfield(planConfig,'dosePrecompute') || ...
                     ~isstruct(planConfig.dosePrecompute)
@@ -184,13 +184,13 @@ classdef ScenarioFreeDoseInfluence
             end
         end
 
-        function cfg = mergeStreamingConfig(cfg,planConfig)
-            streamingCfg = ...
-                planWorkflow.precompute.ScenarioFreeDoseInfluence.streamingConfig( ...
+        function cfg = mergeScenarioBatchConfig(cfg,planConfig)
+            scenarioBatchCfg = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.scenarioBatchConfig( ...
                 planConfig);
-            fields = fieldnames(streamingCfg);
+            fields = fieldnames(scenarioBatchCfg);
             for fieldIx = 1:numel(fields)
-                cfg.(fields{fieldIx}) = streamingCfg.(fields{fieldIx});
+                cfg.(fields{fieldIx}) = scenarioBatchCfg.(fields{fieldIx});
             end
         end
 

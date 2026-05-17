@@ -39,13 +39,13 @@ verifyEqual(testCase,robustData.dijRobust,dij);
 end
 
 function robustData = planData(requiresIntervalDij,requiresScenarioDij, ...
-        requiresProb2Dij)
+        requiresProbDij)
 if nargin < 3
-    requiresProb2Dij = false;
+    requiresProbDij = false;
 end
 robustData = struct();
 robustData.planConfig = struct();
 robustData.planConfig.requiresIntervalDij = requiresIntervalDij;
 robustData.planConfig.requiresScenarioDij = requiresScenarioDij;
-robustData.planConfig.requiresProb2Dij = requiresProb2Dij;
+robustData.planConfig.requiresProbDij = requiresProbDij;
 end

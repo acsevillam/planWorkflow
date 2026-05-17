@@ -10,7 +10,7 @@ classdef (Abstract) AbstractStrategy < handle
             tf = false;
         end
 
-        function tf = requiresProb2Dij(obj) %#ok<MANU>
+        function tf = requiresProbDij(obj) %#ok<MANU>
             tf = false;
         end
     end

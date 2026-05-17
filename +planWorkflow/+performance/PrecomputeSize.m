@@ -202,21 +202,21 @@ classdef PrecomputeSize
         end
 
         function bytes = artifactBytes(value)
-            bytes = planWorkflow.performance.PrecomputeSize.streamingBytes(value);
+            bytes = planWorkflow.performance.PrecomputeSize.precomputeBytes(value);
             if isfinite(bytes)
                 return;
             end
             bytes = planWorkflow.performance.PrecomputeSize.valueBytes(value);
         end
 
-        function bytes = streamingBytes(value)
+        function bytes = precomputeBytes(value)
             bytes = NaN;
-            if ~isstruct(value) || ~isfield(value,'streamingSize') || ...
-                    ~isstruct(value.streamingSize)
+            if ~isstruct(value) || ~isfield(value,'precomputeSize') || ...
+                    ~isstruct(value.precomputeSize)
                 return;
             end
             bytes = planWorkflow.performance.PrecomputeSize.numeric( ...
-                value.streamingSize,'totalPrecomputingBytes',NaN);
+                value.precomputeSize,'totalPrecomputingBytes',NaN);
         end
     end
 

@@ -1,19 +1,22 @@
-function [plnOut,dijIntervalContext] = matRad_calcDoseInterval3Streaming( ...
-        ct,cst,stf,pln,cfg)
+function [plnOut,dijIntervalContext] = matRad_calcDoseInterval( ...
+        ct,cst,stf,pln,varargin)
 if nargin ~= 5
-    error('planWorkflowTest:StreamingStub:UnexpectedNargin', ...
-        'Streaming interval stubs expect exactly five inputs.');
+    error('planWorkflowTest:ScenarioBatchStub:UnexpectedNargin', ...
+        'Scenario-batch interval stub expects exactly five inputs.');
 end
-assertNoPrecomputedDij(cfg);
-[plnOut,dijIntervalContext] = intervalStubOutput(stf,pln,'INTERVAL3', ...
-    nargin);
-end
-
-function assertNoPrecomputedDij(cfg)
+cfg = varargin{1};
 if isstruct(cfg) && isfield(cfg,'PrecomputedDij')
-    error('planWorkflowTest:StreamingStub:UnexpectedPrecomputedDij', ...
-        'planWorkflow must not pass PrecomputedDij to streaming precompute.');
+    error('planWorkflowTest:ScenarioBatchStub:UnexpectedPrecomputedDij', ...
+        ['planWorkflow must not pass PrecomputedDij to scenario-batch ' ...
+         'precompute.']);
 end
+if ~isstruct(cfg) || ~isfield(cfg,'IntervalMode') || ...
+        isempty(cfg.IntervalMode)
+    error('planWorkflowTest:ScenarioBatchStub:MissingIntervalMode', ...
+        'Scenario-batch interval stub requires cfg.IntervalMode.');
+end
+[plnOut,dijIntervalContext] = intervalStubOutput( ...
+    stf,pln,char(cfg.IntervalMode),nargin);
 end
 
 function [plnOut,dijIntervalContext] = intervalStubOutput(stf,pln,mode, ...
@@ -22,14 +25,18 @@ numOfBixels = totalNumOfBixels(stf);
 dijInterval = struct();
 dijInterval.center = sparse(2,numOfBixels);
 dijInterval.radius = sparse(2,numOfBixels);
-dijInterval.OARSubIx = [1;2];
-dijInterval.OARRadiusFactor = {sparse(numOfBixels,1)};
-dijInterval.OARRadiusRank = 1;
+if strcmp(mode,'INTERVAL3')
+    dijInterval.OARSubIx = [1;2];
+    dijInterval.OARRadiusFactor = {sparse(numOfBixels,1)};
+    dijInterval.OARRadiusRank = 1;
+end
 dijInterval.quantity = 'physicalDose';
 dijInterval.quantityField = 'physicalDose';
+dijInterval.intervalMode = mode;
 dijInterval.stubMode = mode;
 dijInterval.stubNargin = inputCount;
-dijInterval.streamingSize = streamingSize(dijInterval,256);
+dijInterval.precomputeMode = 'scenario-batch';
+dijInterval.precomputeSize = precomputeSize(dijInterval,auxiliaryBytes(mode));
 plnOut = pln;
 if ~isfield(plnOut,'propOpt') || ~isstruct(plnOut.propOpt)
     plnOut.propOpt = struct();
@@ -43,7 +50,15 @@ dijIntervalContext.scenarioModel = matRad_NominalScenario();
 dijIntervalContext.stubNargin = inputCount;
 end
 
-function data = streamingSize(dijInterval,auxiliaryPeakBytes)
+function bytes = auxiliaryBytes(mode)
+if strcmp(mode,'INTERVAL3')
+    bytes = 256;
+else
+    bytes = 128;
+end
+end
+
+function data = precomputeSize(dijInterval,auxiliaryPeakBytes)
 compactBytes = variableBytes(dijInterval);
 data = struct();
 data.compactBytes = compactBytes;
@@ -53,7 +68,7 @@ data.diskCachePeakBytes = auxiliaryPeakBytes;
 data.memoryTemporaryPeakBytes = 0;
 data.auxiliaryPeakKind = 'diskCache';
 data.secondPassStrategy = 'disk';
-dijInterval.streamingSize = data;
+dijInterval.precomputeSize = data;
 compactBytes = variableBytes(dijInterval);
 data.compactBytes = compactBytes;
 data.totalPrecomputingBytes = compactBytes + auxiliaryPeakBytes;

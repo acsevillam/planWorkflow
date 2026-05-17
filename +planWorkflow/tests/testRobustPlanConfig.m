@@ -25,7 +25,7 @@ verifyEqual(testCase,precompute.robustPlans(1).robustnessMode,'INTERVAL3');
 verifyTrue(testCase,precompute.robustPlans(1).hasNominalObjectives);
 verifyTrue(testCase,precompute.robustPlans(1).requiresNominalDij);
 verifyTrue(testCase,precompute.robustPlans(1).requiresIntervalDij);
-verifyFalse(testCase,precompute.robustPlans(1).requiresProb2Dij);
+verifyFalse(testCase,precompute.robustPlans(1).requiresProbDij);
 verifyEqual(testCase,precompute.robustPlans(1).robustnessOptions.radiusMode, ...
     'std');
 verifyEqual(testCase,precompute.robustPlans(1).robustnessOptions.kmax,10);
@@ -147,7 +147,7 @@ verifyEqual(testCase,plans.robustnessMode,'none');
 verifyTrue(testCase,plans.requiresNominalDij);
 verifyFalse(testCase,plans.requiresScenarioDij);
 verifyFalse(testCase,plans.requiresIntervalDij);
-verifyFalse(testCase,plans.requiresProb2Dij);
+verifyFalse(testCase,plans.requiresProbDij);
 verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 verifyFalse(testCase,isfield(plans.variants,'theta1'));
@@ -236,8 +236,8 @@ verifyError(testCase,@() ...
     'planWorkflow:config:RobustPlanConfig:InvalidNumericScalar');
 end
 
-function testProb2ContractUsesProb2DijOnly(testCase)
-plan = cleanPlan('prob2','PROB2');
+function testProb2ContractUsesProbDijOnly(testCase)
+plan = cleanPlan('prob','PROB2');
 
 plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('PROB2',false));
@@ -246,7 +246,7 @@ verifyEqual(testCase,plans.robustnessMode,'PROB2');
 verifyFalse(testCase,plans.requiresNominalDij);
 verifyFalse(testCase,plans.requiresScenarioDij);
 verifyFalse(testCase,plans.requiresIntervalDij);
-verifyTrue(testCase,plans.requiresProb2Dij);
+verifyTrue(testCase,plans.requiresProbDij);
 verifyEmpty(testCase,fieldnames(plans.robustnessOptions));
 verifyEqual(testCase,{plans.variants.id},{'variant_1'});
 end
@@ -261,20 +261,20 @@ verifyTrue(testCase,plans.hasNominalObjectives);
 verifyFalse(testCase,plans.requiresNominalDij);
 verifyTrue(testCase,plans.requiresScenarioDij);
 verifyFalse(testCase,plans.requiresIntervalDij);
-verifyFalse(testCase,plans.requiresProb2Dij);
+verifyFalse(testCase,plans.requiresProbDij);
 end
 
 function testDosePrecomputeDefaultsAndNormalization(testCase)
 cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
 plan = cleanPlan('interval3','INTERVAL3');
-plan.dosePrecompute = struct('useStreaming','true', ...
+plan.dosePrecompute = struct('useScenarioBatch','true', ...
     'SecondPassStrategy','RECOMPUTE','KeepCache','on', ...
     'CacheRoot',['  ' cacheRoot '  ']);
 
 plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('INTERVAL3',false));
 
-verifyTrue(testCase,plans.dosePrecompute.useStreaming);
+verifyTrue(testCase,plans.dosePrecompute.useScenarioBatch);
 verifyEqual(testCase,plans.dosePrecompute.SecondPassStrategy,'recompute');
 verifyTrue(testCase,plans.dosePrecompute.KeepCache);
 verifyEqual(testCase,plans.dosePrecompute.CacheRoot,cacheRoot);
@@ -295,7 +295,7 @@ function testMixedCompactPrecomputeModesAreRejected(testCase)
 plan = cleanPlan('bad','Mixed');
 badContract = contract('PROB2',false);
 badContract.requiresIntervalDij = true;
-badContract.requiresProb2Dij = true;
+badContract.requiresProbDij = true;
 
 verifyError(testCase,@() ...
     planWorkflow.config.RobustPlanConfig.normalizePlans( ...
@@ -325,8 +325,8 @@ for modeIx = 1:numel(modes)
         value.requiresScenarioDij);
     verifyEqual(testCase,plan.requiresIntervalDij, ...
         value.requiresIntervalDij);
-    verifyEqual(testCase,plan.requiresProb2Dij, ...
-        value.requiresProb2Dij);
+    verifyEqual(testCase,plan.requiresProbDij, ...
+        value.requiresProbDij);
 end
 end
 
@@ -363,10 +363,10 @@ value.requiresScenarioDij = any(strcmp(robustnessMode, ...
     {'STOCH','COWC','c-COWC'}));
 value.requiresIntervalDij = any(strcmp(robustnessMode, ...
     {'INTERVAL2','INTERVAL3'}));
-value.requiresProb2Dij = strcmp(robustnessMode,'PROB2');
+value.requiresProbDij = strcmp(robustnessMode,'PROB2');
 value.requiresNominalDij = strcmp(robustnessMode,'none') || ...
     (logical(hasNominal) && (value.requiresIntervalDij || ...
-    value.requiresProb2Dij));
+    value.requiresProbDij));
 end
 
 function variant = penaltyVariant( ...

@@ -38,10 +38,10 @@ classdef ObjectiveRobustnessContract
                 robustnessMode,{'STOCH','COWC','c-COWC'}));
             contract.requiresIntervalDij = any(strcmp( ...
                 robustnessMode,{'INTERVAL2','INTERVAL3'}));
-            contract.requiresProb2Dij = strcmp(robustnessMode,'PROB2');
+            contract.requiresProbDij = strcmp(robustnessMode,'PROB2');
             contract.requiresNominalDij = strcmp(robustnessMode,'none') || ...
                 (hasNominal && (contract.requiresIntervalDij || ...
-                contract.requiresProb2Dij));
+                contract.requiresProbDij));
         end
 
         function contract = forTemplateObjectiveSet(template,objectiveSetName)

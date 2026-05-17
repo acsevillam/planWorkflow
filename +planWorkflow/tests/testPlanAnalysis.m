@@ -3,8 +3,8 @@ tests = functiontests(localfunctions);
 end
 
 function testResolveQuantityUsesOptimizationQuantity(testCase)
-pln.bioParam.quantityOpt = 'physicalDose';
-pln.bioParam.quantityVis = 'RBExD';
+pln.propOpt.quantityOpt = 'physicalDose';
+pln.propOpt.quantityVis = 'RBExD';
 resultGUI.RBExD = 1;
 
 quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,resultGUI);
@@ -143,7 +143,7 @@ verifyEqual(testCase,carbonConfig.quantityOpt,'RBExD');
 end
 
 function testResolveQuantityRejectsImplicitResultFields(testCase)
-pln.bioParam.quantityVis = 'RBExD';
+pln.propOpt.quantityVis = 'RBExD';
 resultGUI.RBExD = 1;
 
 verifyError(testCase,@() ...
@@ -163,8 +163,8 @@ cst{1,5} = struct();
 cst{1,6} = {};
 ct.cubeDim = [1 1 1];
 pln.numOfFractions = 1;
-pln.bioParam.quantityOpt = 'effect';
-pln.bioParam.quantityVis = 'physicalDose';
+pln.propOpt.quantityOpt = 'effect';
+pln.propOpt.quantityVis = 'physicalDose';
 resultGUI.effect = 2;
 resultGUI.physicalDose = 1;
 

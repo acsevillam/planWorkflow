@@ -308,15 +308,15 @@ end
 function testMacroExportsOnlyNonDefaultDosePrecomputeFields(testCase)
 fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
 runConfig = baseRunConfig(fixture.Folder);
-runConfig.precompute.robustPlans.dosePrecompute.useStreaming = true;
+runConfig.precompute.robustPlans.dosePrecompute.useScenarioBatch = true;
 runConfig.precompute.robustPlans.dosePrecompute.SecondPassStrategy = ...
     'recompute';
 
 macroText = planWorkflow.gui.PlanPresetWriter.macroText( ...
-    'runStreamingWorkflow',runConfig,'interval2_001');
+    'runScenarioBatchWorkflow',runConfig,'interval2_001');
 
 verifyTrue(testCase,contains(macroText, ...
-    "workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.useStreaming = true;"));
+    "workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.useScenarioBatch = true;"));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.precompute.robustPlans.Interval2.dosePrecompute.SecondPassStrategy = 'recompute';"));
 verifyFalse(testCase,contains(macroText, ...
@@ -618,7 +618,7 @@ contract.robustnessMode = 'INTERVAL2';
 contract.hasNominalObjectives = true;
 contract.requiresNominalDij = true;
 contract.requiresIntervalDij = true;
-contract.requiresProb2Dij = false;
+contract.requiresProbDij = false;
 plan = planWorkflow.config.RobustPlanConfig.normalizePlan(plan,1,contract);
 end
 

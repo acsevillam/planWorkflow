@@ -115,14 +115,14 @@ classdef ResourceDetails
                     detailData = ...
                         planWorkflow.performance.ResourceDetails.appendRobustData( ...
                         detailData,robustData,false);
-                case 'prob2DoseInfluence'
+                case 'probDoseInfluence'
                     robustData = ...
                         planWorkflow.performance.ResourceDetails.taskOutput( ...
                         taskOutputs,1);
                     detailData = ...
                         planWorkflow.performance.ResourceDetails.appendRobustData( ...
                         detailData,robustData,true);
-                case 'prob2DoseInfluenceCacheRead'
+                case 'probDoseInfluenceCacheRead'
                     robustData = ...
                         planWorkflow.performance.ResourceDetails.taskOutput( ...
                         taskOutputs,2);
@@ -208,10 +208,10 @@ classdef ResourceDetails
                     planWorkflow.performance.ResourceDetails.appendDoseInfluence( ...
                     detailData,'dij_interval',robustData.dij_interval);
             end
-            if isfield(robustData,'dij_prob2')
+            if isfield(robustData,'dij_prob')
                 detailData = ...
                     planWorkflow.performance.ResourceDetails.appendDoseInfluence( ...
-                    detailData,'dij_prob2',robustData.dij_prob2);
+                    detailData,'dij_prob',robustData.dij_prob);
             end
             if isfield(robustData,'dijPrecomputingTiming')
                 detailData = ...
@@ -283,10 +283,10 @@ classdef ResourceDetails
         end
 
         function data = doseInfluence(value)
-            if planWorkflow.performance.ResourceDetails.isProb2DoseInfluence( ...
+            if planWorkflow.performance.ResourceDetails.isProbDoseInfluence( ...
                     value)
                 data = ...
-                    planWorkflow.performance.ResourceDetails.prob2DoseInfluence( ...
+                    planWorkflow.performance.ResourceDetails.probDoseInfluence( ...
                     value);
             elseif planWorkflow.performance.ResourceDetails.isIntervalDoseInfluence( ...
                     value)
@@ -304,7 +304,7 @@ classdef ResourceDetails
             tf = isstruct(value) && isfield(value,'center');
         end
 
-        function tf = isProb2DoseInfluence(value)
+        function tf = isProbDoseInfluence(value)
             tf = isstruct(value) && isfield(value,'expected') && ...
                 isfield(value,'Omega');
         end
@@ -359,7 +359,7 @@ classdef ResourceDetails
                 planWorkflow.performance.ResourceDetails.sizeResourceData(value);
         end
 
-        function data = prob2DoseInfluence(value)
+        function data = probDoseInfluence(value)
             data = struct();
             scenarioCount = ...
                 planWorkflow.performance.ResourceDetails.compactDoseInfluenceScenarioCount( ...
@@ -373,7 +373,7 @@ classdef ResourceDetails
                     value.expected);
             end
             omegaComponents = ...
-                planWorkflow.performance.ResourceDetails.prob2OmegaComponents( ...
+                planWorkflow.performance.ResourceDetails.probOmegaComponents( ...
                 value);
             if ~isempty(fieldnames(omegaComponents))
                 data.omegaComponents = omegaComponents;
@@ -439,17 +439,17 @@ classdef ResourceDetails
                 totalBytes);
         end
 
-        function data = prob2OmegaComponents(dijProb2)
+        function data = probOmegaComponents(dijProb)
             data = struct();
             source = struct();
-            if ~isstruct(dijProb2)
+            if ~isstruct(dijProb)
                 return;
             end
-            if isfield(dijProb2,'voiSubIx')
-                source.voiSubIx = dijProb2.voiSubIx;
+            if isfield(dijProb,'voiSubIx')
+                source.voiSubIx = dijProb.voiSubIx;
             end
-            if isfield(dijProb2,'Omega')
-                source.Omega = dijProb2.Omega;
+            if isfield(dijProb,'Omega')
+                source.Omega = dijProb.Omega;
             end
 
             componentCount = ...

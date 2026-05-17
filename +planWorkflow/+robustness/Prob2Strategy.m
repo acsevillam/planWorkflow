@@ -6,7 +6,7 @@ classdef Prob2Strategy < planWorkflow.robustness.AbstractStrategy
             obj.name = 'PROB2';
         end
 
-        function tf = requiresProb2Dij(obj) %#ok<MANU>
+        function tf = requiresProbDij(obj) %#ok<MANU>
             tf = true;
         end
 

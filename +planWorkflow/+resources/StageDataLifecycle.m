@@ -100,8 +100,8 @@ classdef StageDataLifecycle
                 fieldNames = [fieldNames ...
                     {'dij_interval','dijIntervalContext'}];
             elseif planWorkflow.resources.StageDataLifecycle.flag( ...
-                    planConfig,'requiresProb2Dij')
-                fieldNames = [fieldNames {'dij_prob2','dijProb2Context'}];
+                    planConfig,'requiresProbDij')
+                fieldNames = [fieldNames {'dij_prob','dijProbContext'}];
             end
             if planWorkflow.resources.StageDataLifecycle.flag( ...
                     planConfig,'requiresNominalDij')

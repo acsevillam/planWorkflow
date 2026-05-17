@@ -51,15 +51,15 @@ strategy = planWorkflow.robustness.NoneStrategy();
 verifyEqual(testCase,actualCst,cst);
 verifyEqual(testCase,actualPln,pln);
 verifyFalse(testCase,strategy.requiresIntervalDij());
-verifyFalse(testCase,strategy.requiresProb2Dij());
+verifyFalse(testCase,strategy.requiresProbDij());
 end
 
-function testProb2StrategyRequiresProb2Dij(testCase)
+function testProb2StrategyRequiresProbDij(testCase)
 [cst,objectiveInfo,pln,runConfig] = strategyFixture();
 strategy = planWorkflow.robustness.Prob2Strategy();
 
 verifyFalse(testCase,strategy.requiresIntervalDij());
-verifyTrue(testCase,strategy.requiresProb2Dij());
+verifyTrue(testCase,strategy.requiresProbDij());
 [actualCst,actualPln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
 verifyEqual(testCase,actualCst,cst);
@@ -72,7 +72,7 @@ runConfig.variant = struct('theta1',30,'theta2',1.5);
 strategy = planWorkflow.robustness.IntervalStrategy('INTERVAL3');
 
 verifyTrue(testCase,strategy.requiresIntervalDij());
-verifyFalse(testCase,strategy.requiresProb2Dij());
+verifyFalse(testCase,strategy.requiresProbDij());
 [actualCst,pln] = strategy.apply(cst,pln,objectiveInfo,runConfig);
 
 verifyEqual(testCase,actualCst,cst);

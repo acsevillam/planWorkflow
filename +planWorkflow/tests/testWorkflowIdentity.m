@@ -126,5 +126,5 @@ value.requiresScenarioDij = any(strcmp(robustnessMode, ...
     {'STOCH','COWC','c-COWC'}));
 value.requiresIntervalDij = any(strcmp(robustnessMode, ...
     {'INTERVAL2','INTERVAL3'}));
-value.requiresProb2Dij = strcmp(robustnessMode,'PROB2');
+value.requiresProbDij = strcmp(robustnessMode,'PROB2');
 end

@@ -13,7 +13,7 @@ verifyEqual(testCase,contract.robustnessMode,'INTERVAL3');
 verifyTrue(testCase,contract.requiresNominalDij);
 verifyFalse(testCase,contract.requiresScenarioDij);
 verifyTrue(testCase,contract.requiresIntervalDij);
-verifyFalse(testCase,contract.requiresProb2Dij);
+verifyFalse(testCase,contract.requiresProbDij);
 end
 
 function testDerivesScenarioRobustnessNeeds(testCase)
@@ -27,7 +27,7 @@ verifyTrue(testCase,contract.hasNominalObjectives);
 verifyFalse(testCase,contract.requiresNominalDij);
 verifyTrue(testCase,contract.requiresScenarioDij);
 verifyFalse(testCase,contract.requiresIntervalDij);
-verifyFalse(testCase,contract.requiresProb2Dij);
+verifyFalse(testCase,contract.requiresProbDij);
 end
 
 function testDerivesProb2Needs(testCase)
@@ -40,7 +40,7 @@ verifyEqual(testCase,contract.robustnessMode,'PROB2');
 verifyTrue(testCase,contract.requiresNominalDij);
 verifyFalse(testCase,contract.requiresScenarioDij);
 verifyFalse(testCase,contract.requiresIntervalDij);
-verifyTrue(testCase,contract.requiresProb2Dij);
+verifyTrue(testCase,contract.requiresProbDij);
 end
 
 function testInterval2AndInterval3SelectInterval3(testCase)
@@ -51,7 +51,7 @@ contract = planWorkflow.templates.ObjectiveRobustnessContract.forObjectiveSet( .
 
 verifyEqual(testCase,contract.robustnessMode,'INTERVAL3');
 verifyTrue(testCase,contract.requiresIntervalDij);
-verifyFalse(testCase,contract.requiresProb2Dij);
+verifyFalse(testCase,contract.requiresProbDij);
 end
 
 function testRejectsMultipleNonNoneModes(testCase)

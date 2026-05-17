@@ -140,9 +140,9 @@ capabilities. Scenario generation uses
 `matRad_NominalScenario`, `matRad_WorstCaseScenarios`,
 `matRad_ImportanceScenarios`, `matRad_TruncatedImportanceScenarios`, and
 `matRad_RandomScenarios` through `planWorkflow.scenario.createModel`. Interval
-strategies call matRad's native `matRad_calcDoseInterval2` and
-`matRad_calcDoseInterval3` precompute functions before optimization.
-`PROB2` calls `matRad_calcDoseProb2` and attaches the cached `dij_prob2`
+strategies call matRad's native `matRad_calcDoseInterval` with explicit
+`IntervalMode` before optimization. `PROB2` calls
+`matRad_calculateProbabilisticQuantities` and attaches the cached `dij_prob`
 payload only to the optimization plan. `INTERVAL2/3` use `radiusMode = 'std'`
 or `'extreme'`; `INTERVAL3` consumes `OARRadiusFactor` and `OARRadiusRank`
 without legacy `U/S/V/k` cache compatibility. Constraints remain entries in

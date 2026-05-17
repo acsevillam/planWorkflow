@@ -196,10 +196,10 @@ classdef NominalForwardInputs
                     robustData.optimizationInput.ct.refScen;
                 return;
             end
-            if isfield(robustData,'dij_prob2') && ...
-                    isfield(robustData.dij_prob2,'refScen') && ...
-                    ~isempty(robustData.dij_prob2.refScen)
-                referenceCtScenarioId = robustData.dij_prob2.refScen;
+            if isfield(robustData,'dij_prob') && ...
+                    isfield(robustData.dij_prob,'refScen') && ...
+                    ~isempty(robustData.dij_prob.refScen)
+                referenceCtScenarioId = robustData.dij_prob.refScen;
                 return;
             end
 
@@ -218,7 +218,7 @@ classdef NominalForwardInputs
                 return;
             end
 
-            optimizationOnlyFields = {'scen4D','dij_interval','dij_prob2'};
+            optimizationOnlyFields = {'scen4D','dij_interval','dij_prob'};
             for fieldIx = 1:numel(optimizationOnlyFields)
                 fieldName = optimizationOnlyFields{fieldIx};
                 if isfield(pln.propOpt,fieldName)

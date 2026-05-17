@@ -389,21 +389,20 @@ classdef matRadCapabilitiesReader
 
     methods (Static, Access = private)
         function names = supportedBioModelNames(radiationMode)
-            candidates = ...
-                planWorkflow.matRadCapabilitiesReader.bioModelCandidates();
             names = {};
-            if exist('matRad_bioModel','file') == 2
-                for modelIx = 1:numel(candidates)
-                    quantities = ...
-                        planWorkflow.matRadCapabilitiesReader.supportedDoseQuantitiesForBioModel( ...
-                        radiationMode,candidates{modelIx});
-                    if ~isempty(quantities)
-                        names{end + 1} = candidates{modelIx}; %#ok<AGROW>
-                    end
+            if exist('matRad_BiologicalModel','class') == 8
+                try
+                    classList = matRad_BiologicalModel.getAvailableModels( ...
+                        char(radiationMode), ...
+                        planWorkflow.matRadCapabilitiesReader.bioModelInputQuantities());
+                    names = {classList.model};
+                catch
+                    names = {};
                 end
             end
             if isempty(names)
-                names = candidates;
+                names = ...
+                    planWorkflow.matRadCapabilitiesReader.bioModelCandidates();
             end
             names = ...
                 planWorkflow.matRadCapabilitiesReader.orderBioModels( ...
@@ -411,11 +410,17 @@ classdef matRadCapabilitiesReader
         end
 
         function names = bioModelCandidates()
-            names = ...
-                planWorkflow.matRadCapabilitiesReader.biologicalModelConstant( ...
-                'availableModels');
+            names = {};
+            if exist('matRad_BiologicalModel','class') == 8
+                try
+                    classList = matRad_BiologicalModel.getAvailableModels();
+                    names = {classList.model};
+                catch
+                    names = {};
+                end
+            end
             if isempty(names)
-                names = {'none'};
+                names = {'none','constRBE','MCN','WED','HEL','LEM'};
             end
             names = planWorkflow.matRadCapabilitiesReader.uniqueStable(names);
         end
@@ -425,7 +430,7 @@ classdef matRadCapabilitiesReader
                 planWorkflow.matRadCapabilitiesReader.biologicalModelConstant( ...
                 'availableQuantitiesForOpt');
             if isempty(quantities)
-                quantities = {'physicalDose'};
+                quantities = {'physicalDose','RBExD','effect','BED'};
             end
             quantities = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
                 quantities);
@@ -499,60 +504,76 @@ classdef matRadCapabilitiesReader
 
         function quantities = supportedDoseQuantitiesForBioModel( ...
                 radiationMode,bioModel)
-            quantities = {};
-            if exist('matRad_bioModel','file') ~= 2
+            if strcmp(char(bioModel),'none')
+                if any(strcmp(char(radiationMode),{'photons','brachy'}))
+                    quantities = {'physicalDose','RBExD','effect','BED'};
+                else
+                    quantities = {'physicalDose'};
+                end
                 return;
             end
-            candidates = ...
-                planWorkflow.matRadCapabilitiesReader.doseQuantityCandidates();
-            for quantityIx = 1:numel(candidates)
-                quantity = candidates{quantityIx};
-                if planWorkflow.matRadCapabilitiesReader.bioModelAcceptsQuantity( ...
-                        radiationMode,bioModel,quantity)
-                    quantities{end + 1} = quantity; %#ok<AGROW>
-                end
+
+            defaultQuantity = ...
+                planWorkflow.matRadCapabilitiesReader.defaultReportQuantityForBioModel( ...
+                bioModel);
+            if isempty(defaultQuantity)
+                defaultQuantity = ...
+                    planWorkflow.matRadCapabilitiesReader.fallbackQuantityForBioModel( ...
+                    bioModel);
+            end
+            quantities = {defaultQuantity};
+            if planWorkflow.matRadCapabilitiesReader.bioModelSupportsEffectQuantities( ...
+                    bioModel)
+                quantities = [quantities,{'effect','BED'}]; %#ok<AGROW>
             end
             quantities = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
                 quantities);
-        end
-
-        function tf = bioModelAcceptsQuantity(radiationMode,bioModel, ...
-                quantity)
-            tf = false;
-            try
-                warningState = warning('off','matRad:Warning');
-                cleanup = onCleanup(@() warning(warningState));
-                model = [];
-                evalc('model = matRad_bioModel(char(radiationMode),char(quantity),char(bioModel));');
-            catch
-                return;
-            end
-            if isempty(model)
-                return;
-            end
-            modelName = ...
-                planWorkflow.matRadCapabilitiesReader.bioModelProperty( ...
-                model,'model');
-            quantityOpt = ...
-                planWorkflow.matRadCapabilitiesReader.bioModelProperty( ...
-                model,'quantityOpt');
-            tf = strcmp(modelName,char(bioModel)) && ...
-                strcmp(quantityOpt,char(quantity));
-        end
-
-        function value = bioModelProperty(model,fieldName)
-            value = '';
-            try
-                value = char(model.(fieldName));
-            catch
-                value = '';
-            end
         end
 
         function quantity = fallbackQuantityForBioModel(bioModel)
             if strcmp(char(bioModel),'none')
                 quantity = 'physicalDose';
             else
+                quantity = 'RBExD';
+            end
+        end
+
+        function quantities = bioModelInputQuantities()
+            quantities = {'physicalDose','LET','alpha','beta','spectra'};
+        end
+
+        function quantity = defaultReportQuantityForBioModel(bioModel)
+            quantity = '';
+            if exist('matRad_BiologicalModel','class') ~= 8
+                return;
+            end
+            try
+                classList = matRad_BiologicalModel.getAvailableModels();
+            catch
+                return;
+            end
+            modelIx = find(strcmp({classList.model},char(bioModel)),1);
+            if isempty(modelIx)
+                return;
+            end
+            try
+                model = classList(modelIx).handle();
+                quantity = ...
+                    planWorkflow.matRadCapabilitiesReader.toWorkflowQuantity( ...
+                    model.defaultReportQuantity);
+            catch
+                quantity = '';
+            end
+        end
+
+        function tf = bioModelSupportsEffectQuantities(bioModel)
+            tf = any(strcmp(char(bioModel), ...
+                {'CAR','LSM','MCN','WED','TAB','LEM','HEL'}));
+        end
+
+        function quantity = toWorkflowQuantity(quantity)
+            quantity = char(quantity);
+            if strcmp(quantity,'RBExDose')
                 quantity = 'RBExD';
             end
         end
@@ -602,13 +623,7 @@ classdef matRadCapabilitiesReader
                     continue;
                 end
 
-                scenarioMode = ...
-                    planWorkflow.matRadCapabilitiesReader.classPropertyDefault( ...
-                    className,'name');
-                if isempty(scenarioMode)
-                    scenarioMode = scenarioClasses{i,2};
-                end
-                scenarioModes{end + 1} = scenarioMode; %#ok<AGROW>
+                scenarioModes{end + 1} = scenarioClasses{i,2}; %#ok<AGROW>
             end
         end
 

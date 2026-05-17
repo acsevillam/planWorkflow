@@ -60,10 +60,10 @@ classdef EngineProbe < planWorkflow.Engine
         end
 
         function [cacheHit,robustData] = ...
-                loadCachedProb2DoseInfluencePublic(obj,robustData)
+                loadCachedProbDoseInfluencePublic(obj,robustData)
             robustData = obj.robustDataContext(robustData);
             [cacheHit,robustData] = ...
-                planWorkflow.precompute.Prob2DoseInfluence.loadCached( ...
+                planWorkflow.precompute.ProbDoseInfluence.loadCached( ...
                 obj.compactDoseInfluenceContext(),robustData);
         end
 
@@ -73,9 +73,9 @@ classdef EngineProbe < planWorkflow.Engine
                 robustData);
         end
 
-        function robustData = useProb2DijForOptimizationPublic( ...
+        function robustData = useProbDijForOptimizationPublic( ...
                 obj,robustData)
-            robustData = planWorkflow.precompute.Prob2DoseInfluence.useForOptimization( ...
+            robustData = planWorkflow.precompute.ProbDoseInfluence.useForOptimization( ...
                 robustData);
         end
 
@@ -84,8 +84,8 @@ classdef EngineProbe < planWorkflow.Engine
                 obj.robustDataContext(robustData));
         end
 
-        function tag = prob2DoseCacheTagPublic(obj,robustData)
-            tag = planWorkflow.precompute.Prob2DoseInfluence.cacheTag( ...
+        function tag = probDoseCacheTagPublic(obj,robustData)
+            tag = planWorkflow.precompute.ProbDoseInfluence.cacheTag( ...
                 obj.robustDataContext(robustData));
         end
 
@@ -100,10 +100,10 @@ classdef EngineProbe < planWorkflow.Engine
                 obj.compactDoseInfluenceContext(),robustData);
         end
 
-        function context = prob2CacheContextPublic(obj,robustData)
+        function context = probCacheContextPublic(obj,robustData)
             robustData = obj.robustDataContext(robustData);
             context = ...
-                planWorkflow.precompute.Prob2DoseInfluence.cacheContext( ...
+                planWorkflow.precompute.ProbDoseInfluence.cacheContext( ...
                 obj.compactDoseInfluenceContext(),robustData);
         end
 
