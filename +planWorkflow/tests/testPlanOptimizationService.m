@@ -8,7 +8,7 @@ warningCleanup = suppressWarmStartWarning(); %#ok<NASGU>
 runConfig = planOptimizationRunConfig();
 weights = [1; 2; 3];
 radiationModes = {'photons','protons','carbon','helium'};
-quantities = {'physicalDose','effect','RBExD'};
+quantities = {'effect','RBExDose','BED'};
 
 for modeIx = 1:numel(radiationModes)
     for quantityIx = 1:numel(quantities)
@@ -23,42 +23,54 @@ for modeIx = 1:numel(radiationModes)
             radiationModes{modeIx},quantities{quantityIx}));
         verifyEqual(testCase,compatibleResult.warmStartValue,weights);
 
-        incompatibleResult = ...
+        cellResult = ...
             planWorkflow.optimization.PlanOptimizationService.runFluenceOptimization( ...
             runConfig,cellBiologicalDij(),{},pln,weights);
-        verifyFalse(testCase,incompatibleResult.usedWarmStart, ...
-            sprintf('Expected no warm start for %s/%s cell dij.', ...
+        verifyTrue(testCase,cellResult.usedWarmStart, ...
+            sprintf('Expected warm start for %s/%s cell dij.', ...
             radiationModes{modeIx},quantities{quantityIx}));
-        verifyEmpty(testCase,incompatibleResult.warmStartValue);
+        verifyEqual(testCase,cellResult.warmStartValue,weights);
     end
 end
 end
 
-function testNonBiologicalWarmStartIsPassedForAllLabels(testCase)
+function testPhysicalDoseWarmStartIsPassedForAllLabels(testCase)
 stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
 runConfig = planOptimizationRunConfig();
 weights = [4; 5];
 labels = {'photons','protons','carbon','helium'};
-quantities = {'physicalDose','effect','RBExD'};
 
 for modeIx = 1:numel(labels)
-    for quantityIx = 1:numel(quantities)
-        pln = planStruct(labels{modeIx},quantities{quantityIx},false);
-        resultGUI = ...
-            planWorkflow.optimization.PlanOptimizationService.runFluenceOptimization( ...
-            runConfig,cellBiologicalDij(),{},pln,weights);
+    pln = planStruct(labels{modeIx},'physicalDose',true);
+    resultGUI = ...
+        planWorkflow.optimization.PlanOptimizationService.runFluenceOptimization( ...
+        runConfig,cellBiologicalDij(),{},pln,weights);
 
-        verifyTrue(testCase,resultGUI.usedWarmStart);
-        verifyEqual(testCase,resultGUI.warmStartValue,weights);
-    end
+    verifyTrue(testCase,resultGUI.usedWarmStart);
+    verifyEqual(testCase,resultGUI.warmStartValue,weights);
 end
+end
+
+function testCanonicalQuantityOptAllowsValidCellWarmStart(testCase)
+stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
+runConfig = planOptimizationRunConfig();
+pln = planStruct('helium','RBExDose',false);
+pln.bioParam = rmfield(pln.bioParam,'bioOpt');
+weights = [4; 5];
+
+resultGUI = ...
+    planWorkflow.optimization.PlanOptimizationService.runFluenceOptimization( ...
+    runConfig,cellBiologicalDij(),{},pln,weights);
+
+verifyTrue(testCase,resultGUI.usedWarmStart);
+verifyEqual(testCase,resultGUI.warmStartValue,weights);
 end
 
 function testIncompatibleBiologicalDijSkipsWarmStart(testCase)
 stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
 warningCleanup = suppressWarmStartWarning(); %#ok<NASGU>
 runConfig = planOptimizationRunConfig();
-pln = planStruct('carbon','RBExD',true);
+pln = planStruct('carbon','RBExDose',true);
 weights = [7; 8];
 
 missingBxResult = ...
@@ -79,7 +91,7 @@ end
 function testWarmStartWarningIncludesReasonAndSizes(testCase)
 stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
 runConfig = planOptimizationRunConfig();
-pln = planStruct('diagnosticRadiation','diagnosticQuantity',true);
+pln = planStruct('helium','RBExDose',false);
 lastwarn('');
 
 resultGUI = ...
@@ -91,16 +103,16 @@ verifyFalse(testCase,resultGUI.usedWarmStart);
 verifyEqual(testCase,identifier, ...
     'planWorkflow:optimization:WarmStartSkipped');
 verifyTrue(testCase,contains(message,'reason=nonNumericAxBx'));
+verifyTrue(testCase,contains(message,'quantityOpt=RBExDose'));
 verifyTrue(testCase,contains(message,'dij.ax size=[2 3]'));
 verifyTrue(testCase,contains(message,'dij.bx size=[1 11]'));
 end
 
-function testObjectBioParamUsesSameCompatibilityPolicy(testCase)
+function testObjectBioParamDoesNotOverrideCanonicalQuantity(testCase)
 stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
-warningCleanup = suppressWarmStartWarning(); %#ok<NASGU>
 runConfig = planOptimizationRunConfig();
-pln = planStruct('carbon','RBExD',true);
-pln.bioParam = PlanWorkflowTestBioParam(true,'RBExD');
+pln = planStruct('carbon','RBExDose',false);
+pln.bioParam = PlanWorkflowTestBioParam(false,'physicalDose');
 weights = [9; 10];
 
 cellResult = ...
@@ -110,8 +122,8 @@ numericResult = ...
     planWorkflow.optimization.PlanOptimizationService.runFluenceOptimization( ...
     runConfig,numericDij(),{},pln,weights);
 
-verifyFalse(testCase,cellResult.usedWarmStart);
-verifyEmpty(testCase,cellResult.warmStartValue);
+verifyTrue(testCase,cellResult.usedWarmStart);
+verifyEqual(testCase,cellResult.warmStartValue,weights);
 verifyTrue(testCase,numericResult.usedWarmStart);
 verifyEqual(testCase,numericResult.warmStartValue,weights);
 end
@@ -142,7 +154,7 @@ resultGUI = ...
 verifyEqual(testCase,resultGUI.optimizerOptions.max_iter,4);
 end
 
-function testDosePullingStillProvidesWarmStartToOptimizationBoundary(testCase)
+function testDosePullingUsesWarmStartWithValidCellBiologicalDij(testCase)
 stubCleanup = installFluenceOptimizationStub(testCase); %#ok<NASGU>
 warningCleanup = suppressWarmStartWarning(); %#ok<NASGU>
 runConfig = dosePullingRunConfig();
@@ -150,7 +162,7 @@ dij = cellBiologicalDij();
 ct = struct();
 cst = referenceDosePullingCst();
 stf = struct();
-pln = planStruct('carbon','RBExD',true);
+pln = planStruct('carbon','RBExDose',true);
 seenInitialWeights = {};
 matRadWarmStartFlags = false(1,0);
 context = planWorkflow.precompute.DosePulling.context( ...
@@ -163,7 +175,7 @@ context = planWorkflow.precompute.DosePulling.context( ...
 verifyEqual(testCase,numel(seenInitialWeights),2);
 verifyEmpty(testCase,seenInitialWeights{1});
 verifyEqual(testCase,seenInitialWeights{2},[10; 20]);
-verifyEqual(testCase,matRadWarmStartFlags,[false false]);
+verifyEqual(testCase,matRadWarmStartFlags,[false true]);
 verifyTrue(testCase,report.converged);
 verifyEqual(testCase,report.iterations,1);
 
@@ -207,7 +219,7 @@ pln = struct();
 pln.radiationMode = char(radiationMode);
 pln.bioParam = struct('bioOpt',logical(bioOpt), ...
     'quantityOpt',char(quantityOpt));
-pln.propOpt = struct();
+pln.propOpt = struct('quantityOpt',char(quantityOpt));
 end
 
 function dij = numericDij()
@@ -286,14 +298,14 @@ stubText = sprintf([ ...
     '    resultGUI.warmStartValue = varargin{1};\n' ...
     'end\n' ...
     'resultGUI.radiationMode = localField(pln,''radiationMode'');\n' ...
-    'resultGUI.quantityOpt = localBioParamField(pln,''quantityOpt'');\n' ...
+    'resultGUI.quantityOpt = localPropOptField(pln,''quantityOpt'');\n' ...
     'resultGUI.optimizerOptions = pln.propOpt.optimizerOptions;\n' ...
     'end\n' ...
-    'function value = localBioParamField(pln,fieldName)\n' ...
+    'function value = localPropOptField(pln,fieldName)\n' ...
     'value = ''<unknown>'';\n' ...
-    'if localHasMember(pln,''bioParam'')\n' ...
-    '    bioParam = pln.bioParam;\n' ...
-    '    value = localField(bioParam,fieldName);\n' ...
+    'if localHasMember(pln,''propOpt'')\n' ...
+    '    propOpt = pln.propOpt;\n' ...
+    '    value = localField(propOpt,fieldName);\n' ...
     'end\n' ...
     'end\n' ...
     'function value = localField(s,fieldName)\n' ...
