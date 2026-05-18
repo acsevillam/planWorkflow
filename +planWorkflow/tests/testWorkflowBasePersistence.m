@@ -103,6 +103,10 @@ resumed.resume(workflow.stateFile);
 
 verifyEqual(testCase,resumed.data.preparedValue,42);
 verifyEqual(testCase,resumed.data.results.score,47);
+verifyTrue(testCase,isfield(resumed.data,'performance'));
+verifyTrue(testCase,isfield(resumed.data.performance,'planTimings'));
+verifyEqual(testCase,resumed.data.performance.planTimings(1).task, ...
+    'syntheticOptimization');
 verifyEqual(testCase,resumed.state.currentStage,'analyzed');
 verifyTrue(testCase,any(strcmp(resumed.state.completedStages,'analyzed')));
 end
@@ -817,6 +821,10 @@ showResultCount = sum(cellfun(@(event) ...
     strcmp(event{1},'showResults'),reporter.Events));
 verifyEqual(testCase,showResultCount,2);
 verifyEqual(testCase,reporter.Results.analysisCount,2);
+verifyTrue(testCase,isfield(reporter.Results,'performance'));
+verifyTrue(testCase,isfield(reporter.Results.performance,'planTimings'));
+verifyEqual(testCase,reporter.Results.performance.planTimings(1).task, ...
+    'syntheticOptimization');
 end
 
 function testRecalculateAnalysisAppliesAnalysisStageConfig(testCase)

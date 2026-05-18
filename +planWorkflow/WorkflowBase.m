@@ -1268,6 +1268,23 @@ classdef (Abstract) WorkflowBase < handle
             if isstruct(results) && ~isempty(fieldnames(results))
                 data.results = results;
             end
+            performance = obj.loadWorkflowPerformance();
+            if isstruct(performance) && ~isempty(fieldnames(performance))
+                data.performance = performance;
+            end
+        end
+
+        function performance = loadWorkflowPerformance(obj)
+            performance = struct();
+            if isempty(obj.performanceFile) || ~isfile(obj.performanceFile)
+                return;
+            end
+
+            performanceSnapshot = load(obj.performanceFile,'performance');
+            if isfield(performanceSnapshot,'performance') && ...
+                    isstruct(performanceSnapshot.performance)
+                performance = performanceSnapshot.performance;
+            end
         end
 
         function text = formatResolution(obj,values) %#ok<INUSD>
