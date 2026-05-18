@@ -9,8 +9,6 @@ classdef Analysis
             analysis.doseWindowDvh = [];
             analysis.doseWindowUncertainty = [];
             analysis.doseWindowExpectedDoseDifference = [];
-            analysis.doseWindowRelativeUncertainty1 = [];
-            analysis.doseWindowRelativeUncertainty2 = [];
             analysis.gammaWindow = [0 1];
             analysis.gammaCriteria = [3 3];
             analysis.robustnessCriteria = [5 5];
@@ -21,7 +19,8 @@ classdef Analysis
             analysis.figures = struct( ...
                 'save',true, ...
                 'visible','auto', ...
-                'closeAfterSave',true);
+                'closeAfterSave',true, ...
+                'sliceControl',false);
         end
 
         function analysis = normalize(analysis)
@@ -63,16 +62,6 @@ classdef Analysis
             end
             if isempty(analysis.doseWindowUncertainty)
                 analysis.doseWindowUncertainty = [0 prescriptionDose * 0.5];
-            end
-            if isempty(analysis.doseWindowExpectedDoseDifference)
-                analysis.doseWindowExpectedDoseDifference = ...
-                    [-prescriptionDose * 0.5 prescriptionDose * 0.5];
-            end
-            if isempty(analysis.doseWindowRelativeUncertainty1)
-                analysis.doseWindowRelativeUncertainty1 = [0 1];
-            end
-            if isempty(analysis.doseWindowRelativeUncertainty2)
-                analysis.doseWindowRelativeUncertainty2 = [0 0.5];
             end
         end
 
@@ -123,6 +112,11 @@ classdef Analysis
                 figures.closeAfterSave, ...
                 'runConfig.analysis.figures.closeAfterSave', ...
                 'planWorkflow:config:Analysis:InvalidFigureCloseAfterSave');
+            figures.sliceControl = ...
+                planWorkflow.config.ConfigValue.logicalScalar( ...
+                figures.sliceControl, ...
+                'runConfig.analysis.figures.sliceControl', ...
+                'planWorkflow:config:Analysis:InvalidFigureSliceControl');
             figures.visible = ...
                 planWorkflow.config.Analysis.normalizeFigureVisibility( ...
                 figures.visible);

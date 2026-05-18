@@ -178,8 +178,7 @@ classdef DosePullingMetrics
                 quantity,scenarioIndex)
             quantity = char(quantity);
             doseFields = { ...
-                sprintf('%s_scen%d',quantity,scenarioIndex), ...
-                sprintf('%s_%d',quantity,scenarioIndex)};
+                sprintf('%s_scen%d',quantity,scenarioIndex)};
             if scenarioIndex == 1
                 doseFields{end + 1} = quantity;
             end

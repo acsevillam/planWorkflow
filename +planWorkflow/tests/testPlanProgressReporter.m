@@ -9,10 +9,12 @@ gammaFile = fullfile(fixture.Folder,'reference_gamma.fig');
 expectedDoseDifferenceFile = ...
     fullfile(fixture.Folder,'reference_expected_dose_difference.fig');
 meanDoseFile = fullfile(fixture.Folder,'reference_mean_dose.fig');
+nominalDoseFile = fullfile(fixture.Folder,'reference_nominal_dose.fig');
 missingFile = fullfile(fixture.Folder,'missing.fig');
 touchFile(gammaFile);
 touchFile(expectedDoseDifferenceFile);
 touchFile(meanDoseFile);
+touchFile(nominalDoseFile);
 
 planResults = struct();
 planResults.figureFiles = struct();
@@ -20,20 +22,21 @@ planResults.figureFiles.gamma = gammaFile;
 planResults.figureFiles.robustness1 = missingFile;
 planResults.figureFiles.expectedDoseDifference = expectedDoseDifferenceFile;
 planResults.figureFiles.meanDose = string(meanDoseFile);
+planResults.figureFiles.nominalDose = nominalDoseFile;
 planResults.figureFiles.stdDose = '';
 
 entries = planWorkflow.gui.PlanProgressReporter.figureEntries(planResults);
 rows = planWorkflow.gui.PlanProgressReporter.figureTableRows(entries);
 
 verifyEqual(testCase,{entries.id}, ...
-    {'gamma','expectedDoseDifference','meanDose'});
+    {'gamma','meanDose','nominalDose','expectedDoseDifference'});
 verifyEqual(testCase,{entries.label}, ...
-    {'Gamma','Expected dose difference','Mean dose'});
+    {'Gamma','Mean dose','Nominal dose','Expected dose difference'});
 verifyEqual(testCase,{entries.filePath}, ...
-    {gammaFile,expectedDoseDifferenceFile,meanDoseFile});
+    {gammaFile,meanDoseFile,nominalDoseFile,expectedDoseDifferenceFile});
 verifyEqual(testCase,rows(:,1), ...
-    {'Gamma';'Expected dose difference';'Mean dose'});
-verifyEqual(testCase,rows(:,3),{'Open';'Open';'Open'});
+    {'Gamma';'Mean dose';'Nominal dose';'Expected dose difference'});
+verifyEqual(testCase,rows(:,3),{'Open';'Open';'Open';'Open'});
 verifyEqual(testCase,size(rows,2),3);
 verifyEqual(testCase, ...
     planWorkflow.gui.PlanProgressReporter.figureFolder(entries), ...

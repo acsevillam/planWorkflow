@@ -39,7 +39,7 @@ verifyEqual(testCase, ...
     {workflowConfig.precompute.robustPlans.objectiveSetName}, ...
     {'PTV','Interval2'});
 verifyEqual(testCase,workflowConfig.prepare.radiationMode,'protons');
-verifyEqual(testCase,workflowConfig.prepare.quantityOpt,'RBExD');
+verifyEqual(testCase,workflowConfig.prepare.quantityOpt,'RBExDose');
 end
 
 function testBuildHeadAndNeckConfig(testCase)

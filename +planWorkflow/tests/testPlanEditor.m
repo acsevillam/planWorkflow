@@ -500,7 +500,7 @@ rbexdOptions = planWorkflow.gui.WorkflowParameterOptions.prepareBeamOptionSets( 
     {'9F'},{'protons'},{'Generic'},{'constRBE'});
 
 verifyEqual(testCase,physicalOptions.quantityOpt,{'physicalDose'});
-verifyEqual(testCase,rbexdOptions.quantityOpt,{'RBExD'});
+verifyEqual(testCase,rbexdOptions.quantityOpt,{'RBExDose'});
 end
 
 function testAnalysisEndpointsFileIsPopup(testCase)
@@ -516,6 +516,27 @@ endpointsFileIx = find(strcmp(fields,'endpointsFile'),1);
 
 verifyEqual(testCase,get(tableHandle.controls(endpointsFileIx),'Style'), ...
     'popupmenu');
+end
+
+function testAnalysisPanelSyncsFigureSliceControl(testCase)
+fig = figure('Visible','off');
+cleanupFig = onCleanup(@() close(fig));
+analysis = planWorkflow.config.Analysis.defaults();
+runConfig = struct('analysis',analysis,'quantityOpt','physicalDose');
+
+tableHandle = planWorkflow.gui.panels.AnalysisPanel.create( ...
+    fig,[0 0 1 1],analysis,struct(),runConfig,struct());
+planWorkflow.gui.panels.AnalysisPanel.load(tableHandle,analysis, ...
+    struct(),runConfig);
+
+sliceControl = planWorkflow.gui.ParameterPanelRenderer.control( ...
+    tableHandle,'figuresSliceControl');
+set(sliceControl,'Value',true);
+syncedAnalysis = planWorkflow.gui.panels.AnalysisPanel.sync( ...
+    tableHandle,analysis);
+
+verifyTrue(testCase,syncedAnalysis.figures.sliceControl);
+verifyFalse(testCase,isfield(syncedAnalysis,'figuresSliceControl'));
 end
 
 function testStageParameterControllerExposesAnalysisControlsForUnlock(testCase)
@@ -569,7 +590,7 @@ verifyFalse(testCase,any(strcmp(options.validValues,'prostate.json')));
 verifyTrue(testCase,any(strcmp(options.values,'prostate.json')));
 verifyTrue(testCase,contains(options.labels{1},'not valid'));
 verifyFalse(testCase,status.isCompatible);
-verifyTrue(testCase,contains(status.message,'RBExD'));
+verifyTrue(testCase,contains(status.message,'RBExDose'));
 end
 
 function testIncompatibleEndpointFileIsPreservedUntilUserChangesIt(testCase)
@@ -1435,6 +1456,7 @@ includeFields = ...
 verifyFalse(testCase,any(strcmp(allFields,'robustnessTargets')));
 verifyTrue(testCase,any(strcmp(includeFields,'robustnessTargets')));
 verifyTrue(testCase,any(strcmp(allFields,'doseWindowExpectedDoseDifference')));
+verifyTrue(testCase,any(strcmp(allFields,'figuresSliceControl')));
 verifyFalse(testCase,any(strcmp(allFields,'doseWindowUvh')));
 end
 

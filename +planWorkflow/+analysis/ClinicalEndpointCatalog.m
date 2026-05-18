@@ -196,7 +196,7 @@ classdef ClinicalEndpointCatalog
         end
 
         function quantities = supportedDoseQuantities()
-            quantities = {'physicalDose','RBExD'};
+            quantities = {'physicalDose','RBExDose'};
         end
 
         function endpoints = appendEndpoints(endpoints,newEndpoints)
@@ -456,7 +456,7 @@ classdef ClinicalEndpointCatalog
             switch char(doseQuantity)
                 case 'physicalDose'
                     unit = 'Gy';
-                case 'RBExD'
+                case 'RBExDose'
                     unit = 'Gy(RBE)';
                 otherwise
                     error(['planWorkflow:analysis:ClinicalEndpointCatalog:' ...

@@ -4,8 +4,8 @@ end
 
 function testResolveQuantityUsesOptimizationQuantity(testCase)
 pln.propOpt.quantityOpt = 'physicalDose';
-pln.propOpt.quantityVis = 'RBExD';
-resultGUI.RBExD = 1;
+pln.propOpt.quantityVis = 'RBExDose';
+resultGUI.RBExDose = 1;
 
 quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,resultGUI);
 
@@ -15,9 +15,9 @@ end
 function testResolveQuantityUsesExplicitPreparedFallback(testCase)
 pln = struct();
 
-quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,'RBExD');
+quantity = planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,'RBExDose');
 
-verifyEqual(testCase,quantity,'RBExD');
+verifyEqual(testCase,quantity,'RBExDose');
 end
 
 function testDoseQuantityResolverUsesOptimizationQuantity(testCase)
@@ -25,11 +25,11 @@ runConfig = struct();
 runConfig.radiationMode = 'protons';
 runConfig.bioModel = 'constRBE';
 runConfig.analysisQuantity = 'physicalDose';
-runConfig.quantityOpt = 'RBExD';
+runConfig.quantityOpt = 'RBExDose';
 
 quantity = planWorkflow.plan.DoseQuantityResolver.fromRunConfig(runConfig);
 
-verifyEqual(testCase,quantity,'RBExD');
+verifyEqual(testCase,quantity,'RBExDose');
 end
 
 function testDoseQuantityResolverUsesMatRadQuantityVisForEndpoints(testCase)
@@ -63,7 +63,7 @@ end
 
 function testDoseQuantityResolverRejectsAnalysisQuantityAsInput(testCase)
 runConfig = struct();
-runConfig.analysisQuantity = 'RBExD';
+runConfig.analysisQuantity = 'RBExDose';
 
 quantity = planWorkflow.plan.DoseQuantityResolver.fromRunConfig(runConfig);
 
@@ -85,7 +85,7 @@ verifyEqual(testCase, ...
     physicalConfig),'physicalDose');
 verifyEqual(testCase, ...
     planWorkflow.plan.DoseQuantityResolver.fromRunConfig( ...
-    rbexdConfig),'RBExD');
+    rbexdConfig),'RBExDose');
 verifyEqual(testCase, ...
     planWorkflow.plan.DoseQuantityResolver.fromRunConfig( ...
     protonPhysicalConfig),'physicalDose');
@@ -99,15 +99,15 @@ photonQuantities = ...
     planWorkflow.matRadCapabilitiesReader.supportedDoseQuantities( ...
     'photons','none');
 verifyTrue(testCase,any(strcmp(photonQuantities,'physicalDose')));
-verifyTrue(testCase,any(strcmp(photonQuantities,'RBExD')));
+verifyTrue(testCase,any(strcmp(photonQuantities,'RBExDose')));
 verifyEqual(testCase, ...
     planWorkflow.matRadCapabilitiesReader.doseQuantityForBioModel( ...
-    'helium','HEL'),'RBExD');
+    'helium','HEL'),'RBExDose');
 carbonLEMQuantities = ...
     planWorkflow.matRadCapabilitiesReader.supportedDoseQuantities( ...
     'carbon','LEM');
 verifyTrue(testCase,any(strcmp(carbonLEMQuantities,'effect')));
-verifyTrue(testCase,any(strcmp(carbonLEMQuantities,'RBExD')));
+verifyTrue(testCase,any(strcmp(carbonLEMQuantities,'RBExDose')));
 verifyEqual(testCase, ...
     planWorkflow.matRadCapabilitiesReader.doseQuantityForBioModel( ...
     'protons','none'),'physicalDose');
@@ -119,7 +119,7 @@ verifyEqual(testCase, ...
     'protons'),'constRBE');
 verifyEqual(testCase, ...
     planWorkflow.matRadCapabilitiesReader.doseQuantityForBioModel( ...
-    'photons','constRBE'),'RBExD');
+    'photons','constRBE'),'RBExDose');
 verifyTrue(testCase,any(strcmp( ...
     planWorkflow.matRadCapabilitiesReader.supportedDoseQuantityNames(), ...
     'effect')));
@@ -127,7 +127,7 @@ end
 
 function testDoseQuantityResolverDefaultsRunConfigQuantity(testCase)
 runConfig = struct('radiationMode','protons','bioModel','none', ...
-    'quantityOpt','RBExD');
+    'quantityOpt','RBExDose');
 
 runConfig = planWorkflow.plan.DoseQuantityResolver.applyDefaultToRunConfig( ...
     runConfig,true);
@@ -139,12 +139,12 @@ carbonConfig = struct('radiationMode','carbon','bioModel','LEM', ...
 carbonConfig = planWorkflow.plan.DoseQuantityResolver.applyDefaultToRunConfig( ...
     carbonConfig,true);
 
-verifyEqual(testCase,carbonConfig.quantityOpt,'RBExD');
+verifyEqual(testCase,carbonConfig.quantityOpt,'RBExDose');
 end
 
 function testResolveQuantityRejectsImplicitResultFields(testCase)
-pln.propOpt.quantityVis = 'RBExD';
-resultGUI.RBExD = 1;
+pln.propOpt.quantityVis = 'RBExDose';
+resultGUI.RBExDose = 1;
 
 verifyError(testCase,@() ...
     planWorkflow.analysis.PlanAnalysis.resolveQuantity(pln,resultGUI), ...

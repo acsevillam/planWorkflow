@@ -320,7 +320,7 @@ classdef DoseQuantityResolver
             switch char(optimizationQuantity)
                 case 'effect'
                     bioOpt = 1;
-                case {'RBExD','RBExDose'}
+                case 'RBExDose'
                     bioOpt = 2;
                 otherwise
                     bioOpt = [];
@@ -329,9 +329,6 @@ classdef DoseQuantityResolver
 
         function quantity = toWorkflowQuantity(quantity)
             quantity = char(quantity);
-            if strcmp(quantity,'RBExDose')
-                quantity = 'RBExD';
-            end
         end
 
         function assertSupported(quantity,radiationMode,bioModel)

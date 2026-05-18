@@ -393,7 +393,7 @@ for i = 1:size(cases,1)
 
     verifyEqual(testCase,pln.radiationMode,cases{i,1});
     verifyEqual(testCase,pln.propDoseCalc.engine,'HongPB');
-    verifyEqual(testCase,quantityOpt,'RBExD');
+    verifyEqual(testCase,quantityOpt,'RBExDose');
     verifyEqual(testCase,pln.bioParam.model,cases{i,2});
     verifyEqual(testCase,pln.machine,'Generic');
     verifyEqual(testCase,pln.propDoseCalc.calcLET,cases{i,3});

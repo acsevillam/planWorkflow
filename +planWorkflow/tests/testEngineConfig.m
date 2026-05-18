@@ -1438,7 +1438,7 @@ cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
     cacheContext);
 mkdir(fileparts(cacheFile));
 dij_interval = intervalDij(workflow.data.optimizationInput.dij.totalNumOfBixels);
-dij_interval.quantity = 'RBExD';
+dij_interval.quantity = 'RBExDose';
 dij_interval.quantityField = 'RBExDose';
 dijIntervalContext = intervalDijContext(dij_interval);
 dijIntervalContext.RBExDose = ...
@@ -2271,7 +2271,7 @@ verifyEqual(testCase,workflow.runConfig.radiationMode,'carbon');
 verifyEqual(testCase,workflow.runConfig.plan_beams,'2F');
 verifyEqual(testCase,workflow.runConfig.machine,'Generic');
 verifyEqual(testCase,workflow.runConfig.bioModel,'LEM');
-verifyEqual(testCase,workflow.runConfig.quantityOpt,'RBExD');
+verifyEqual(testCase,workflow.runConfig.quantityOpt,'RBExDose');
 end
 
 function testNestedPrepareRadiationModeOverridesPhotonDefault(testCase)
@@ -2286,7 +2286,7 @@ verifyEqual(testCase,workflow.runConfig.radiationMode,'protons');
 verifyEqual(testCase,workflow.runConfig.plan_beams,'2F');
 verifyEqual(testCase,workflow.runConfig.machine,'Generic');
 verifyEqual(testCase,workflow.runConfig.bioModel,'constRBE');
-verifyEqual(testCase,workflow.runConfig.quantityOpt,'RBExD');
+verifyEqual(testCase,workflow.runConfig.quantityOpt,'RBExDose');
 end
 
 function testNestedPrepareQuantityOptOverridesBioModelDefault(testCase)

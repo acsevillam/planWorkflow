@@ -3,77 +3,105 @@ classdef Figures
 
     methods (Static)
         function figureFiles = saveSamplingAnalysisFigures(analysisFolder,label, ...
-                gammaFig,robustnessFig1,robustnessFig2, ...
-                expectedDoseDifferenceFig,samplingData,sample,doseStat, ...
-                analysis,slice)
+                figures,samplingData,sample,analysis,doseStat,meta)
             analysis = planWorkflow.config.Analysis.normalize(analysis);
+            if nargin < 7
+                doseStat = struct();
+            end
+            if nargin < 8
+                meta = struct();
+            end
             if ~isfolder(analysisFolder)
                 mkdir(analysisFolder);
             end
 
+            meanFig = planWorkflow.analysis.Figures.figureField( ...
+                figures,'mean');
+            stdFig = planWorkflow.analysis.Figures.figureField( ...
+                figures,'std');
+            nominalFig = planWorkflow.analysis.Figures.figureField( ...
+                figures,'nominal');
+            robustnessIndex1Fig = planWorkflow.analysis.Figures.figureField( ...
+                figures,'robustness','index1');
+            robustnessIndex2Fig = planWorkflow.analysis.Figures.figureField( ...
+                figures,'robustness','index2');
+            doseDifferenceFig = ...
+                planWorkflow.analysis.Figures.figureField( ...
+                figures,'doseDifference');
+
             figureFiles = struct( ...
-                'gamma','', ...
                 'robustness1','', ...
                 'robustness2','', ...
-                'expectedDoseDifference','', ...
                 'meanDose','', ...
                 'stdDose','', ...
+                'nominalDose','', ...
+                'expectedDoseDifference','', ...
                 'dvhMultiscenario','', ...
                 'dvhTrustband','');
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                meanFig,label);
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                stdFig,label);
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                nominalFig,label);
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                robustnessIndex1Fig,label);
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                robustnessIndex2Fig,label);
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                doseDifferenceFig,label);
+            planWorkflow.analysis.Figures.installSamplingSliceControls( ...
+                figures,samplingData,sample,analysis,doseStat,meta,label);
             if ~analysis.figures.save
                 planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                    gammaFig,'',analysis);
+                    meanFig,'',analysis);
                 planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                    robustnessFig1,'',analysis);
+                    stdFig,'',analysis);
                 planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                    robustnessFig2,'',analysis);
+                    nominalFig,'',analysis);
                 planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                    expectedDoseDifferenceFig,'',analysis);
+                    robustnessIndex1Fig,'',analysis);
+                planWorkflow.analysis.Figures.saveFigureIfValid( ...
+                    robustnessIndex2Fig,'',analysis);
+                planWorkflow.analysis.Figures.saveFigureIfValid( ...
+                    doseDifferenceFig,'',analysis);
                 return;
             end
             evaluationScale = planWorkflow.analysis.Figures.evaluationScale( ...
                 sample.pln,analysis);
-            figureFiles.gamma = planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                gammaFig,fullfile(analysisFolder,[label '_gamma.fig']), ...
+            figureFiles.meanDose = planWorkflow.analysis.Figures.saveFigureIfValid( ...
+                meanFig,fullfile(analysisFolder,[label '_mean_dose.fig']), ...
+                analysis);
+            figureFiles.stdDose = planWorkflow.analysis.Figures.saveFigureIfValid( ...
+                stdFig,fullfile(analysisFolder,[label '_std_dose.fig']), ...
+                analysis);
+            figureFiles.nominalDose = planWorkflow.analysis.Figures.saveFigureIfValid( ...
+                nominalFig,fullfile(analysisFolder,[label '_nominal_dose.fig']), ...
                 analysis);
             figureFiles.robustness1 = planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                robustnessFig1,fullfile(analysisFolder,[label '_robustness1.fig']), ...
+                robustnessIndex1Fig,fullfile(analysisFolder,[label '_robustness1.fig']), ...
                 analysis);
             figureFiles.robustness2 = planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                robustnessFig2,fullfile(analysisFolder,[label '_robustness2.fig']), ...
+                robustnessIndex2Fig,fullfile(analysisFolder,[label '_robustness2.fig']), ...
                 analysis);
             figureFiles.expectedDoseDifference = ...
                 planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                expectedDoseDifferenceFig,fullfile(analysisFolder, ...
+                doseDifferenceFig,fullfile(analysisFolder, ...
                 [label '_expected_dose_difference.fig']),analysis);
-            figureFiles.meanDose = planWorkflow.analysis.Figures.saveDoseStatisticFigure( ...
-                samplingData.ct,samplingData.cst, ...
-                doseStat.meanCubeW * evaluationScale, ...
-                analysis.doseWindow,slice, ...
-                fullfile(analysisFolder,[label '_mean_dose.fig']), ...
-                ['Mean dose for ' label], ...
-                'Expected Dose [Gy]',1.5,analysis);
-            figureFiles.stdDose = planWorkflow.analysis.Figures.saveDoseStatisticFigure( ...
-                samplingData.ct,samplingData.cst, ...
-                doseStat.stdCubeW * evaluationScale, ...
-                analysis.doseWindowUncertainty,slice, ...
-                fullfile(analysisFolder,[label '_std_dose.fig']), ...
-                ['Standard deviation dose for ' label], ...
-                'Dose uncertainty [Gy]',1.2,analysis);
             figureFiles.dvhMultiscenario = ...
                 planWorkflow.analysis.Figures.saveSamplingDvhFigure( ...
                 samplingData.cst,sample,evaluationScale, ...
                 analysis.doseWindowDvh, ...
                 'multiscenario', ...
                 fullfile(analysisFolder,[label '_dvh_multiscenario.fig']), ...
-                ['Multi-scenario DVH for ' label],analysis);
+                'Sampled multi-scenario DVH',analysis,label);
             figureFiles.dvhTrustband = ...
                 planWorkflow.analysis.Figures.saveSamplingDvhFigure( ...
                 samplingData.cst,sample,evaluationScale, ...
                 analysis.doseWindowDvh, ...
                 'trustband', ...
                 fullfile(analysisFolder,[label '_dvh_trustband.fig']), ...
-                ['Trust band DVH for ' label],analysis);
+                'Sampled DVH trust band',analysis,label);
         end
 
         function filePath = saveFigureIfValid(fig,filePath,analysis)
@@ -100,53 +128,13 @@ classdef Figures
             end
         end
 
-        function filePath = saveDoseStatisticFigure(ct,cst,doseCube,doseWindow, ...
-                slice,filePath,titleText,colorbarLabel,lineWidth,analysis)
-            if nargin < 10
-                analysis = planWorkflow.config.Analysis.defaults();
-            end
-            if isempty(doseCube)
-                filePath = '';
-                return;
-            end
-
-            fig = figure('Visible', ...
-                planWorkflow.analysis.Figures.figureVisibility(analysis));
-            set(fig,'Tag','planWorkflowAnalysisFigure');
-            set(fig,'Color',[1 1 1],'Position',[10 10 550 400]);
-            ax = axes('Parent',fig);
-            plane = 3;
-            numSlices = ct.cubeDim(3);
-            doseWindow = planWorkflow.analysis.Figures.resolveDoseWindow( ...
-                doseCube,doseWindow);
-            doseIsoLevels = planWorkflow.analysis.Figures.resolveDoseIsoLevels( ...
-                doseCube);
-
-            matRad_plotSliceWrapper(ax,ct,cst,1,doseCube,plane,slice,[],[], ...
-                colorcube,[],doseWindow,doseIsoLevels,[],colorbarLabel,[], ...
-                'LineWidth',lineWidth);
-            title(ax,titleText,'Interpreter','none');
-
-            if numSlices > 1
-                sliderStep = planWorkflow.analysis.Figures.sliderStep(numSlices);
-                slider = uicontrol('Parent',fig,'Style','slider', ...
-                    'Position',[50 5 420 23], ...
-                    'value',slice,'min',1,'max',numSlices, ...
-                    'SliderStep',sliderStep);
-                slider.Callback = @(es,ed) matRad_plotSliceWrapper(ax,ct,cst,1, ...
-                    doseCube,plane,round(es.Value),[],[],colorcube,[], ...
-                    doseWindow,doseIsoLevels,[],colorbarLabel,[], ...
-                    'LineWidth',lineWidth);
-            end
-
-            filePath = planWorkflow.analysis.Figures.saveFigureIfValid( ...
-                fig,filePath,analysis);
-        end
-
         function filePath = saveSamplingDvhFigure(cst,sample,evaluationScale, ...
-                doseWindow,dvhType,filePath,titleText,analysis)
+                doseWindow,dvhType,filePath,titleText,analysis,label)
             if nargin < 8
                 analysis = planWorkflow.config.Analysis.defaults();
+            end
+            if nargin < 9
+                label = '';
             end
             if isempty(sample.caSamp)
                 filePath = '';
@@ -161,9 +149,58 @@ classdef Figures
             matRad_showDVHFromSampling(sample.caSamp,evaluationScale,cst,sample.pln, ...
                 scenarios,doseWindow,dvhType,1);
             title(titleText,'Interpreter','none');
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle(fig,label);
 
             filePath = planWorkflow.analysis.Figures.saveFigureIfValid( ...
                 fig,filePath,analysis);
+        end
+
+        function annotatePlanFigureTitle(fig,label)
+            if isempty(fig) || ~ishghandle(fig)
+                return;
+            end
+
+            axesHandle = planWorkflow.analysis.Figures.primaryAxes(fig);
+            if isempty(axesHandle)
+                return;
+            end
+
+            titleHandle = get(axesHandle,'Title');
+            titleLines = planWorkflow.analysis.Figures.titleLines( ...
+                get(titleHandle,'String'));
+            titleLines = ...
+                planWorkflow.analysis.Figures.removePlanRobustnessTitleLines( ...
+                titleLines,label);
+            titleLines{end + 1,1} = ...
+                planWorkflow.analysis.Figures.planRobustnessTitleLine(label);
+            title(axesHandle,titleLines,'Interpreter','none');
+        end
+
+        function titleText = planRobustnessTitleLine(label)
+            titleText = planWorkflow.analysis.Figures.humanizePlanRobustnessLabel( ...
+                label);
+        end
+
+        function labelText = humanizePlanRobustnessLabel(label)
+            if isempty(label)
+                labelText = 'unspecified plan';
+                return;
+            end
+
+            labelText = strtrim(char(label));
+            if isempty(labelText)
+                labelText = 'unspecified plan';
+                return;
+            end
+
+            switch lower(labelText)
+                case 'reference'
+                    labelText = 'Reference plan';
+                case 'nominal'
+                    labelText = 'Nominal plan';
+                otherwise
+                    labelText = regexprep(labelText,'_+',' ');
+            end
         end
 
         function varargout = withFigurePolicy(analysis,fn)
@@ -217,55 +254,328 @@ classdef Figures
             scale = matRad_convertToEvaluationMode(1,pln,analysis.evaluationMode);
         end
 
-        function doseWindow = resolveDoseWindow(doseCube,doseWindow)
-            finiteDose = doseCube(isfinite(doseCube));
-            if isempty(finiteDose)
-                maxDose = 1;
-            else
-                maxDose = max(finiteDose(:));
-            end
-
-            if isempty(doseWindow)
-                doseWindow = [0 maxDose];
-            else
-                doseWindow = doseWindow(:)';
-            end
-
-            if numel(doseWindow) < 2
-                doseWindow = [0 maxDose];
-            end
-
-            if ~all(isfinite(doseWindow(1:2))) || doseWindow(2) <= doseWindow(1)
-                doseWindow = [0 max(maxDose,1)];
-            end
-        end
-
-        function doseIsoLevels = resolveDoseIsoLevels(doseCube)
-            finiteDose = doseCube(isfinite(doseCube));
-            if isempty(finiteDose)
-                doseIsoLevels = [];
+        function updateSliceFigure(source,~)
+            fig = ancestor(source,'figure');
+            if isempty(fig) || ~ishghandle(fig) || ...
+                    ~isappdata(fig,'planWorkflowSlicePayload')
                 return;
             end
-
-            maxDose = max(finiteDose(:));
-            if maxDose <= 0
-                doseIsoLevels = [];
-            else
-                doseIsoLevels = linspace(0.1 * maxDose,maxDose,10);
-            end
+            payload = getappdata(fig,'planWorkflowSlicePayload');
+            slice = round(get(source,'Value'));
+            planWorkflow.analysis.Figures.redrawSliceFigure( ...
+                fig,payload,slice);
         end
 
-        function sliderStep = sliderStep(numSlices)
-            if numSlices > 1
-                sliderStep = [1/(numSlices - 1) 1/(numSlices - 1)];
-            else
-                sliderStep = [1 1];
+        function redrawSliceFigure(fig,payload,slice)
+            if isempty(fig) || ~ishghandle(fig) || ~isstruct(payload)
+                return;
             end
+            slice = planWorkflow.analysis.Figures.clampSlice( ...
+                slice,payload.sliceMax);
+            payload.slice = slice;
+            setappdata(fig,'planWorkflowSlicePayload',payload);
+            planWorkflow.analysis.Figures.updateSliceControlValues( ...
+                fig,payload);
+
+            axesHandle = planWorkflow.analysis.Figures.primaryAxes(fig);
+            if isempty(axesHandle) || ~ishghandle(axesHandle)
+                axesHandle = axes('Parent',fig);
+            end
+            planWorkflow.analysis.Figures.clearSpatialAxes(fig,axesHandle);
+
+            switch char(payload.kind)
+                case 'dose'
+                    matRad_plotSamplingDoseCubeAnalysis( ...
+                        payload.doseAnalysis,payload.doseCube, ...
+                        payload.ct,payload.cst,slice, ...
+                        'plane',payload.plane, ...
+                        'axesHandle',axesHandle);
+                case 'robustness'
+                    matRad_plotSamplingRobustnessAnalysis( ...
+                        payload.robustnessAnalysis,payload.ct, ...
+                        payload.cst,slice, ...
+                        'method',payload.method, ...
+                        'plane',payload.plane, ...
+                        'axesHandle',axesHandle);
+                case 'expectedDoseDifference'
+                    matRad_plotExpectedDoseDifferenceAnalysis( ...
+                        payload.expectedDoseDifferenceAnalysis, ...
+                        payload.ct,payload.cst,slice, ...
+                        'plane',payload.plane, ...
+                        'doseWindow',payload.doseWindow, ...
+                        'displayScale',payload.displayScale, ...
+                        'axesHandle',axesHandle);
+            end
+            planWorkflow.analysis.Figures.annotatePlanFigureTitle( ...
+                fig,payload.label);
         end
 
     end
 
     methods (Static, Access = private)
+        function installSamplingSliceControls(figures,samplingData,sample, ...
+                analysis,doseStat,meta,label)
+            if ~analysis.figures.sliceControl
+                return;
+            end
+            commonPayload = planWorkflow.analysis.Figures.commonSlicePayload( ...
+                samplingData,sample,meta,label);
+            if isempty(commonPayload)
+                return;
+            end
+
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField(figures,'mean'), ...
+                planWorkflow.analysis.Figures.doseSlicePayload( ...
+                commonPayload,doseStat,'meanAnalysis','meanCubeW'));
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField(figures,'std'), ...
+                planWorkflow.analysis.Figures.doseSlicePayload( ...
+                commonPayload,doseStat,'stdAnalysis','stdCubeW'));
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField(figures,'nominal'), ...
+                planWorkflow.analysis.Figures.nominalSlicePayload( ...
+                commonPayload,doseStat,sample,meta));
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField( ...
+                figures,'robustness','index1'), ...
+                planWorkflow.analysis.Figures.robustnessSlicePayload( ...
+                commonPayload,doseStat,'index1'));
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField( ...
+                figures,'robustness','index2'), ...
+                planWorkflow.analysis.Figures.robustnessSlicePayload( ...
+                commonPayload,doseStat,'index2'));
+            planWorkflow.analysis.Figures.installSliceControl( ...
+                planWorkflow.analysis.Figures.figureField( ...
+                figures,'doseDifference'), ...
+                planWorkflow.analysis.Figures.expectedDoseDifferenceSlicePayload( ...
+                commonPayload,doseStat,meta));
+        end
+
+        function payload = commonSlicePayload(samplingData,sample,meta,label)
+            payload = [];
+            if ~isstruct(samplingData) || ~isfield(samplingData,'ct') || ...
+                    ~isstruct(samplingData.ct) || ...
+                    ~isfield(samplingData.ct,'cubeDim') || ...
+                    isempty(samplingData.ct.cubeDim)
+                return;
+            end
+            plane = planWorkflow.analysis.Figures.fieldOrDefault( ...
+                meta,'plane',3);
+            if plane < 1 || plane > numel(samplingData.ct.cubeDim)
+                return;
+            end
+            sliceMax = samplingData.ct.cubeDim(plane);
+            if sliceMax < 2
+                return;
+            end
+            slice = planWorkflow.analysis.Figures.fieldOrDefault( ...
+                meta,'slice',[]);
+            if isempty(slice)
+                return;
+            end
+
+            payload = struct();
+            payload.ct = samplingData.ct;
+            payload.cst = planWorkflow.analysis.Figures.samplingPlotCst( ...
+                samplingData,sample);
+            payload.plane = plane;
+            payload.sliceMax = sliceMax;
+            payload.slice = planWorkflow.analysis.Figures.clampSlice( ...
+                slice,sliceMax);
+            payload.label = char(label);
+        end
+
+        function cst = samplingPlotCst(samplingData,sample)
+            if isstruct(sample) && isfield(sample,'resultGUINomScen') && ...
+                    isstruct(sample.resultGUINomScen) && ...
+                    isfield(sample.resultGUINomScen,'cst') && ...
+                    ~isempty(sample.resultGUINomScen.cst)
+                cst = sample.resultGUINomScen.cst;
+            elseif isstruct(samplingData) && isfield(samplingData,'cst')
+                cst = samplingData.cst;
+            else
+                cst = {};
+            end
+        end
+
+        function payload = doseSlicePayload(commonPayload,doseStat, ...
+                analysisField,cubeField)
+            payload = [];
+            if isempty(commonPayload) || ~isstruct(doseStat) || ...
+                    ~isfield(doseStat,analysisField) || ...
+                    ~isfield(doseStat,cubeField)
+                return;
+            end
+            payload = commonPayload;
+            payload.kind = 'dose';
+            payload.doseAnalysis = doseStat.(analysisField);
+            payload.doseCube = doseStat.(cubeField);
+        end
+
+        function payload = nominalSlicePayload(commonPayload,doseStat, ...
+                sample,meta)
+            payload = [];
+            if isempty(commonPayload) || ~isstruct(doseStat) || ...
+                    ~isfield(doseStat,'nominalAnalysis') || ...
+                    ~isstruct(sample) || ~isfield(sample,'resultGUINomScen')
+                return;
+            end
+            quantity = planWorkflow.analysis.Figures.analysisQuantity(meta);
+            if isempty(quantity) || ...
+                    ~isfield(sample.resultGUINomScen,quantity)
+                return;
+            end
+            payload = commonPayload;
+            payload.kind = 'dose';
+            payload.doseAnalysis = doseStat.nominalAnalysis;
+            payload.doseCube = sample.resultGUINomScen.(quantity);
+        end
+
+        function quantity = analysisQuantity(meta)
+            quantity = '';
+            if isstruct(meta) && isfield(meta,'analysisContext') && ...
+                    isstruct(meta.analysisContext) && ...
+                    isfield(meta.analysisContext,'quantity')
+                quantity = char(meta.analysisContext.quantity);
+            end
+        end
+
+        function payload = robustnessSlicePayload(commonPayload,doseStat, ...
+                method)
+            payload = [];
+            if isempty(commonPayload) || ~isstruct(doseStat) || ...
+                    ~isfield(doseStat,'robustnessAnalysis')
+                return;
+            end
+            payload = commonPayload;
+            payload.kind = 'robustness';
+            payload.robustnessAnalysis = doseStat.robustnessAnalysis;
+            payload.method = char(method);
+        end
+
+        function payload = expectedDoseDifferenceSlicePayload( ...
+                commonPayload,doseStat,meta)
+            payload = [];
+            if isempty(commonPayload) || ~isstruct(doseStat) || ...
+                    ~isfield(doseStat,'expectedDoseDifferenceAnalysis')
+                return;
+            end
+            payload = commonPayload;
+            payload.kind = 'expectedDoseDifference';
+            payload.expectedDoseDifferenceAnalysis = ...
+                doseStat.expectedDoseDifferenceAnalysis;
+            payload.doseWindow = planWorkflow.analysis.Figures.fieldOrDefault( ...
+                meta,'doseDifferenceWindow',[]);
+            payload.displayScale = planWorkflow.analysis.Figures.fieldOrDefault( ...
+                meta,'displayScale',1);
+        end
+
+        function installSliceControl(fig,payload)
+            if isempty(fig) || ~ishghandle(fig) || isempty(payload)
+                return;
+            end
+            setappdata(fig,'planWorkflowSlicePayload',payload);
+            planWorkflow.analysis.Figures.ensureSliceControls(fig,payload);
+        end
+
+        function ensureSliceControls(fig,payload)
+            slider = findobj(fig,'Tag','planWorkflowSliceSlider');
+            if isempty(slider) || ~ishghandle(slider)
+                slider = uicontrol('Parent',fig,'Style','slider', ...
+                    'Units','normalized', ...
+                    'Position',[0.16 0.02 0.62 0.04], ...
+                    'Tag','planWorkflowSliceSlider', ...
+                    'Callback', ...
+                    @(source,event) planWorkflow.analysis.Figures.updateSliceFigure( ...
+                    source,event));
+            end
+            label = findobj(fig,'Tag','planWorkflowSliceLabel');
+            if isempty(label) || ~ishghandle(label)
+                label = uicontrol('Parent',fig,'Style','text', ...
+                    'Units','normalized', ...
+                    'Position',[0.79 0.015 0.19 0.045], ...
+                    'HorizontalAlignment','left', ...
+                    'BackgroundColor',[1 1 1], ...
+                    'Tag','planWorkflowSliceLabel');
+            end
+            caption = findobj(fig,'Tag','planWorkflowSliceCaption');
+            if isempty(caption) || ~ishghandle(caption)
+                uicontrol('Parent',fig,'Style','text', ...
+                    'Units','normalized', ...
+                    'Position',[0.02 0.015 0.12 0.045], ...
+                    'String','Slice', ...
+                    'HorizontalAlignment','left', ...
+                    'BackgroundColor',[1 1 1], ...
+                    'Tag','planWorkflowSliceCaption');
+            end
+
+            set(slider,'Min',1,'Max',payload.sliceMax, ...
+                'Value',payload.slice, ...
+                'SliderStep',planWorkflow.analysis.Figures.sliderStep( ...
+                payload.sliceMax));
+            set(label,'String',planWorkflow.analysis.Figures.sliceLabel( ...
+                payload.slice,payload.sliceMax));
+        end
+
+        function updateSliceControlValues(fig,payload)
+            slider = findobj(fig,'Tag','planWorkflowSliceSlider');
+            if ~isempty(slider) && ishghandle(slider)
+                set(slider,'Value',payload.slice);
+            end
+            label = findobj(fig,'Tag','planWorkflowSliceLabel');
+            if ~isempty(label) && ishghandle(label)
+                set(label,'String',planWorkflow.analysis.Figures.sliceLabel( ...
+                    payload.slice,payload.sliceMax));
+            end
+        end
+
+        function clearSpatialAxes(fig,axesHandle)
+            delete(findall(fig,'Type','ColorBar'));
+            delete(findall(fig,'Type','colorbar'));
+            delete(findall(fig,'Tag','Colorbar'));
+            delete(findall(fig,'Type','Legend'));
+            cla(axesHandle);
+        end
+
+        function value = fieldOrDefault(source,fieldName,defaultValue)
+            if isstruct(source) && isfield(source,fieldName) && ...
+                    ~isempty(source.(fieldName))
+                value = source.(fieldName);
+            else
+                value = defaultValue;
+            end
+        end
+
+        function slice = clampSlice(slice,sliceMax)
+            slice = round(double(slice));
+            slice = min(max(slice,1),sliceMax);
+        end
+
+        function step = sliderStep(sliceMax)
+            fineStep = 1 / max(sliceMax - 1,1);
+            step = [fineStep min(10 * fineStep,1)];
+        end
+
+        function text = sliceLabel(slice,sliceMax)
+            text = sprintf('%d / %d',slice,sliceMax);
+        end
+
+        function fig = figureField(figures,varargin)
+            fig = [];
+            value = figures;
+            for i = 1:numel(varargin)
+                if ~isstruct(value) || ~isfield(value,varargin{i})
+                    return;
+                end
+                value = value.(varargin{i});
+            end
+            if ~isempty(value) && ishghandle(value)
+                fig = value;
+            end
+        end
+
         function tf = hasInteractiveFigureSession()
             tf = false;
             if exist('matRad_isInteractiveSession','file') == 2
@@ -292,6 +602,61 @@ classdef Figures
                 return;
             end
             tf = true;
+        end
+
+        function axesHandles = mainAxes(fig)
+            axesHandles = findall(fig,'Type','Axes');
+            if isempty(axesHandles)
+                return;
+            end
+            tags = get(axesHandles,'Tag');
+            if ischar(tags)
+                tags = {tags};
+            end
+            axesHandles = axesHandles(~strcmp(tags,'Colorbar'));
+        end
+
+        function axesHandle = primaryAxes(fig)
+            axesHandles = planWorkflow.analysis.Figures.mainAxes(fig);
+            if isempty(axesHandles)
+                axesHandle = [];
+                return;
+            end
+
+            axesHandle = axesHandles(1);
+            for i = 1:numel(axesHandles)
+                titleHandle = get(axesHandles(i),'Title');
+                if ~isempty(planWorkflow.analysis.Figures.titleLines( ...
+                        get(titleHandle,'String')))
+                    axesHandle = axesHandles(i);
+                    return;
+                end
+            end
+        end
+
+        function lines = titleLines(titleText)
+            if iscell(titleText)
+                lines = titleText(:);
+            elseif ischar(titleText)
+                lines = cellstr(titleText);
+            else
+                lines = {char(titleText)};
+            end
+            lines = lines(:);
+            lines = lines(~cellfun(@isempty,lines));
+        end
+
+        function lines = removePlanRobustnessTitleLines(lines,label)
+            legacyPrefixPattern = ['^\s*' 'Plan\s+robustness\s*:'];
+            titleText = planWorkflow.analysis.Figures.planRobustnessTitleLine( ...
+                label);
+            keep = true(size(lines));
+            for i = 1:numel(lines)
+                keep(i) = isempty(regexp(char(lines{i}), ...
+                    legacyPrefixPattern,'once')) && ...
+                    ~strcmp(char(lines{i}),titleText);
+            end
+            lines = lines(keep);
         end
     end
 end

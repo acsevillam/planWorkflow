@@ -431,7 +431,7 @@ classdef matRadCapabilitiesReader
                 planWorkflow.matRadCapabilitiesReader.biologicalModelConstant( ...
                 'availableQuantitiesForOpt');
             if isempty(quantities)
-                quantities = {'physicalDose','RBExD','effect','BED'};
+                quantities = {'physicalDose','RBExDose','effect','BED'};
             end
             quantities = planWorkflow.matRadCapabilitiesReader.uniqueStable( ...
                 quantities);
@@ -496,8 +496,8 @@ classdef matRadCapabilitiesReader
                 quantity = 'physicalDose';
                 return;
             end
-            if any(strcmp(quantities,'RBExD'))
-                quantity = 'RBExD';
+            if any(strcmp(quantities,'RBExDose'))
+                quantity = 'RBExDose';
                 return;
             end
             quantity = quantities{1};
@@ -507,7 +507,7 @@ classdef matRadCapabilitiesReader
                 radiationMode,bioModel)
             if strcmp(char(bioModel),'none')
                 if any(strcmp(char(radiationMode),{'photons','brachy'}))
-                    quantities = {'physicalDose','RBExD','effect','BED'};
+                    quantities = {'physicalDose','RBExDose','effect','BED'};
                 else
                     quantities = {'physicalDose'};
                 end
@@ -535,7 +535,7 @@ classdef matRadCapabilitiesReader
             if strcmp(char(bioModel),'none')
                 quantity = 'physicalDose';
             else
-                quantity = 'RBExD';
+                quantity = 'RBExDose';
             end
         end
 
@@ -574,9 +574,6 @@ classdef matRadCapabilitiesReader
 
         function quantity = toWorkflowQuantity(quantity)
             quantity = char(quantity);
-            if strcmp(quantity,'RBExDose')
-                quantity = 'RBExD';
-            end
         end
 
         function specs = bioModelSpecs(names,quantities)

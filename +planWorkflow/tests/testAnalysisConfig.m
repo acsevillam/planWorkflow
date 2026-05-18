@@ -16,6 +16,7 @@ verifyFalse(testCase,isfield(analysis,'doseWindowUvh'));
 verifyEqual(testCase,analysis.figures.save,true);
 verifyEqual(testCase,analysis.figures.visible,'auto');
 verifyEqual(testCase,analysis.figures.closeAfterSave,true);
+verifyFalse(testCase,analysis.figures.sliceControl);
 end
 
 function testNormalizeRejectsUnsupportedFields(testCase)
@@ -26,11 +27,13 @@ end
 
 function testNormalizeFigurePolicy(testCase)
 analysis = planWorkflow.config.Analysis.normalize(struct( ...
-    'figures',struct('save',false,'visible',false)));
+    'figures',struct('save',false,'visible',false, ...
+    'sliceControl',true)));
 
 verifyFalse(testCase,analysis.figures.save);
 verifyEqual(testCase,analysis.figures.visible,'off');
 verifyTrue(testCase,analysis.figures.closeAfterSave);
+verifyTrue(testCase,analysis.figures.sliceControl);
 end
 
 function testNormalizeRejectsUnsupportedFigureFields(testCase)
@@ -48,8 +51,7 @@ analysis = planWorkflow.config.Analysis.applyPrescriptionDefaults( ...
 verifyEqual(testCase,analysis.doseWindow,[0 100],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowDvh,[0 128],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowUncertainty,[0 40],'AbsTol',1e-12);
-verifyEqual(testCase,analysis.doseWindowExpectedDoseDifference,[-40 40], ...
-    'AbsTol',1e-12);
+verifyEmpty(testCase,analysis.doseWindowExpectedDoseDifference);
 end
 
 function testPrescriptionDefaultsUsePerFractionDose(testCase)
@@ -60,6 +62,15 @@ analysis = planWorkflow.config.Analysis.applyPrescriptionDefaults( ...
 verifyEqual(testCase,analysis.doseWindow,[0 5],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowDvh,[0 6.4],'AbsTol',1e-12);
 verifyEqual(testCase,analysis.doseWindowUncertainty,[0 2],'AbsTol',1e-12);
-verifyEqual(testCase,analysis.doseWindowExpectedDoseDifference,[-2 2], ...
+verifyEmpty(testCase,analysis.doseWindowExpectedDoseDifference);
+end
+
+function testPrescriptionDefaultsPreserveExpectedDoseDifferenceWindow(testCase)
+pln = struct('numOfFractions',20);
+analysis = planWorkflow.config.Analysis.applyPrescriptionDefaults( ...
+    struct('evaluationMode','total', ...
+    'doseWindowExpectedDoseDifference',[-10 10]),80,pln);
+
+verifyEqual(testCase,analysis.doseWindowExpectedDoseDifference,[-10 10], ...
     'AbsTol',1e-12);
 end

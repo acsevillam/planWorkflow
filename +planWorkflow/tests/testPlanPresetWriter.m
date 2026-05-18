@@ -7,6 +7,7 @@ fixture = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture)
 templateRoot = fullfile(fixture.Folder,'templates');
 macroFolder = fullfile(fixture.Folder,'macros');
 runConfig = baseRunConfig(fixture.Folder);
+runConfig.analysis.figures.sliceControl = true;
 template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
     'prostate','interval2_001');
 template.prescriptionDose = 70;
@@ -98,6 +99,8 @@ verifyTrue(testCase,contains(macroText, ...
 verifyFalse(testCase,contains(macroText,'scale_factor'));
 verifyTrue(testCase,contains(macroText, ...
     "workflowConfig.sampling.sampling_scen_mode = 'impScen_permuted5';"));
+verifyTrue(testCase,contains(macroText, ...
+    "workflowConfig.analysis.figures.sliceControl = true;"));
 verifyTrue(testCase,contains(macroText, ...
     "workflow.gui();"));
 end

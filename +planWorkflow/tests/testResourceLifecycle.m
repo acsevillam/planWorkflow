@@ -12,7 +12,7 @@ resultGUI.physicalDose = ones(2,2,2);
 resultGUI.physicalDose_scen1 = ones(2,2,2);
 resultGUI.doseToWater_beam1 = ones(2,2,2);
 resultGUI.effect = ones(2,2,2);
-resultGUI.RBExD_scen2 = ones(2,2,2);
+resultGUI.RBExDose_scen2 = ones(2,2,2);
 resultGUI.LET = ones(2,2,2);
 resultGUI.smallMetadata = 'kept';
 
@@ -27,7 +27,7 @@ verifyFalse(testCase,isfield(compact,'physicalDose'));
 verifyFalse(testCase,isfield(compact,'physicalDose_scen1'));
 verifyFalse(testCase,isfield(compact,'doseToWater_beam1'));
 verifyFalse(testCase,isfield(compact,'effect'));
-verifyFalse(testCase,isfield(compact,'RBExD_scen2'));
+verifyFalse(testCase,isfield(compact,'RBExDose_scen2'));
 verifyFalse(testCase,isfield(compact,'LET'));
 end
 

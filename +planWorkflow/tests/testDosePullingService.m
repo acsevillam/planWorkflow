@@ -44,20 +44,6 @@ verifyEqual(testCase,metrics.meanQiTarget,0.6,'AbsTol',1e-12);
 verifyEqual(testCase,metrics.minQiTarget,0,'AbsTol',1e-12);
 end
 
-function testRobustDosePullingMetricsAcceptsLegacyScenarioDoseFields( ...
-        testCase)
-[runConfig,cst,pln,resultGUI] = ...
-    dosePullingMetricsFixture([2 0.4; 3 0.6]);
-resultGUI.physicalDose_1 = resultGUI.physicalDose_scen1;
-resultGUI.physicalDose_2 = resultGUI.physicalDose_scen2;
-resultGUI = rmfield(resultGUI,{'physicalDose_scen1','physicalDose_scen2'});
-
-metrics = planWorkflow.precompute.DosePullingMetrics.robust( ...
-    runConfig,cst,pln,resultGUI,[0.25 0.75],3,struct());
-
-verifyEqual(testCase,metrics.meanQiTarget,0.75,'AbsTol',1e-12);
-end
-
 function testRobustDosePullingMetricsRejectsMismatchedCtScenarioVector( ...
         testCase)
 [runConfig,cst,pln,resultGUI] = ...
@@ -349,7 +335,7 @@ runConfig.dose_pulling2_limit = 0;
 ct = struct('numOfCtScen',max(ctScenProb(:,1)));
 pln = struct();
 pln.numOfFractions = 10;
-pln.bioParam = struct('quantityVis','physicalDose');
+pln.propOpt = struct('quantityOpt','physicalDose','quantityVis','physicalDose');
 pln.multScen = matRad_NominalScenario(ct);
 pln.multScen.ctScenProb = ctScenProb;
 
