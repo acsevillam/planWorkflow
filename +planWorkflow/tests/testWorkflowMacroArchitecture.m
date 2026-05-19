@@ -104,7 +104,7 @@ end
 function testWrapperDeclaresProfileAndGuiDefaults(testCase)
 macroRoot = testCase.TestData.macroRoot;
 wrapperFile = fullfile(macroRoot,'head_and_neck','photons', ...
-    'runHeadNeckPhoton2Interval2Workflow.m');
+    'runHeadNeckPhotonInterval2Workflow.m');
 [specId,profile,openGui,optimizationScenario,samplingScenario, ...
     selector] = ...
     wrapperSpecAndProfile(wrapperFile);
@@ -194,7 +194,7 @@ end
 function testWrapperOpenGuiDefaultCanBeOverridden(testCase)
 macroRoot = testCase.TestData.macroRoot;
 wrapperFile = fullfile(macroRoot,'breast','photons', ...
-    'runBreastPhoton4136MultipleWorkflow.m');
+    'runBreastPhotonMctMultipleWorkflow.m');
 [specId,profile,openGui] = wrapperSpecAndProfile(wrapperFile);
 spec = macroSpecCatalog(specId,'profile',profile);
 
@@ -208,7 +208,7 @@ end
 function testWrapperProfileDefaultCanBeOverridden(testCase)
 macroRoot = testCase.TestData.macroRoot;
 wrapperFile = fullfile(macroRoot,'breast','photons', ...
-    'runBreastPhoton4136MultipleWorkflow.m');
+    'runBreastPhotonMctMultipleWorkflow.m');
 [specId,profile,~] = wrapperSpecAndProfile(wrapperFile);
 
 prodSpec = macroSpecCatalog(specId,'profile',profile);
