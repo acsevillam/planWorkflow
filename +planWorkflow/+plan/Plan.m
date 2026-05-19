@@ -156,24 +156,33 @@ classdef Plan
             if ~planWorkflow.plan.Plan.hasMultipleScenarios(pln)
                 return;
             end
-            if exist('matRad_supportsParallelScenarioDij','file') ~= 2
-                planWorkflow.plan.Plan.warnMissingParallelScenarioCapability();
-                return;
-            end
-            [tf,~] = matRad_supportsParallelScenarioDij(pln);
+            planWorkflow.plan.Plan.requireParallelScenarioCapability();
+            engine = planWorkflow.plan.Plan.scenarioDoseEngine(pln);
+            [tf,~] = ...
+                ScenarioBatch.Parallel.matRad_supportsParallelScenarioDij( ...
+                engine);
         end
 
-        function warnMissingParallelScenarioCapability()
-            persistent warnedMissingHelper
-            if ~isempty(warnedMissingHelper) && warnedMissingHelper
+        function requireParallelScenarioCapability()
+            if ~isempty(which( ...
+                    'ScenarioBatch.Parallel.matRad_supportsParallelScenarioDij'))
                 return;
             end
-            warning(['planWorkflow:plan:Plan:' ...
+            error(['planWorkflow:plan:Plan:' ...
                 'MissingParallelScenarioCapability'], ...
-                ['matRad_supportsParallelScenarioDij is unavailable; ' ...
-                 'multi-scenario dose influence calculation will run ' ...
-                 'serially.']);
-            warnedMissingHelper = true;
+                ['ScenarioBatch.Parallel.matRad_supportsParallelScenarioDij ' ...
+                 'is unavailable; the active matRad checkout is missing the ' ...
+                 'scenario-parallel dose-influence capability contract.']);
+        end
+
+        function engine = scenarioDoseEngine(pln)
+            if isstruct(pln) && isfield(pln,'propDoseCalc') && ...
+                    isa(pln.propDoseCalc, ...
+                    'DoseEngines.matRad_DoseEngineBase')
+                engine = pln.propDoseCalc;
+                return;
+            end
+            engine = DoseEngines.matRad_DoseEngineBase.getEngineFromPln(pln);
         end
 
         function tf = hasMultipleScenarios(pln)

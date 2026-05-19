@@ -769,15 +769,12 @@ runConfig.resources = planWorkflow.config.Resources.defaults();
 runConfig.resources.doseCalculation.workerUpperBound = 4;
 pln = planWorkflow.plan.Plan.applyDoseParallelism(pln,runConfig);
 
-if exist('matRad_supportsParallelScenarioDij','file') == 2
-    verifyTrue(testCase,pln.propDoseCalc.UseParallel);
-    verifyEqual(testCase,pln.propDoseCalc.parallelOptions.workerUpperBound,4);
-    verifyEqual(testCase, ...
-        pln.propDoseCalc.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
-else
-    verifyFalse(testCase,pln.propDoseCalc.UseParallel);
-    verifyEqual(testCase,pln.propDoseCalc.parallelOptions,struct());
-end
+verifyNotEmpty(testCase,which( ...
+    'ScenarioBatch.Parallel.matRad_supportsParallelScenarioDij'));
+verifyTrue(testCase,pln.propDoseCalc.UseParallel);
+verifyEqual(testCase,pln.propDoseCalc.parallelOptions.workerUpperBound,4);
+verifyEqual(testCase, ...
+    pln.propDoseCalc.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 end
 
 function testReferenceCompactCacheIdentityUsesReferencePlan(testCase)

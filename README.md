@@ -7,9 +7,9 @@ tracking, dose influence matrix caching, and plan-analysis helpers.
 This repository is a standalone MATLAB toolbox. It depends on a compatible
 matRad checkout at runtime, but matRad is not vendored here.
 Parallel multi-scenario dose-influence calculation uses the
-`matRad_supportsParallelScenarioDij` helper when the active matRad checkout
-provides it. If the helper is unavailable, the toolbox falls back to serial
-scenario dose calculation and emits a warning.
+`ScenarioBatch.Parallel.matRad_supportsParallelScenarioDij` helper from the
+active matRad checkout. That helper is part of the scenario-parallel
+dose-influence capability contract.
 
 ## Layout
 
