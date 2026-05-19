@@ -358,6 +358,44 @@ for modeIx = 1:numel(modes)
 end
 end
 
+function testCompactDijRefsUseEffectiveDefaultRefScen(testCase)
+modes = {'INTERVAL2','INTERVAL3','PROB2'};
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    [compactData,dataMetadata,runConfig,cachePath,expectedRef] = ...
+        compactRobustnessFixture(testCase,mode);
+    verifyFalse(testCase,isfield(compactData.ct,'refScen'),mode);
+    compactData.ct.refScen = 1;
+    compactData.optimizationInput.ct.refScen = 1;
+
+    verifyCompactCacheIdentityRefScen(testCase,cachePath,expectedRef, ...
+        mode,1);
+
+    fullInput = requireFullInput( ...
+        planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+        compactData,dataMetadata,runConfig,cachePath),runConfig,cachePath);
+    verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3,mode);
+end
+end
+
+function testCompactDijRefsRejectDifferentEffectiveRefScen(testCase)
+modes = {'INTERVAL2','INTERVAL3','PROB2'};
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    [compactData,dataMetadata,runConfig,cachePath] = ...
+        compactRobustnessFixture(testCase,mode);
+    compactData.ct.refScen = 2;
+    compactData.optimizationInput.ct.refScen = 2;
+
+    verifyError(testCase,@() requireFullInput( ...
+        planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+        compactData,dataMetadata,runConfig,cachePath), ...
+        runConfig,cachePath), ...
+        ['planWorkflow:cache:DoseInfluenceCacheService:' ...
+        'CacheIdentityPathMismatch'],mode);
+end
+end
+
 function testPullDoseMaterializesCompactArtifactsBeforeRefresh(testCase)
 modes = {'INTERVAL2','INTERVAL3','PROB2'};
 for modeIx = 1:numel(modes)
@@ -625,6 +663,23 @@ if any(strcmp(char(mode),{'INTERVAL2','INTERVAL3'}))
     verifyTrue(testCase,isfield(identity,'interval'),mode);
 elseif strcmp(char(mode),'PROB2')
     verifyTrue(testCase,isfield(identity,'prob'),mode);
+end
+end
+
+function verifyCompactCacheIdentityRefScen(testCase,cachePath,ref,mode, ...
+        expectedRefScen)
+cachedRef = load(fullfile(cachePath,ref.cacheRelativeFile), ...
+    'cacheMetadata');
+identity = cachedRef.cacheMetadata.cacheIdentity;
+switch char(mode)
+    case {'INTERVAL2','INTERVAL3'}
+        verifyEqual(testCase,identity.interval.refScen, ...
+            expectedRefScen,mode);
+    case 'PROB2'
+        verifyEqual(testCase,identity.prob.refScen, ...
+            expectedRefScen,mode);
+    otherwise
+        error('Unsupported compact mode "%s".',char(mode));
 end
 end
 

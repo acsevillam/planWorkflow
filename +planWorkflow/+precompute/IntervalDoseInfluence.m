@@ -306,11 +306,10 @@ classdef IntervalDoseInfluence
             else
                 interval.quantity = '';
             end
-            if isfield(robustData,'ct') && isfield(robustData.ct,'refScen')
-                interval.refScen = robustData.ct.refScen;
-            else
-                interval.refScen = [];
-            end
+            interval.refScen = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.effectiveRefScen( ...
+                planWorkflow.precompute.IntervalDoseInfluence.ctForRefScen( ...
+                robustData));
             interval.scen4D = 1;
             if isfield(robustData,'pln') && ...
                     isfield(robustData.pln,'propOpt') && ...
@@ -375,10 +374,10 @@ classdef IntervalDoseInfluence
                     ~isempty(context.data.quantityOpt)
                 intervalConfig.Quantity = context.data.quantityOpt;
             end
-            if isfield(robustData.ct,'refScen') && ...
-                    ~isempty(robustData.ct.refScen)
-                intervalConfig.refScen = robustData.ct.refScen;
-            end
+            intervalConfig.refScen = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.effectiveRefScen( ...
+                planWorkflow.precompute.IntervalDoseInfluence.ctForRefScen( ...
+                robustData));
             intervalConfig.ProgressLevel = 'summary';
             if isfield(robustData.planConfig,'robustnessOptions') && ...
                     isfield(robustData.planConfig.robustnessOptions, ...
@@ -464,6 +463,13 @@ classdef IntervalDoseInfluence
                 error(['planWorkflow:precompute:IntervalDoseInfluence:' ...
                     'MissingStrategy'], ...
                     'Robust data must contain an explicit strategy.');
+            end
+        end
+
+        function ct = ctForRefScen(robustData)
+            ct = struct();
+            if isstruct(robustData) && isfield(robustData,'ct')
+                ct = robustData.ct;
             end
         end
 

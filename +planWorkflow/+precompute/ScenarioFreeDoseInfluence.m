@@ -16,6 +16,14 @@ classdef ScenarioFreeDoseInfluence
             end
         end
 
+        function refScen = effectiveRefScen(ct)
+            refScen = 1;
+            if isstruct(ct) && isfield(ct,'refScen') && ...
+                    ~isempty(ct.refScen)
+                refScen = ct.refScen;
+            end
+        end
+
         function scenarioId = nominalScenarioId(pln,compactDij, ...
                 errorPrefix,modelLabel)
             if ~isfield(pln,'multScen') || isempty(pln.multScen) || ...
