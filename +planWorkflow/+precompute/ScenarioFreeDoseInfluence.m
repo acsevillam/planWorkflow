@@ -215,6 +215,22 @@ classdef ScenarioFreeDoseInfluence
             end
         end
 
+        function timing = referenceTiming(context,robustData)
+            timing = [];
+            if nargin >= 2 && isstruct(robustData) && ...
+                    isfield(robustData,'referenceDijPrecomputingTiming') && ...
+                    ~isempty(robustData.referenceDijPrecomputingTiming)
+                timing = robustData.referenceDijPrecomputingTiming;
+                return;
+            end
+            if isstruct(context) && isfield(context,'data') && ...
+                    isstruct(context.data) && ...
+                    isfield(context.data,'dijPrecomputingTiming') && ...
+                    ~isempty(context.data.dijPrecomputingTiming)
+                timing = context.data.dijPrecomputingTiming;
+            end
+        end
+
         function sizeData = inputSize(robustData)
             sizeData = [];
             if isstruct(robustData) && ...

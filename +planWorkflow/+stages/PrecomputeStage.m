@@ -132,7 +132,9 @@ classdef PrecomputeStage
                     'applyRobustness',robustPlanId,'', ...
                     @() planWorkflow.precompute.RobustDataFactory.applyFirstVariant( ...
                     runConfig,robustData));
+                referenceTiming = data.dijPrecomputingTiming;
                 referenceSize = data.dijPrecomputingSize;
+                robustData.referenceDijPrecomputingTiming = referenceTiming;
                 robustData.referenceDijPrecomputingSize = referenceSize;
 
                 requiresCompact = ...

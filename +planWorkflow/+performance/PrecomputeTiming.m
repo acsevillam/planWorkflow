@@ -48,9 +48,12 @@ classdef PrecomputeTiming
         end
 
         function timing = combine(inputTiming,derivedRole,derivedArtifact, ...
-                derivedTimeSeconds,label)
+                derivedTimeSeconds,label,referenceTiming)
             if nargin < 5
                 label = '';
+            end
+            if nargin < 6
+                referenceTiming = [];
             end
             [normalizedInput,hasInput] = ...
                 planWorkflow.performance.PrecomputeTiming.normalize( ...
@@ -59,7 +62,6 @@ classdef PrecomputeTiming
                 referenceTiming = normalizedInput;
                 components = normalizedInput.components;
             else
-                referenceTiming = [];
                 components = planWorkflow.performance.PrecomputeTiming.emptyComponents();
             end
             derivedComponent = ...

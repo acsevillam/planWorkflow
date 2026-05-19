@@ -60,6 +60,64 @@ verifyEqual(testCase,normalized.components(2).timeSeconds,5, ...
     'AbsTol',1e-12);
 end
 
+function testCompositeTimingCanUseExplicitReferenceWithoutInput(testCase)
+referenceTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    10,'reference','Reference','dij',[]);
+probTiming = planWorkflow.performance.PrecomputeTiming.combine( ...
+    [],'derived','dij_prob',30,'PROB2',referenceTiming);
+
+[normalized,tf] = planWorkflow.performance.PrecomputeTiming.normalize( ...
+    probTiming);
+
+verifyTrue(testCase,tf);
+verifyEqual(testCase,normalized.totalTimeSeconds,30,'AbsTol',1e-12);
+verifyEqual(testCase,normalized.relativeTime,3,'AbsTol',1e-12);
+verifyEqual(testCase,normalized.reference.label,'Reference');
+verifyEqual(testCase,normalized.reference.timeSeconds,10,'AbsTol',1e-12);
+verifyNumElements(testCase,normalized.components,1);
+verifyEqual(testCase,normalized.components.role,'derived');
+verifyEqual(testCase,normalized.components.artifact,'dij_prob');
+verifyEqual(testCase,normalized.components.relativeTime,3,'AbsTol',1e-12);
+
+timings = planWorkflow.performance.PrecomputeTiming.enrich( ...
+    planTiming('robust','PROB2','probDoseInfluence',probTiming));
+verifyEqual(testCase,timings.dijPrecomputingTimeSeconds,30, ...
+    'AbsTol',1e-12);
+verifyEqual(testCase,timings.relativeDijPrecomputingTime,3, ...
+    'AbsTol',1e-12);
+verifyEqual(testCase,timings.dijPrecomputingReferenceLabel, ...
+    'Reference');
+verifyEqual(testCase,timings.dijPrecomputingReferenceTimeSeconds,10, ...
+    'AbsTol',1e-12);
+end
+
+function testCompositeTimingIgnoresExplicitReferenceWhenInputExists(testCase)
+referenceTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    10,'reference','Reference','dij',[]);
+inputTiming = planWorkflow.performance.PrecomputeTiming.single( ...
+    30,'input','INTERVAL2','dij_robust',referenceTiming);
+alternateReference = planWorkflow.performance.PrecomputeTiming.single( ...
+    5,'reference','Alternate','dij',[]);
+
+intervalTiming = planWorkflow.performance.PrecomputeTiming.combine( ...
+    inputTiming,'derived','dij_interval',5,'INTERVAL2', ...
+    alternateReference);
+
+[normalized,tf] = planWorkflow.performance.PrecomputeTiming.normalize( ...
+    intervalTiming);
+
+verifyTrue(testCase,tf);
+verifyEqual(testCase,normalized.totalTimeSeconds,35,'AbsTol',1e-12);
+verifyEqual(testCase,normalized.relativeTime,3.5,'AbsTol',1e-12);
+verifyEqual(testCase,normalized.reference.label,'Reference');
+verifyEqual(testCase,normalized.reference.timeSeconds,10,'AbsTol',1e-12);
+verifyNumElements(testCase,normalized.components,2);
+verifyEqual(testCase,normalized.components(1).relativeTime,3, ...
+    'AbsTol',1e-12);
+verifyEqual(testCase,normalized.components(2).relativeTime,0.5, ...
+    'AbsTol',1e-12);
+end
+
 function testCompositeTimingCanBeRebasedAsReference(testCase)
 inputTiming = planWorkflow.performance.PrecomputeTiming.single( ...
     20,'input','Reference','dij_robust',[]);
