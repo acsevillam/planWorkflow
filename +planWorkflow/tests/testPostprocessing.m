@@ -139,6 +139,36 @@ verifyTrue(testCase,ishandle(fig));
 verifyEqual(testCase,char(get(fig,'Visible')),'off');
 end
 
+function testPostprocessingFrameCreatesResultsTabOnDemand(testCase)
+if ~usejava('desktop')
+    return;
+end
+oldVisible = get(groot,'DefaultFigureVisible');
+set(groot,'DefaultFigureVisible','off');
+cleanupVisibility = onCleanup( ...
+    @() set(groot,'DefaultFigureVisible',oldVisible));
+
+options = planWorkflow.postprocessing.CliCommandBuilder.defaultConfig();
+callbacks = struct('close',@(~,~) []);
+frame = planWorkflow.gui.PostprocessingEditorFrame.create( ...
+    options,callbacks);
+cleanupFig = onCleanup(@() closeFigure(frame.fig));
+
+verifyTrue(testCase,hasTabTitle(frame.tabGroup,'Parameters'));
+verifyFalse(testCase,hasTabTitle(frame.tabGroup,'Plots'));
+verifyFalse(testCase,hasTabTitle(frame.tabGroup,'Results'));
+verifyTrue(testCase,ishandle(frame.browsePythonButton));
+verifyTrue(testCase,ishandle(frame.browsePythonPathButton));
+
+entries = struct('id','plot','label','Plot', ...
+    'filePath',fullfile(tempdir,'plot.png'),'kind','figure');
+frame = planWorkflow.gui.PostprocessingEditorFrame.showResultsTab( ...
+    frame,tempdir,entries,callbacks);
+
+verifyTrue(testCase,hasTabTitle(frame.tabGroup,'Results'));
+verifyTrue(testCase,ishandle(frame.resultsTab));
+end
+
 function touchFile(filePath)
 folder = fileparts(filePath);
 if ~isempty(folder) && ~isfolder(folder)
