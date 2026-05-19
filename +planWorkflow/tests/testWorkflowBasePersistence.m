@@ -248,10 +248,11 @@ verifyError(testCase,@() ...
     'DijCacheRefIdentityMismatch']);
 end
 
-function testWorkflowDataArtifactResumeFailsWhenDijCacheTagChanges(testCase)
+function testWorkflowDataArtifactResumeFailsWhenDijCachePhysicalTagChanges( ...
+        testCase)
 [compactData,dataMetadata,runConfig,cachePath] = ...
     referenceDijArtifact(testCase);
-compactData.optimizationInput.dijRef.tag = 'wrong_tag';
+compactData.optimizationInput.dijRef.cachePhysicalTag = 'wrong_tag';
 
 verifyError(testCase,@() ...
     requireFullInput( ...
@@ -259,6 +260,35 @@ verifyError(testCase,@() ...
     compactData,dataMetadata,runConfig,cachePath),runConfig,cachePath), ...
     ['planWorkflow:cache:DoseInfluenceCacheService:' ...
     'DijCacheRefTagMismatch']);
+end
+
+function testWorkflowDataArtifactResumeFailsWithoutDijCachePhysicalTag( ...
+        testCase)
+[compactData,dataMetadata,runConfig,cachePath] = ...
+    referenceDijArtifact(testCase);
+compactData.optimizationInput.dijRef = ...
+    rmfield(compactData.optimizationInput.dijRef,'cachePhysicalTag');
+
+verifyError(testCase,@() ...
+    requireFullInput( ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath),runConfig,cachePath), ...
+    ['planWorkflow:cache:DoseInfluenceCacheService:' ...
+    'DijCacheRefTagMismatch']);
+end
+
+function testWorkflowDataArtifactResumeIgnoresLogicalRefTagChange(testCase)
+[compactData,dataMetadata,runConfig,cachePath] = ...
+    referenceDijArtifact(testCase);
+compactData.optimizationInput.dijRef.tag = 'wrong_tag';
+
+rehydrated = ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath);
+fullInput = requireFullInput(rehydrated,runConfig,cachePath);
+
+verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3);
+verifyEqual(testCase,rehydrated.optimizationInput.dijKind,'nominal');
 end
 
 function testWorkflowDataArtifactResumeFailsWhenStandardContextChanges( ...
@@ -428,6 +458,59 @@ verifyFalse(testCase,isfield(data.optimizationInput,'dij'));
 verifyTrue(testCase,isfield(data.optimizationInput,'dijRef'));
 fullInput = requireFullInput(data,runConfig,cachePath);
 verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3);
+end
+
+function testPrecomputeResolvesPhysicallySharedScenarioCacheRef( ...
+        testCase)
+[producerData,consumerData,runConfig,cachePath,producerRef] = ...
+    physicallySharedScenarioCacheFixture(testCase);
+cache = planWorkflow.cache.DoseInfluenceCacheService( ...
+    runConfig,cachePath,@(~) []);
+producerTag = ['robust_' char(producerData.planConfig.id)];
+consumerTag = ['robust_' char(consumerData.planConfig.id)];
+
+[dij,~,~,cacheRef,lazyCacheHit] = cache.getOrCreateLazyTimed( ...
+    consumerTag,consumerData.ct,consumerData.cst,consumerData.stf, ...
+    consumerData.pln,[]);
+
+verifyTrue(testCase,lazyCacheHit);
+verifyEmpty(testCase,dij);
+verifyEqual(testCase,cacheRef.cacheRelativeFile, ...
+    producerRef.cacheRelativeFile);
+verifyEqual(testCase,cacheRef.cacheIdentityHash, ...
+    producerRef.cacheIdentityHash);
+verifyEqual(testCase,cacheRef.tag,consumerTag);
+verifyEqual(testCase,cacheRef.producerTag,producerTag);
+verifyEqual(testCase,cacheRef.cachePhysicalTag,'dij');
+
+consumerData.dijCacheRefs.dijRobust = cacheRef;
+consumerData.dijRobust = ...
+    planWorkflow.persistence.WorkflowDataArtifact.cachedDijArtifact( ...
+    consumerData,'dijRobust',runConfig,cachePath,consumerData);
+consumerData = ...
+    planWorkflow.stages.PrecomputeStage.selectOptimizationDoseInfluence( ...
+    consumerData);
+
+[compactData,workflowDataMetadata] = ...
+    planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+    consumerData,runConfig,cachePath);
+dataMetadata = struct('workflowData',workflowDataMetadata);
+
+verifyFalse(testCase,isfield(compactData.optimizationInput,'dij'));
+verifyTrue(testCase,isfield(compactData.optimizationInput,'dijRef'));
+verifyEqual(testCase,compactData.optimizationInput.dijRef.tag, ...
+    consumerTag);
+verifyEqual(testCase,compactData.optimizationInput.dijRef.producerTag, ...
+    producerTag);
+verifyEqual(testCase, ...
+    compactData.optimizationInput.dijRef.cachePhysicalTag,'dij');
+
+rehydrated = ...
+    planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+    compactData,dataMetadata,runConfig,cachePath);
+fullInput = requireFullInput(rehydrated,runConfig,cachePath);
+verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3);
+verifyEqual(testCase,rehydrated.optimizationInput.dijKind,'scenario');
 end
 
 function testOptimizeStageUsesWorkflowRootForCompactRobustRefs(testCase)
@@ -1111,6 +1194,40 @@ switch char(mode)
     otherwise
         error('Unsupported test robustness mode "%s".',char(mode));
 end
+end
+
+function [producerData,consumerData,runConfig,cachePath,producerRef] = ...
+        physicallySharedScenarioCacheFixture(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+cachePath = fullfile(fixture.Folder,'cache');
+mkdir(cachePath);
+
+producerPlan = robustPlanConfigForMode('COWC','Minimax');
+consumerPlan = robustPlanConfigForMode('STOCH','Stochastic');
+config = baseSyntheticConfig(testCase);
+config.precompute.robustPlans = [producerPlan consumerPlan];
+runConfig = planWorkflowTest.SyntheticWorkflow(config).runConfig;
+runConfig.useCache = true;
+runConfig.writeCache = true;
+
+ct = struct('numOfCtScen',1);
+cst = multiScenarioCst(1);
+stf = struct('totalNumOfBixels',3);
+pln = struct('propStf',struct('numOfBeams',1));
+pln.multScen = workflowScenarioModel();
+dij = referenceDij(pln.multScen);
+
+producerData = robustPlanData(ct,cst,stf,pln,'COWC','Minimax');
+consumerData = robustPlanData(ct,cst,stf,pln,'STOCH','Stochastic');
+producerTag = ['robust_' char(producerData.planConfig.id)];
+[cacheFile,cacheMetadata] = writeStandardDijCache( ...
+    cachePath,runConfig,producerTag,cst,stf,pln,dij);
+producerRef = planWorkflow.cache.DoseInfluenceCacheRef.create( ...
+    'standard',producerTag,cacheFile,cachePath,cacheMetadata, ...
+    {'dij'},dij.totalNumOfBixels);
+producerData.dijRobust = dij;
+producerData.dijCacheRefs.dijRobust = producerRef;
 end
 
 function [compactData,dataMetadata,runConfig,cachePath,expectedRef] = ...
