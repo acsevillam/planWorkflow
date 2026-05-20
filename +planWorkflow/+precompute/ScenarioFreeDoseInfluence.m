@@ -190,6 +190,9 @@ classdef ScenarioFreeDoseInfluence
             if ~isempty(dosePrecompute.CacheRoot)
                 cfg.CacheRoot = dosePrecompute.CacheRoot;
             end
+            cfg.MemoryLimitMB = dosePrecompute.MemoryLimitMB;
+            cfg.MemoryLimitFraction = dosePrecompute.MemoryLimitFraction;
+            cfg.MemoryLimitFallbackMB = dosePrecompute.MemoryLimitFallbackMB;
         end
 
         function cfg = mergeScenarioBatchConfig(cfg,planConfig)

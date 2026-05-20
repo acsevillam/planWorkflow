@@ -694,6 +694,9 @@ config.precompute.robustPlans.dosePrecompute.useScenarioBatch = true;
 config.precompute.robustPlans.dosePrecompute.SecondPassStrategy = 'recompute';
 config.precompute.robustPlans.dosePrecompute.KeepCache = true;
 config.precompute.robustPlans.dosePrecompute.CacheRoot = cacheRoot;
+config.precompute.robustPlans.dosePrecompute.MemoryLimitMB = 131072;
+config.precompute.robustPlans.dosePrecompute.MemoryLimitFraction = 0.40;
+config.precompute.robustPlans.dosePrecompute.MemoryLimitFallbackMB = 4096;
 workflow = planWorkflowTest.EngineProbe(config);
 
 robustData = intervalRobustData(workflow);
@@ -719,6 +722,9 @@ verifyEqual(testCase, ...
     scenarioBatchConfig.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyTrue(testCase,scenarioBatchConfig.KeepCache);
 verifyEqual(testCase,scenarioBatchConfig.CacheRoot,cacheRoot);
+verifyEqual(testCase,scenarioBatchConfig.MemoryLimitMB,131072);
+verifyEqual(testCase,scenarioBatchConfig.MemoryLimitFraction,0.40);
+verifyEqual(testCase,scenarioBatchConfig.MemoryLimitFallbackMB,4096);
 end
 
 function testProb2ScenarioBatchDoseConfigCarriesSecondPassOptions(testCase)
@@ -752,6 +758,9 @@ verifyEqual(testCase, ...
     probConfig.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyTrue(testCase,probConfig.KeepCache);
 verifyFalse(testCase,isfield(probConfig,'CacheRoot'));
+verifyEqual(testCase,probConfig.MemoryLimitMB,'auto');
+verifyEqual(testCase,probConfig.MemoryLimitFraction,0.50);
+verifyEqual(testCase,probConfig.MemoryLimitFallbackMB,4096);
 end
 
 function testDoseParallelismUsesEngineCapabilityAndResources(testCase)

@@ -269,7 +269,10 @@ cacheRoot = fullfile(tempdir,'planWorkflow_interval_cache');
 plan = cleanPlan('interval3','INTERVAL3');
 plan.dosePrecompute = struct('useScenarioBatch','true', ...
     'SecondPassStrategy','RECOMPUTE','KeepCache','on', ...
-    'CacheRoot',['  ' cacheRoot '  ']);
+    'CacheRoot',['  ' cacheRoot '  '], ...
+    'MemoryLimitMB','131072', ...
+    'MemoryLimitFraction',0.40, ...
+    'MemoryLimitFallbackMB',4096);
 
 plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
     plan,contract('INTERVAL3',false));
@@ -278,6 +281,20 @@ verifyTrue(testCase,plans.dosePrecompute.useScenarioBatch);
 verifyEqual(testCase,plans.dosePrecompute.SecondPassStrategy,'recompute');
 verifyTrue(testCase,plans.dosePrecompute.KeepCache);
 verifyEqual(testCase,plans.dosePrecompute.CacheRoot,cacheRoot);
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitMB,131072);
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitFraction,0.40);
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitFallbackMB,4096);
+end
+
+function testDosePrecomputeDefaultMemoryLimitIsAuto(testCase)
+plan = cleanPlan('interval3','INTERVAL3');
+
+plans = planWorkflow.config.RobustPlanConfig.normalizePlans( ...
+    plan,contract('INTERVAL3',false));
+
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitMB,'auto');
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitFraction,0.50);
+verifyEqual(testCase,plans.dosePrecompute.MemoryLimitFallbackMB,4096);
 end
 
 function testDosePrecomputeRejectsInvalidStrategy(testCase)
