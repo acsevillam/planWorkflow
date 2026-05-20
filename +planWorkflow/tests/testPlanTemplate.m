@@ -218,19 +218,19 @@ structureNames = {template.structures.name};
 
 verifyEqual(testCase, ...
     template.structures(strcmp(structureNames,'BODY')).visibleColor(:)', ...
-    [0 1 0]);
+    [0 1 1]);
 verifyEqual(testCase, ...
     template.structures(strcmp(structureNames,'CTV')).visibleColor(:)', ...
-    [1 0 0]);
+    [1 0 1]);
 verifyEqual(testCase, ...
     template.structures(strcmp(structureNames,'PTV')).visibleColor(:)', ...
-    [0 0.816 1],'AbsTol',1e-12);
+    [0 0 1],'AbsTol',1e-12);
 verifyEqual(testCase, ...
     template.structures(strcmp(structureNames,'BLADDER')).visibleColor(:)', ...
-    [1 1 0]);
+    [1 0.753 0],'AbsTol',1e-12);
 verifyEqual(testCase, ...
     template.structures(strcmp(structureNames,'RECTUM')).visibleColor(:)', ...
-    [0.502 0.251 0.251], ...
+    [1 0.502 0], ...
     'AbsTol',1e-12);
 end
 
@@ -543,8 +543,10 @@ cst = makeProstateCst([7 7 7]);
     runConfig,[],cst);
 
 ixBladder = find(strcmp(cst(:,2),'BLADDER'));
-verifyFalse(testCase,cst{objectiveInfo.ixTarget,6}{1}.dosePulling);
-verifyEqual(testCase,cst{objectiveInfo.ixTarget,6}{1}.penalty,30);
+verifyTrue(testCase,cst{objectiveInfo.ixTarget,6}{1}.dosePulling);
+verifyEqual(testCase,cst{objectiveInfo.ixTarget,6}{1}.penalty,50);
+verifyEqual(testCase,cst{objectiveInfo.ixTarget,6}{1}.pullingStep,2);
+verifyEqual(testCase,cst{objectiveInfo.ixTarget,6}{1}.penaltyPullingRate,10);
 verifyEqual(testCase,cst{ixBladder,6}{1}.parameters{2},1.5);
 verifyEqual(testCase,cst{ixBladder,6}{1}.objectivePullingRate{2},0.375);
 end
@@ -1015,12 +1017,13 @@ intervalIx = find(strcmp({comparisonTemplate.objectiveSets.robustPlans.id}, ...
 verifyEqual(testCase,canonicalObjectiveSet( ...
     comparisonTemplate.objectiveSets.robustPlans(intervalIx)), ...
     canonicalObjectiveSet(expectedInterval));
+expectedDosePullingChannels = {'dose_pulling_2','dose_pulling_1'};
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'reference'), ...
-    {'dose_pulling_1'});
+    expectedDosePullingChannels);
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'PTV'), ...
-    {'dose_pulling_2'});
+    expectedDosePullingChannels);
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'Interval2'), ...
-    {'dose_pulling_2'});
+    expectedDosePullingChannels);
 end
 
 function testBreastComparisonTemplateDefinesFullRobustSet(testCase)
@@ -1044,14 +1047,15 @@ for planIx = 1:numel(expectedIds)
         comparisonTemplate,expectedIds{planIx});
     verifyEqual(testCase,contract.robustnessMode,expectedModes{planIx});
 end
+expectedDosePullingChannels = {'dose_pulling_2','dose_pulling_1'};
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'reference'), ...
-    {'dose_pulling_1'});
+    expectedDosePullingChannels);
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'PTV'), ...
-    {'dose_pulling_2'});
+    expectedDosePullingChannels);
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'Interval2'), ...
-    {'dose_pulling_2'});
+    expectedDosePullingChannels);
 verifyEqual(testCase,dosePullingChannels(comparisonTemplate,'Interval3'), ...
-    {'dose_pulling_2'});
+    expectedDosePullingChannels);
 end
 
 function testBreastSingleRobustnessTemplatesMirrorComparisonPlans(testCase)
@@ -1090,10 +1094,11 @@ for i = 1:numel(templateIds)
     template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
         'prostate',templateIds{i});
     robustSetName = firstRobustObjectiveSetName(template);
+    expectedDosePullingChannels = {'dose_pulling_2','dose_pulling_1'};
     verifyEqual(testCase,dosePullingChannels(template,'reference'), ...
-        {'dose_pulling_1'});
+        expectedDosePullingChannels);
     verifyEqual(testCase,dosePullingChannels(template,robustSetName), ...
-        {'dose_pulling_2'});
+        expectedDosePullingChannels);
 end
 end
 
@@ -1317,11 +1322,7 @@ for groupIx = 1:numel(groups)
             if strcmp(char(objective.type),'matRad_MinDVH')
                 objective.dosePulling = struct('channel','dose_pulling_2', ...
                     'rates',struct('penalty',10));
-            elseif isfield(objective,'dosePulling')
-                objective = rmfield(objective,'dosePulling');
             end
-        elseif isfield(objective,'dosePulling')
-            objective = rmfield(objective,'dosePulling');
         end
         objectives = setObjectiveAt(objectives,objectiveIx,objective);
     end

@@ -4,49 +4,49 @@
       "name": "BODY",
       "role": "OAR",
       "priority": 5,
-      "visibleColor": [0, 1, 0],
+      "visibleColor": [0, 1, 1],
       "operation": ""
     },
     {
       "name": "CTV",
       "role": "TARGET",
       "priority": 1,
-      "visibleColor": [1, 0, 0],
+      "visibleColor": [1, 0, 1],
       "operation": ""
     },
     {
       "name": "PTV",
       "role": "TARGET",
       "priority": 2,
-      "visibleColor": [0, 0.816, 1],
+      "visibleColor": [0, 0, 1],
       "operation": ""
     },
     {
       "name": "HEART",
       "role": "OAR",
       "priority": 3,
-      "visibleColor": [1, 0, 1],
+      "visibleColor": [1, 0.502, 0],
       "operation": ""
     },
     {
       "name": "LEFT LUNG",
       "role": "OAR",
       "priority": 3,
-      "visibleColor": [0.4, 0.8, 1],
+      "visibleColor": [1, 0, 0],
       "operation": ""
     },
     {
       "name": "RIGHT LUNG",
       "role": "OAR",
       "priority": 3,
-      "visibleColor": [0.2, 0.6, 1],
+      "visibleColor": [1, 0, 0.502],
       "operation": ""
     },
     {
       "name": "CONTRALATERAL BREAST",
       "role": "OAR",
       "priority": 3,
-      "visibleColor": [1, 0.7, 0.8],
+      "visibleColor": [1, 0.753, 0],
       "operation": ""
     }
 ,
@@ -54,9 +54,34 @@
       "name": "SKIN",
       "role": "OAR",
       "priority": 4,
-      "visibleColor": [1, 0.7, 0.8],
+      "visibleColor": [1, 0.502, 1],
       "operation": ""
     }
   ],
-  "rings": []
+  "rings": [
+    {
+      "name": "RING 0 - 20 mm",
+      "role": "OAR",
+      "visibleColor": [
+        0,
+        1,
+        0.502
+      ],
+      "innerMarginMm": 0,
+      "outerMarginMm": 20,
+      "priority": 4
+    },
+    {
+      "name": "RING 20 - 50 mm",
+      "role": "OAR",
+      "visibleColor": [
+        0,
+        1,
+        0.502
+      ],
+      "innerMarginMm": 20,
+      "outerMarginMm": 50,
+      "priority": 4
+    }
+  ]
 }

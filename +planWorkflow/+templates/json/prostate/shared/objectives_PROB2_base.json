@@ -3,21 +3,6 @@
     {
       "name": "BODY",
       "objectives": [
-          {
-          "enabled": true,
-          "type": "matRad_MaxDVH",
-          "parameters": {
-            "penalty": 100,
-            "dRef": {
-              "ref": "prescriptionDose",
-              "scale": 0.5
-            },
-            "vMaxPercent": 0
-          },
-          "properties": {
-            "robustness": "none"
-          }
-        },
         {
           "enabled": true,
           "type": "matRad_SquaredOverdosing",
@@ -25,7 +10,7 @@
             "penalty": 10,
             "dMax": {
               "ref": "prescriptionDose",
-              "scale": 0.3
+              "scale": 0.5
             }
           },
           "properties": {

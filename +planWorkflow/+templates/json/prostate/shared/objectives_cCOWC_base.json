@@ -3,21 +3,6 @@
     {
       "name": "BODY",
       "objectives": [
-          {
-          "enabled": true,
-          "type": "matRad_MaxDVH",
-          "parameters": {
-            "penalty": 100,
-            "dRef": {
-              "ref": "prescriptionDose",
-              "scale": 0.3
-            },
-            "vMaxPercent": 0
-          },
-          "properties": {
-            "robustness": "none"
-          }
-        },
         {
           "enabled": true,
           "type": "matRad_SquaredOverdosing",
@@ -49,6 +34,12 @@
           },
           "properties": {
             "robustness": "c-COWC"
+          },
+          "dosePulling": {
+            "channel": "dose_pulling_2",
+            "rates": {
+              "penalty": 10
+            }
           }
         },
         {

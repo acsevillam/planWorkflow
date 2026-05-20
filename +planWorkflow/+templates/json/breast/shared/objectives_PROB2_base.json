@@ -64,6 +64,12 @@
           },
           "properties": {
             "robustness": "PROB2"
+          },
+          "dosePulling": {
+            "channel": "dose_pulling_1",
+            "rates": {
+              "dMeanRef": 0.1
+            }
           }
         },
         {
@@ -95,6 +101,12 @@
           },
           "properties": {
             "robustness": "PROB2"
+          },
+          "dosePulling": {
+            "channel": "dose_pulling_1",
+            "rates": {
+              "vMaxPercent": 0.5
+            }
           }
         },
         {
@@ -126,5 +138,45 @@
       "objectives": []
     }
   ],
-  "ringObjectives": []
+  "ringObjectives": [
+    {
+      "name": "RING 0 - 20 mm",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose",
+              "scale": 1.1
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RING 20 - 50 mm",
+      "objectives": [
+        {
+          "enabled": true,
+          "type": "matRad_MaxDVH",
+          "parameters": {
+            "penalty": 100,
+            "dRef": {
+              "ref": "prescriptionDose"
+            },
+            "vMaxPercent": 0
+          },
+          "properties": {
+            "robustness": "none"
+          }
+        }
+      ]
+    }
+  ]
 }
