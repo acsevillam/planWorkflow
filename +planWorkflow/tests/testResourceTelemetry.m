@@ -49,6 +49,12 @@ verifyNotEmpty(testCase,workerUpperBoundIx);
 verifyEqual(testCase,options{workerUpperBoundIx + 1},3);
 end
 
+function testSamplingDefaultsUseConservativeWorkerMemoryFloor(testCase)
+resources = planWorkflow.config.Resources.defaults();
+
+verifyEqual(testCase,resources.sampling.minWorkerMemoryBytes,4 * 1024^3);
+end
+
 function testWorkerUpperBoundAcceptsEmptyOrPositiveIntegers(testCase)
 validValues = {[],1,3};
 for valueIx = 1:numel(validValues)
