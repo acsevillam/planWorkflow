@@ -19,6 +19,8 @@ function [cst,ixSkin,skinInfo] = createSkin(ixBody,cst,ct,metadata,varargin)
 %   targetDistanceMm:   maximum target-to-skin distance in mm in targetRegion
 %                       mode (default: 30)
 %   connectivity:      voxel connectivity, one of 6, 18, or 26 (default: 26)
+%   excludeCtBoundaryZ: remove skin voxels on the first and last CT slice
+%                       (default: false)
 %
 %   targetRegion mode selects skin voxels within targetDistanceMm from the
 %   target, keeps one connected component per target, and fills holes on that
@@ -43,6 +45,8 @@ skinInfo.fullVoxels = cell(1,nScen);
 skinInfo.selectedVoxels = cell(1,nScen);
 skinInfo.anchorVoxel = cell(1,nScen);
 skinInfo.candidateVoxels = cell(1,nScen);
+skinInfo.boundaryPolicy = 'inVolumeAirOnly';
+skinInfo.excludeCtBoundaryZ = options.excludeCtBoundaryZ;
 
 for scen = 1:nScen
     bodyVoxels = getScenarioVoxels(cst,ixBody,scen);
@@ -50,6 +54,9 @@ for scen = 1:nScen
     bodyMask(bodyVoxels) = true;
 
     skinMask = createSurfaceMask(bodyMask,spacing,options);
+    if options.excludeCtBoundaryZ
+        skinMask = removeCtBoundaryZ(skinMask);
+    end
     fullSkinVoxels = find(skinMask);
 
     switch options.mode
@@ -97,10 +104,12 @@ addParameter(p,'targetDistanceMm',30,@(v) isnumeric(v) && isscalar(v) && ...
     isfinite(v) && v > 0);
 addParameter(p,'connectivity',26,@(v) isnumeric(v) && isscalar(v) && ...
     any(v == [6 18 26]));
+addParameter(p,'excludeCtBoundaryZ',false,@isValidLogicalScalar);
 parse(p,varargin{:});
 
 options = p.Results;
 options.mode = validatestring(char(options.mode),{'full','targetRegion'});
+options.excludeCtBoundaryZ = logical(options.excludeCtBoundaryZ);
 
 end
 
@@ -194,6 +203,17 @@ surfaceMask = bodyMask & ~erodedMask;
 
 end
 
+function mask = removeCtBoundaryZ(mask)
+
+if size(mask,3) < 1
+    return;
+end
+
+mask(:,:,1) = false;
+mask(:,:,end) = false;
+
+end
+
 function offsets = createErosionOffsets(spacing,options)
 
 if isempty(options.thicknessMm)
@@ -261,6 +281,13 @@ end
 
 end
 
+function tf = isValidLogicalScalar(value)
+
+tf = (islogical(value) || isnumeric(value)) && isscalar(value) && ...
+    isfinite(value) && (value == 0 || value == 1);
+
+end
+
 function offsets = createConnectivityOffsets(connectivity)
 
 offsets = [];
@@ -288,8 +315,23 @@ function erodedMask = erodeMask(mask,offsets)
 
 erodedMask = mask;
 for i = 1:size(offsets,1)
-    erodedMask = erodedMask & shiftMask(mask,offsets(i,:));
+    [shiftedMask,inVolumeMask] = shiftMaskInVolume(mask,offsets(i,:));
+    erodedMask = erodedMask & (~inVolumeMask | shiftedMask);
 end
+
+end
+
+function [shiftedMask,inVolumeMask] = shiftMaskInVolume(mask,offset)
+
+shiftedMask = false(size(mask));
+inVolumeMask = false(size(mask));
+
+[srcY,dstY] = shiftedRanges(size(mask,1),offset(1));
+[srcX,dstX] = shiftedRanges(size(mask,2),offset(2));
+[srcZ,dstZ] = shiftedRanges(size(mask,3),offset(3));
+
+shiftedMask(dstY,dstX,dstZ) = mask(srcY,srcX,srcZ);
+inVolumeMask(dstY,dstX,dstZ) = true;
 
 end
 

@@ -68,8 +68,12 @@ if isempty(ct)
 end
 
 skinName = char(derivedSpec.name);
-if any(strcmp(cst(:,2),skinName))
-    return;
+existingSkin = strcmp(cst(:,2),skinName);
+if any(existingSkin)
+    if ~logical(getOptionalSpecValue(derivedSpec,'replaceExisting',false))
+        return;
+    end
+    cst(existingSkin,:) = [];
 end
 
 sourceName = char(derivedSpec.source);
@@ -82,24 +86,41 @@ metadata.name = skinName;
 metadata.type = char(derivedSpec.type);
 metadata.visibleColor = double(derivedSpec.visibleColor(:)');
 
-skinArgs = {'mode',getRunConfigValue(runConfig, ...
-    char(derivedSpec.modeField),char(derivedSpec.defaultMode))};
+skinArgs = {'mode',getSkinMode(runConfig,derivedSpec)};
+defaultThicknessMm = getOptionalSpecValue(derivedSpec, ...
+    'defaultThicknessMm',[]);
 skinThicknessMm = getRunConfigValue(runConfig, ...
-    char(derivedSpec.thicknessField),[]);
+    char(derivedSpec.thicknessField),defaultThicknessMm);
+if isempty(skinThicknessMm)
+    skinThicknessMm = defaultThicknessMm;
+end
 if ~isempty(skinThicknessMm)
     skinArgs = [skinArgs {'thicknessMm',skinThicknessMm}];
+end
+if logical(getOptionalSpecValue(derivedSpec,'excludeCtBoundaryZ',false))
+    skinArgs = [skinArgs {'excludeCtBoundaryZ',true}];
 end
 
 if strcmp(char(skinArgs{2}),'targetRegion')
     targetIndex = getSkinTargetIndex(cst,runConfig,derivedSpec);
-    skinArgs = [skinArgs {'targetIndex',targetIndex, ...
-        'targetDistanceMm',getRunConfigValue(runConfig, ...
-        char(derivedSpec.targetDistanceField), ...
-        derivedSpec.defaultTargetDistanceMm)}];
+    skinArgs = [skinArgs {'targetIndex',targetIndex}];
+    targetDistanceMm = getTargetDistanceMm(runConfig,derivedSpec);
+    if ~isempty(targetDistanceMm)
+        skinArgs = [skinArgs {'targetDistanceMm',targetDistanceMm}];
+    end
 end
 
 [cst,~] = planWorkflow.structures.createSkin( ...
     ixSource,cst,ct,metadata,skinArgs{:});
+end
+
+function skinMode = getSkinMode(runConfig,derivedSpec)
+skinMode = getRunConfigValue(runConfig, ...
+    char(derivedSpec.modeField),char(derivedSpec.defaultMode));
+if isempty(skinMode)
+    skinMode = char(derivedSpec.defaultMode);
+end
+skinMode = char(skinMode);
 end
 
 function targetIndex = getSkinTargetIndex(cst,runConfig,derivedSpec)
@@ -112,9 +133,24 @@ if isempty(targetIndex)
 end
 end
 
+function targetDistanceMm = getTargetDistanceMm(runConfig,derivedSpec)
+defaultTargetDistanceMm = getOptionalSpecValue(derivedSpec, ...
+    'defaultTargetDistanceMm',[]);
+targetDistanceMm = getRunConfigValue(runConfig, ...
+    char(derivedSpec.targetDistanceField),defaultTargetDistanceMm);
+if isempty(targetDistanceMm)
+    targetDistanceMm = defaultTargetDistanceMm;
+end
+end
+
 function targetName = getPlanTargetName(runConfig,derivedSpec)
 targetName = char(getRunConfigValue(runConfig, ...
     char(derivedSpec.targetField),''));
+if ~isempty(targetName)
+    return;
+end
+
+targetName = char(getOptionalSpecValue(derivedSpec,'defaultTarget',''));
 if ~isempty(targetName)
     return;
 end
@@ -123,13 +159,21 @@ try
     template = planWorkflow.templates.PlanTemplate.resolve(runConfig);
     targetName = char(template.primaryTarget);
 catch
-    targetName = char(derivedSpec.defaultTarget);
+    targetName = '';
 end
 end
 
 function value = getRunConfigValue(runConfig,fieldName,defaultValue)
 if isstruct(runConfig) && isfield(runConfig,fieldName)
     value = runConfig.(fieldName);
+else
+    value = defaultValue;
+end
+end
+
+function value = getOptionalSpecValue(spec,fieldName,defaultValue)
+if isstruct(spec) && isfield(spec,fieldName)
+    value = spec.(fieldName);
 else
     value = defaultValue;
 end

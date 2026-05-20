@@ -249,6 +249,48 @@ openButtons = findall(figureTabs(1),'Style','pushbutton','String','Open');
 verifyGreaterThanOrEqual(testCase,numel(openButtons),3);
 end
 
+function testShowResultsShowsGeometryFigurePanel(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+figureFile = fullfile(fixture.Folder,'geometry_3d.fig');
+touchFile(figureFile);
+
+guiFig = figure('Visible','off');
+cleanupGui = onCleanup(@() closeFigure(guiFig));
+fill = uipanel('Parent',guiFig,'Position',[0 0 0 1]);
+status = uicontrol('Parent',guiFig,'Style','text');
+details = uicontrol('Parent',guiFig,'Style','listbox');
+stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
+tabGroup = uitabgroup('Parent',guiFig);
+reporter = planWorkflow.gui.PlanProgressReporter( ...
+    guiFig,fill,status,details,stopButton,tabGroup);
+
+results = struct();
+results.geometry.figureFiles = struct('geometry3D',figureFile);
+
+reporter.showResults(results);
+
+geometryTabs = findall(guiFig,'Type','uitab','Title','Geometry');
+verifyNotEmpty(testCase,geometryTabs);
+summaryTabs = findall(guiFig,'Type','uitab','Title','Summary');
+verifyEmpty(testCase,summaryTabs);
+figurePanels = findall(geometryTabs(1),'Type','uipanel', ...
+    'Tag','planWorkflowGeometryFiguresPanel');
+verifyNotEmpty(testCase,figurePanels);
+folderFields = findall(figurePanels(1),'Style','edit', ...
+    'String',fixture.Folder);
+verifyNotEmpty(testCase,folderFields);
+figureFields = findall(figurePanels(1),'Style','edit', ...
+    'String','geometry_3d.fig');
+verifyNotEmpty(testCase,figureFields);
+labelFields = findall(figurePanels(1),'Style','text', ...
+    'String','3D geometry');
+verifyNotEmpty(testCase,labelFields);
+openButtons = findall(geometryTabs(1),'Style','pushbutton', ...
+    'String','Open');
+verifyGreaterThanOrEqual(testCase,numel(openButtons),2);
+end
+
 function testSamplingExpectedQiUsesSeparateTab(testCase)
 fixture = testCase.applyFixture( ...
     matlab.unittest.fixtures.TemporaryFolderFixture);

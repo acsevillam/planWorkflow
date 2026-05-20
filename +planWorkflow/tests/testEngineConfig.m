@@ -2233,6 +2233,15 @@ verifyEqual(testCase,workflow.runConfig.skinThicknessMm,5);
 verifyEqual(testCase,workflow.runConfig.skinTargetDistanceMm,25);
 end
 
+function testSkinTargetDistanceDefaultIsSiteConfigDriven(testCase)
+config = baseEngineConfig(testCase);
+
+workflow = planWorkflow.Workflow(config);
+
+verifyEmpty(testCase,workflow.runConfig.skinMode);
+verifyEmpty(testCase,workflow.runConfig.skinTargetDistanceMm);
+end
+
 function testDicomMetadataConfigFieldsAreAccepted(testCase)
 config = baseEngineConfig(testCase);
 config.dicomMetadata = struct('patientID','PATIENT-1','useDoseGrid',false);

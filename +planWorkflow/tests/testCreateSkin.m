@@ -12,16 +12,37 @@ metadata = makeSkinMetadata();
 verifyEqual(testCase,ixSkin,2);
 verifyEqual(testCase,updatedCst{ixSkin,2},'SKIN');
 verifyEqual(testCase,updatedCst{ixSkin,3},'OAR');
-verifyEqual(testCase,numel(updatedCst{ixSkin,4}{1}),98);
-verifyEqual(testCase,numel(skinInfo.fullVoxels{1}),98);
+verifyEqual(testCase,numel(updatedCst{ixSkin,4}{1}),40);
+verifyEqual(testCase,numel(skinInfo.fullVoxels{1}),40);
 verifyEqual(testCase,updatedCst{ixSkin,4},skinInfo.fullVoxels);
 verifyFalse(testCase,any(updatedCst{ixSkin,4}{1} == sub2ind(ct.cubeDim,3,3,3)));
+verifyFalse(testCase,any(updatedCst{ixSkin,4}{1} == sub2ind(ct.cubeDim,3,3,1)));
+verifyFalse(testCase,any(updatedCst{ixSkin,4}{1} == sub2ind(ct.cubeDim,3,3,5)));
+verifyTrue(testCase,any(updatedCst{ixSkin,4}{1} == sub2ind(ct.cubeDim,2,3,1)));
+verifyTrue(testCase,any(updatedCst{ixSkin,4}{1} == sub2ind(ct.cubeDim,2,3,5)));
+verifyEqual(testCase,skinInfo.boundaryPolicy,'inVolumeAirOnly');
+end
+
+function testExcludeCtBoundaryZRemovesFirstAndLastSkinSlices(testCase)
+ct = makeCt([5 5 5]);
+cst = makeBodyCst(ct.cubeDim);
+metadata = makeSkinMetadata();
+
+[updatedCst,ixSkin,skinInfo] = planWorkflow.structures.createSkin( ...
+    1,cst,ct,metadata,'excludeCtBoundaryZ',true);
+
+skinVoxels = updatedCst{ixSkin,4}{1};
+[~,~,z] = ind2sub(ct.cubeDim,skinVoxels);
+
+verifyEqual(testCase,numel(skinVoxels),24);
+verifyFalse(testCase,any(z == 1 | z == ct.cubeDim(3)));
+verifyTrue(testCase,skinInfo.excludeCtBoundaryZ);
 end
 
 function testTargetRegionIsCompactSkinSubsetNearTarget(testCase)
 ct = makeCt([7 7 7]);
 cst = makeBodyCst(ct.cubeDim);
-cst = addStructure(cst,'TARGET','TARGET',sub2ind(ct.cubeDim,2,4,4));
+cst = addStructure(cst,'TARGET','TARGET',sub2ind(ct.cubeDim,3,4,4));
 metadata = makeSkinMetadata();
 
 [updatedCst,ixSkin,skinInfo] = planWorkflow.structures.createSkin( ...
@@ -30,7 +51,7 @@ metadata = makeSkinMetadata();
 
 fullSkin = skinInfo.fullVoxels{1};
 selectedSkin = updatedCst{ixSkin,4}{1};
-expectedAnchor = sub2ind(ct.cubeDim,1,4,4);
+expectedAnchor = sub2ind(ct.cubeDim,2,4,4);
 
 verifyLessThan(testCase,numel(selectedSkin),numel(fullSkin));
 verifyTrue(testCase,all(ismember(selectedSkin,fullSkin)));
@@ -38,8 +59,28 @@ verifyEqual(testCase,skinInfo.anchorVoxel{1},expectedAnchor);
 verifyEqual(testCase,selectedSkin,expectedAnchor);
 end
 
-function testTargetRegionFillsSurfaceHoles(testCase)
+function testTargetRegionNearCtCapDoesNotRecoverArtificialCap(testCase)
 ct = makeCt([7 7 7]);
+cst = makeBodyCst(ct.cubeDim);
+cst = addStructure(cst,'TARGET','TARGET',sub2ind(ct.cubeDim,3,4,1));
+metadata = makeSkinMetadata();
+
+[updatedCst,ixSkin,skinInfo] = planWorkflow.structures.createSkin( ...
+    1,cst,ct,metadata,'mode','targetRegion','targetIndex',2, ...
+    'targetDistanceMm',1.1);
+
+selectedSkin = updatedCst{ixSkin,4}{1};
+artificialCapVoxel = sub2ind(ct.cubeDim,3,4,1);
+expectedLateralVoxel = sub2ind(ct.cubeDim,2,4,1);
+
+verifyFalse(testCase,ismember(artificialCapVoxel,skinInfo.fullVoxels{1}));
+verifyFalse(testCase,ismember(artificialCapVoxel,selectedSkin));
+verifyEqual(testCase,skinInfo.anchorVoxel{1},expectedLateralVoxel);
+verifyEqual(testCase,selectedSkin,expectedLateralVoxel);
+end
+
+function testTargetRegionFillsSurfaceHoles(testCase)
+ct = makeCt([9 9 9]);
 cst = makeBodyCst(ct.cubeDim);
 targetVoxels = makeTargetRingVoxels(ct.cubeDim);
 cst = addStructure(cst,'TARGET','TARGET',targetVoxels);
@@ -50,7 +91,7 @@ metadata = makeSkinMetadata();
     'targetDistanceMm',1.1);
 
 selectedSkin = updatedCst{ixSkin,4}{1};
-holeVoxel = sub2ind(ct.cubeDim,1,4,4);
+holeVoxel = sub2ind(ct.cubeDim,2,5,5);
 
 verifyEqual(testCase,numel(selectedSkin),9);
 verifyTrue(testCase,ismember(holeVoxel,selectedSkin));
@@ -65,7 +106,7 @@ metadata = makeSkinMetadata();
 [updatedCst,ixSkin,skinInfo] = planWorkflow.structures.createSkin(1,cst,ct,metadata);
 
 verifyEqual(testCase,numel(updatedCst{ixSkin,4}),2);
-verifyEqual(testCase,numel(updatedCst{ixSkin,4}{1}),56);
+verifyEqual(testCase,numel(updatedCst{ixSkin,4}{1}),16);
 verifyEqual(testCase,numel(updatedCst{ixSkin,4}{2}),8);
 verifyEqual(testCase,updatedCst{ixSkin,4},skinInfo.fullVoxels);
 end
@@ -90,12 +131,15 @@ updatedCst = planWorkflow.structures.normalizeNames(cst,runConfig,ct);
 skinIx = find(strcmp(updatedCst(:,2),'SKIN'),1);
 
 verifyNotEmpty(testCase,skinIx);
-verifyEqual(testCase,numel(updatedCst{skinIx,4}{1}),98);
+skinVoxels = updatedCst{skinIx,4}{1};
+[~,~,z] = ind2sub(ct.cubeDim,skinVoxels);
+verifyEqual(testCase,numel(skinVoxels),27);
+verifyFalse(testCase,any(z == 1 | z == ct.cubeDim(3)));
 verifyTrue(testCase,strcmp(updatedCst{1,2},'BODY') || ...
     any(strcmp(updatedCst(:,2),'BODY')));
 end
 
-function testNormalizeNamesMapsBreastPielToSkin(testCase)
+function testNormalizeNamesReplacesBreastPielWithDerivedSkin(testCase)
 ct = makeCt([5 5 5]);
 cst = makeBreastCst(ct.cubeDim);
 cst = addStructure(cst,'Piel','OAR',sub2ind(ct.cubeDim,1,3,3));
@@ -108,6 +152,30 @@ verifyEqual(testCase,sum(strcmp(structureNames,'BODY')),1);
 verifyEqual(testCase,sum(strcmp(structureNames,'SKIN')),1);
 verifyEqual(testCase,updatedCst{1,2},'BODY');
 verifyTrue(testCase,any(strcmp(structureNames,'SKIN')));
+skinIx = find(strcmp(structureNames,'SKIN'),1);
+verifyEqual(testCase,numel(updatedCst{skinIx,4}{1}),27);
+verifyFalse(testCase,any(updatedCst{skinIx,4}{1} == ...
+    sub2ind(ct.cubeDim,1,3,3)));
+end
+
+function testNormalizeNamesBreastTargetRegionUsesConfiguredDefaultTarget(testCase)
+ct = makeCt([7 7 5]);
+cst = makeBodyCst(ct.cubeDim);
+cst{1,2} = 'Skin';
+ctvVoxel = sub2ind(ct.cubeDim,2,2,3);
+ptvVoxel = sub2ind(ct.cubeDim,6,6,3);
+cst = addStructure(cst,'PTV','TARGET',ptvVoxel);
+cst = addStructure(cst,'SENO IZQUIERDO','TARGET',ctvVoxel);
+runConfig = struct('description','breast','skinMode','', ...
+    'plan_template','PTV_001','skinThicknessMm',1, ...
+    'skinTargetDistanceMm',1);
+
+updatedCst = planWorkflow.structures.normalizeNames(cst,runConfig,ct);
+skinIx = find(strcmp(updatedCst(:,2),'SKIN'),1);
+skinVoxels = updatedCst{skinIx,4}{1};
+
+verifyTrue(testCase,any(skinVoxels == ctvVoxel));
+verifyFalse(testCase,any(skinVoxels == ptvVoxel));
 end
 
 function testBreastNormalizationConfigMapsAliases(testCase)
@@ -124,6 +192,12 @@ verifyEqual(testCase,config.aliasMap(pielKey),'SKIN');
 verifyTrue(testCase,any(strcmp(config.outputStructures,'SKIN')));
 verifyEqual(testCase,char(config.derivedStructures(1).kind), ...
     'skinFromBody');
+verifyEqual(testCase,char(config.derivedStructures(1).defaultMode), ...
+    'targetRegion');
+verifyEqual(testCase,config.derivedStructures(1).defaultThicknessMm,3);
+verifyTrue(testCase,config.derivedStructures(1).excludeCtBoundaryZ);
+verifyTrue(testCase,config.derivedStructures(1).replaceExisting);
+verifyEqual(testCase,config.derivedStructures(1).defaultTargetDistanceMm,10);
 end
 
 function testProstateNormalizationDropsStructuresOutsideConfig(testCase)
@@ -194,7 +268,9 @@ cst = cell(1,6);
 cst{1,1} = 0;
 cst{1,2} = 'BODY';
 cst{1,3} = 'OAR';
-cst{1,4}{1} = find(true(cubeDim));
+bodyMask = false(cubeDim);
+bodyMask(2:cubeDim(1)-1,2:cubeDim(2)-1,:) = true;
+cst{1,4}{1} = find(bodyMask);
 cst{1,5} = struct('Priority',5,'Visible',true,'visibleColor',[1 1 1]);
 cst{1,6} = {};
 end
@@ -248,9 +324,9 @@ mask(yRange,xRange,zRange) = true;
 end
 
 function voxels = makeTargetRingVoxels(cubeDim)
-[x,z] = meshgrid(3:5,3:5);
-y = 2 * ones(size(x));
+[x,z] = meshgrid(4:6,4:6);
+y = 3 * ones(size(x));
 voxels = sub2ind(cubeDim,y(:),x(:),z(:));
-centerVoxel = sub2ind(cubeDim,2,4,4);
+centerVoxel = sub2ind(cubeDim,3,5,5);
 voxels(voxels == centerVoxel) = [];
 end

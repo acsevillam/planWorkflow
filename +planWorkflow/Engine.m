@@ -29,9 +29,9 @@ classdef Engine < planWorkflow.WorkflowBase
             runConfig.plan_beams = '';
             runConfig.precompute = ...
                 planWorkflow.config.RobustPlanConfig.defaults();
-            runConfig.skinMode = 'full';
+            runConfig.skinMode = '';
             runConfig.skinThicknessMm = [];
-            runConfig.skinTargetDistanceMm = 30;
+            runConfig.skinTargetDistanceMm = [];
             runConfig.optimizer = 'IPOPT';
             runConfig.optimizerOptions = struct();
             runConfig.resources = planWorkflow.config.Resources.defaults();

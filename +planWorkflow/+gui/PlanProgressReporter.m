@@ -208,10 +208,10 @@ classdef PlanProgressReporter < handle
             figureFiles = planResults.figureFiles;
             figureOrder = {'gamma','robustness1','robustness2', ...
                 'meanDose','stdDose','nominalDose','expectedDoseDifference', ...
-                'dvhMultiscenario','dvhTrustband'};
+                'dvhMultiscenario','dvhTrustband','geometry3D'};
             figureLabels = {'Gamma','Robustness 1','Robustness 2', ...
                 'Mean dose','Std dose','Nominal dose','Expected dose difference', ...
-                'DVH multi','DVH trustband'};
+                'DVH multi','DVH trustband','3D geometry'};
             entries = repmat(emptyEntry,1,numel(figureOrder));
             entryCount = 0;
             for i = 1:numel(figureOrder)
@@ -233,6 +233,18 @@ classdef PlanProgressReporter < handle
                 end
             end
             entries = entries(1:entryCount);
+        end
+
+        function entries = geometryFigureEntries(results)
+            geometryResults = struct();
+            if isstruct(results) && isfield(results,'geometry') && ...
+                    isstruct(results.geometry)
+                geometryResults = results.geometry;
+            end
+
+            entries = ...
+                planWorkflow.gui.PlanProgressReporter.figureEntries( ...
+                geometryResults);
         end
 
         function rows = figureTableRows(entries)
@@ -490,6 +502,14 @@ classdef PlanProgressReporter < handle
                 results);
 
             tabCount = 0;
+
+            geometryEntries = ...
+                planWorkflow.gui.PlanProgressReporter.geometryFigureEntries( ...
+                results);
+            if ~isempty(geometryEntries)
+                obj.addGeometryResultTab(resultGroup,geometryEntries);
+                tabCount = tabCount + 1;
+            end
 
             if isstruct(results) && isfield(results,'sampling')
                 tabCount = tabCount + ...
@@ -901,10 +921,18 @@ classdef PlanProgressReporter < handle
                 @(src,event) obj.openFigureFromTable(src,event,entries));
         end
 
+        function addGeometryResultTab(obj,resultGroup,entries)
+            tab = uitab(resultGroup,'Title','Geometry');
+            obj.addFigurePanel(tab,entries,'planWorkflowGeometryFiguresPanel');
+        end
+
         function addFiguresPanelTab(obj,resultGroup,entries)
             tab = uitab(resultGroup,'Title','Figures');
-            panel = obj.createReadOnlyPanel(tab, ...
-                'planWorkflowSamplingFiguresPanel');
+            obj.addFigurePanel(tab,entries,'planWorkflowSamplingFiguresPanel');
+        end
+
+        function addFigurePanel(obj,parent,entries,panelTag)
+            panel = obj.createReadOnlyPanel(parent,panelTag);
             figureFolder = ...
                 planWorkflow.gui.PlanProgressReporter.figureFolder(entries);
             rowControls = gobjects(0);

@@ -59,12 +59,15 @@
       "type": "OAR",
       "visibleColor": [1, 0.501960784313726, 1],
       "modeField": "skinMode",
-      "defaultMode": "full",
+      "defaultMode": "targetRegion",
       "thicknessField": "skinThicknessMm",
+      "defaultThicknessMm": 3,
+      "excludeCtBoundaryZ": true,
+      "replaceExisting": true,
       "targetField": "plan_target",
       "defaultTarget": "CTV",
       "targetDistanceField": "skinTargetDistanceMm",
-      "defaultTargetDistanceMm": 30
+      "defaultTargetDistanceMm": 10
     }
   ]
 }
