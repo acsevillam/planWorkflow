@@ -195,13 +195,57 @@ classdef ScenarioFreeDoseInfluence
             cfg.MemoryLimitFallbackMB = dosePrecompute.MemoryLimitFallbackMB;
         end
 
-        function cfg = mergeScenarioBatchConfig(cfg,planConfig)
+        function cfg = mergeScenarioBatchConfig(cfg,planConfig,context,cacheName)
             scenarioBatchCfg = ...
                 planWorkflow.precompute.ScenarioFreeDoseInfluence.scenarioBatchConfig( ...
                 planConfig);
+            if nargin >= 3 && ~isempty(context)
+                if nargin < 4 || isempty(cacheName)
+                    cacheName = 'scenarioDose';
+                end
+                scenarioBatchCfg = ...
+                    planWorkflow.precompute.ScenarioFreeDoseInfluence.applyWorkflowCacheRoot( ...
+                    scenarioBatchCfg,context,cacheName);
+            end
             fields = fieldnames(scenarioBatchCfg);
             for fieldIx = 1:numel(fields)
                 cfg.(fields{fieldIx}) = scenarioBatchCfg.(fields{fieldIx});
+            end
+        end
+
+        function cfg = applyWorkflowCacheRoot(cfg,context,cacheName)
+            if isfield(cfg,'CacheRoot') && ~isempty(cfg.CacheRoot)
+                return;
+            end
+            cacheRoot = ...
+                planWorkflow.precompute.ScenarioFreeDoseInfluence.workflowCacheRoot( ...
+                context);
+            if isempty(cacheRoot)
+                return;
+            end
+            cfg.CacheRoot = fullfile(cacheRoot,'scenarioBatch',cacheName);
+        end
+
+        function cacheRoot = workflowCacheRoot(context)
+            cacheRoot = '';
+            if ~isstruct(context)
+                return;
+            end
+            if isfield(context,'runConfig') && ...
+                    isstruct(context.runConfig) && ...
+                    isfield(context.runConfig,'cacheRootPath')
+                cacheRoot = context.runConfig.cacheRootPath;
+            end
+            if isempty(cacheRoot) && isfield(context,'cache') && ...
+                    isa(context.cache, ...
+                    'planWorkflow.cache.DoseInfluenceCacheService')
+                cacheRoot = context.cache.cachePath;
+            end
+            if isstring(cacheRoot) && isscalar(cacheRoot)
+                cacheRoot = char(cacheRoot);
+            end
+            if ~ischar(cacheRoot)
+                cacheRoot = '';
             end
         end
 

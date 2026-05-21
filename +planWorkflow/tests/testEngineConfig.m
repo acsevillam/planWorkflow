@@ -736,6 +736,8 @@ config.precompute.robustPlans = robustPlanConfig( ...
 config.precompute.robustPlans.dosePrecompute.useScenarioBatch = true;
 config.precompute.robustPlans.dosePrecompute.KeepCache = true;
 workflow = planWorkflowTest.EngineProbe(config);
+expectedCacheRoot = fullfile(workflow.runConfig.cacheRootPath, ...
+    'scenarioBatch','doseProb');
 
 robustData = struct();
 robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
@@ -757,10 +759,36 @@ verifyTrue(testCase,isfield(probConfig,'parallelOptions'));
 verifyEqual(testCase, ...
     probConfig.parallelOptions.minWorkerMemoryBytes,4 * 1024^3);
 verifyTrue(testCase,probConfig.KeepCache);
-verifyFalse(testCase,isfield(probConfig,'CacheRoot'));
+verifyEqual(testCase,probConfig.CacheRoot,expectedCacheRoot);
 verifyEqual(testCase,probConfig.MemoryLimitMB,'auto');
 verifyEqual(testCase,probConfig.MemoryLimitFraction,0.50);
 verifyEqual(testCase,probConfig.MemoryLimitFallbackMB,4096);
+end
+
+function testScenarioBatchDoseConfigDefaultsCacheRootFromWorkflow(testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'interval2_001';
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2','Interval2','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+config.precompute.robustPlans.dosePrecompute.useScenarioBatch = true;
+workflow = planWorkflowTest.EngineProbe(config);
+
+robustData = intervalRobustData(workflow);
+robustData.ct = struct('refScen',1);
+robustData.cst = cell(1,6);
+robustData.cst{1,2} = 'PTV';
+robustData.objectiveInfo = struct( ...
+    'ixTarget',1, ...
+    'robustOarNames',{{'Rectum'}});
+robustData.pln = struct('propOpt',struct());
+
+intervalConfig = planWorkflow.precompute.IntervalDoseInfluence.doseConfig( ...
+    workflow.intervalDoseInfluenceContext(),robustData,true);
+
+verifyEqual(testCase,intervalConfig.CacheRoot, ...
+    fullfile(workflow.runConfig.cacheRootPath,'scenarioBatch', ...
+    'doseInterval'));
 end
 
 function testDoseParallelismUsesEngineCapabilityAndResources(testCase)
