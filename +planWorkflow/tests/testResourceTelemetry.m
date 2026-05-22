@@ -46,6 +46,9 @@ runConfig.resources.sampling.minForwardDoseWorkerMemoryBytes = 8 * 1024^3;
 runConfig.resources.sampling.allowCalibrationToReduceWorkerMemory = false;
 runConfig.resources.sampling.calibratedMinForwardDoseWorkerMemoryBytes = ...
     5 * 1024^3;
+runConfig.resources.sampling.calibrationMinReliableMeasuredBytes = ...
+    2 * 1024^3;
+runConfig.resources.sampling.calibrationMinReliableReductionRatio = 0.75;
 
 options = planWorkflow.config.Resources.samplingNameValuePairs(runConfig);
 
@@ -71,6 +74,16 @@ calibratedMinIx = find(strcmp(options, ...
     'calibratedMinForwardDoseWorkerMemoryBytes'),1);
 verifyNotEmpty(testCase,calibratedMinIx);
 verifyEqual(testCase,options{calibratedMinIx + 1},5 * 1024^3);
+
+minReliableMeasuredIx = find(strcmp(options, ...
+    'calibrationMinReliableMeasuredBytes'),1);
+verifyNotEmpty(testCase,minReliableMeasuredIx);
+verifyEqual(testCase,options{minReliableMeasuredIx + 1},2 * 1024^3);
+
+minReliableRatioIx = find(strcmp(options, ...
+    'calibrationMinReliableReductionRatio'),1);
+verifyNotEmpty(testCase,minReliableRatioIx);
+verifyEqual(testCase,options{minReliableRatioIx + 1},0.75);
 end
 
 function testSamplingDefaultsUseConservativeWorkerMemoryFloor(testCase)
@@ -83,6 +96,11 @@ verifyTrue(testCase, ...
 verifyEqual(testCase, ...
     resources.sampling.calibratedMinForwardDoseWorkerMemoryBytes, ...
     4 * 1024^3);
+verifyEqual(testCase, ...
+    resources.sampling.calibrationMinReliableMeasuredBytes, ...
+    1 * 1024^3);
+verifyEqual(testCase, ...
+    resources.sampling.calibrationMinReliableReductionRatio,0.50);
 verifyEqual(testCase,resources.sampling.minForwardDoseWorkerMemoryBytes, ...
     16 * 1024^3);
 verifyTrue(testCase,resources.sampling.compactAfterUnit);
@@ -119,6 +137,18 @@ for valueIx = 1:numel(invalidValues)
     verifyError(testCase,@() ...
         planWorkflow.config.Resources.normalize(doseConfig), ...
         'planWorkflow:config:Resources:InvalidWorkerUpperBound');
+end
+end
+
+function testCalibrationReliableReductionRatioRejectsInvalidValues(testCase)
+invalidValues = {-0.1,1.1,Inf,NaN,'0.5',[0.5 0.6]};
+for valueIx = 1:numel(invalidValues)
+    config = planWorkflow.config.Resources.defaults();
+    config.sampling.calibrationMinReliableReductionRatio = ...
+        invalidValues{valueIx};
+
+    verifyError(testCase,@() planWorkflow.config.Resources.normalize(config), ...
+        'planWorkflow:config:Resources:InvalidUnitRatio');
 end
 end
 
