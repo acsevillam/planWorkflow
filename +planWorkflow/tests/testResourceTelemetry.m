@@ -41,18 +41,32 @@ function testSamplingResourceOptionsForwardWorkerUpperBound(testCase)
 runConfig = struct();
 runConfig.resources = planWorkflow.config.Resources.defaults();
 runConfig.resources.sampling.workerUpperBound = 3;
+runConfig.resources.sampling.calibrateWorkerMemory = false;
+runConfig.resources.sampling.minForwardDoseWorkerMemoryBytes = 8 * 1024^3;
 
 options = planWorkflow.config.Resources.samplingNameValuePairs(runConfig);
 
 workerUpperBoundIx = find(strcmp(options,'workerUpperBound'),1);
 verifyNotEmpty(testCase,workerUpperBoundIx);
 verifyEqual(testCase,options{workerUpperBoundIx + 1},3);
+
+calibrateIx = find(strcmp(options,'calibrateWorkerMemory'),1);
+verifyNotEmpty(testCase,calibrateIx);
+verifyFalse(testCase,options{calibrateIx + 1});
+
+minForwardDoseIx = find(strcmp(options, ...
+    'minForwardDoseWorkerMemoryBytes'),1);
+verifyNotEmpty(testCase,minForwardDoseIx);
+verifyEqual(testCase,options{minForwardDoseIx + 1},8 * 1024^3);
 end
 
 function testSamplingDefaultsUseConservativeWorkerMemoryFloor(testCase)
 resources = planWorkflow.config.Resources.defaults();
 
 verifyEqual(testCase,resources.sampling.minWorkerMemoryBytes,4 * 1024^3);
+verifyTrue(testCase,resources.sampling.calibrateWorkerMemory);
+verifyEqual(testCase,resources.sampling.minForwardDoseWorkerMemoryBytes, ...
+    16 * 1024^3);
 end
 
 function testWorkerUpperBoundAcceptsEmptyOrPositiveIntegers(testCase)

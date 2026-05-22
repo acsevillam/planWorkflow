@@ -144,6 +144,26 @@ verifyError(testCase,@() ...
     'MissingPayloadFile']);
 end
 
+function testStageLifecycleCompactsSamplingPayloadAfterSample(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+cachePath = fullfile(fixture.Folder,'cache');
+runConfig = struct('cacheRootPath',cachePath,'runId','sample-stage');
+patch = struct();
+patch.data = struct('sampling',samplingPayloadFixture());
+
+patch = planWorkflow.resources.StageDataLifecycle.afterStage( ...
+    'sample',patch,runConfig,[]);
+
+verifyFalse(testCase,isfield(patch.data.sampling,'ct'));
+verifyTrue(testCase,isfield(patch.data.sampling,'samplingPayloadRef'));
+verifyTrue(testCase,isfield(patch.data.sampling.reference, ...
+    'samplingPayloadRef'));
+verifyTrue(testCase,exist(fullfile(cachePath, ...
+    patch.data.sampling.reference.samplingPayloadRef.cacheRelativeFile), ...
+    'file') == 2);
+end
+
 function testSamplingResultCompactorDropsDoseCubes(testCase)
 doseStat = struct();
 doseStat.meanCubeW = [1 2 3];
