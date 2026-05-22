@@ -8,16 +8,8 @@ classdef SamplingDataCompactor
             end
 
             samplingData = ...
-                planWorkflow.results.SamplingDataCompactor.attachRootSummary( ...
+                planWorkflow.results.SamplingDataCompactor.compactRootPayload( ...
                 samplingData);
-
-            removeFields = {'ct','cst','multScen'};
-            for fieldIx = 1:numel(removeFields)
-                fieldName = removeFields{fieldIx};
-                if isfield(samplingData,fieldName)
-                    samplingData = rmfield(samplingData,fieldName);
-                end
-            end
 
             if isfield(samplingData,'reference')
                 samplingData.reference = ...
@@ -29,6 +21,24 @@ classdef SamplingDataCompactor
                     samplingData.robust{sampleIx} = ...
                         planWorkflow.results.SamplingDataCompactor.compactSample( ...
                         samplingData.robust{sampleIx});
+                end
+            end
+        end
+
+        function samplingData = compactRootPayload(samplingData)
+            if ~isstruct(samplingData) || isempty(samplingData)
+                return;
+            end
+
+            samplingData = ...
+                planWorkflow.results.SamplingDataCompactor.attachRootSummary( ...
+                samplingData);
+
+            removeFields = {'ct','cst','multScen'};
+            for fieldIx = 1:numel(removeFields)
+                fieldName = removeFields{fieldIx};
+                if isfield(samplingData,fieldName)
+                    samplingData = rmfield(samplingData,fieldName);
                 end
             end
         end

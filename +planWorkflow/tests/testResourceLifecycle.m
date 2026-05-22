@@ -103,6 +103,11 @@ verifyTrue(testCase,isfield(compact,'samplingPayloadRef'));
 verifyTrue(testCase,isfield(compact.reference,'samplingPayloadRef'));
 verifyTrue(testCase,isfield(compact.robust{1},'samplingPayloadRef'));
 verifyFalse(testCase,isfield(compact.reference,'caSamp'));
+verifyEqual(testCase,compact.reference.samplingPayloadRef.role, ...
+    'reference');
+verifyEqual(testCase,compact.reference.samplingPayloadRef.label, ...
+    'INTERVAL3');
+verifyEqual(testCase,compact.reference.samplingPayloadRef.numSamples,3);
 verifyTrue(testCase,exist(fullfile(cachePath, ...
     compact.samplingPayloadRef.cacheRelativeFile),'file') == 2);
 verifyTrue(testCase,exist(fullfile(cachePath, ...
@@ -123,6 +128,65 @@ verifyEqual(testCase,materialized.reference.resultGUINomScen, ...
     samplingData.reference.resultGUINomScen);
 verifyEqual(testCase,materialized.robust{1}.mSampDose, ...
     samplingData.robust{1}.mSampDose);
+end
+
+function testSamplingPayloadArtifactCompactsSampleUnitForResume(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+cachePath = fullfile(fixture.Folder,'cache');
+runConfig = struct('cacheRootPath',cachePath,'runId','sampling-unit');
+samplingData = samplingPayloadFixture();
+sample = samplingData.reference;
+sample.label = 'reference';
+sample.planId = 'PTV_001';
+sample.variantId = 'ref_nomScen';
+sample.role = 'reference';
+unitInfo = struct( ...
+    'role','reference', ...
+    'planId',sample.planId, ...
+    'variantId',sample.variantId, ...
+    'label',sample.label, ...
+    'unitIndex',1, ...
+    'unitKey','reference_001_PTV_001_ref_nomScen');
+
+compact = ...
+    planWorkflow.persistence.SamplingPayloadArtifact.compactSampleUnit( ...
+    sample,runConfig,cachePath,unitInfo.unitKey,unitInfo);
+
+verifyTrue(testCase,isfield(compact,'samplingPayloadRef'));
+verifyFalse(testCase,isfield(compact,'caSamp'));
+verifyFalse(testCase,isfield(compact,'mSampDose'));
+verifyFalse(testCase,isfield(compact,'resultGUINomScen'));
+verifyTrue(testCase,exist(fullfile(cachePath, ...
+    compact.samplingPayloadRef.cacheRelativeFile),'file') == 2);
+
+[cached,found] = ...
+    planWorkflow.persistence.SamplingPayloadArtifact.cachedSampleUnit( ...
+    runConfig,cachePath,unitInfo.unitKey,unitInfo);
+
+verifyTrue(testCase,found);
+verifyEqual(testCase,cached.planId,'PTV_001');
+verifyEqual(testCase,cached.variantId,'ref_nomScen');
+verifyEqual(testCase,cached.pln,sample.pln);
+verifyFalse(testCase,isfield(cached,'mSampDose'));
+
+materialized = ...
+    planWorkflow.persistence.SamplingPayloadArtifact.materializeSampleUnit( ...
+    cached,runConfig,cachePath);
+
+verifyEqual(testCase,materialized.mSampDose,sample.mSampDose);
+verifyEqual(testCase,materialized.caSamp,sample.caSamp);
+verifyEqual(testCase,materialized.resultGUINomScen, ...
+    sample.resultGUINomScen);
+
+tmpFiles = dir(fullfile(cachePath,'sampling_payloads','**','*.tmp'));
+verifyEmpty(testCase,tmpFiles);
+
+delete(fullfile(cachePath,compact.samplingPayloadRef.cacheRelativeFile));
+[~,foundAfterDelete] = ...
+    planWorkflow.persistence.SamplingPayloadArtifact.cachedSampleUnit( ...
+    runConfig,cachePath,unitInfo.unitKey,unitInfo);
+verifyFalse(testCase,foundAfterDelete);
 end
 
 function testSamplingPayloadArtifactErrorsWhenRefFileIsMissing(testCase)
