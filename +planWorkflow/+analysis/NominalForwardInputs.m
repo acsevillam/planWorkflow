@@ -20,7 +20,7 @@ classdef NominalForwardInputs
 
         function pln = nominalPlan(robustData,pln)
             pln = ...
-                planWorkflow.analysis.NominalForwardInputs.removeOptimizationPayload( ...
+                planWorkflow.plan.ForwardDosePlanSanitizer.sanitize( ...
                 pln);
 
             [scenarioModel,hasScenarioModel] = ...
@@ -213,18 +213,5 @@ classdef NominalForwardInputs
             end
         end
 
-        function pln = removeOptimizationPayload(pln)
-            if ~isfield(pln,'propOpt') || ~isstruct(pln.propOpt)
-                return;
-            end
-
-            optimizationOnlyFields = {'scen4D','dij_interval','dij_prob'};
-            for fieldIx = 1:numel(optimizationOnlyFields)
-                fieldName = optimizationOnlyFields{fieldIx};
-                if isfield(pln.propOpt,fieldName)
-                    pln.propOpt = rmfield(pln.propOpt,fieldName);
-                end
-            end
-        end
     end
 end

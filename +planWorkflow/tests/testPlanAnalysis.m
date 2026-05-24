@@ -175,3 +175,46 @@ verifyEqual(testCase,resultGUIAnalysis.analysisQuantity,'effect');
 verifyEqual(testCase,resultGUIAnalysis.endpointQuantity,'physicalDose');
 verifyTrue(testCase,isfield(resultGUIAnalysis,'endpointDvh'));
 end
+
+function testForwardDosePlanSanitizerRemovesOptimizationPayload(testCase)
+pln = planWithOptimizationPayload();
+
+sanitized = planWorkflow.plan.ForwardDosePlanSanitizer.sanitize(pln);
+
+verifyFalse(testCase,isfield(sanitized.propOpt,'dij_interval'));
+verifyFalse(testCase,isfield(sanitized.propOpt,'dij_prob'));
+verifyFalse(testCase,isfield(sanitized.propOpt,'scen4D'));
+verifyEqual(testCase,sanitized.propOpt.quantityOpt,'physicalDose');
+verifyEqual(testCase,sanitized.propOpt.optimizer,'ipopt');
+verifyEqual(testCase,sanitized.propDoseCalc.engine,'PhotonPencilBeam');
+verifyEqual(testCase,sanitized.radiationMode,'photons');
+verifyEqual(testCase,sanitized.machine,'Generic');
+verifyEqual(testCase,sanitized.bioModel,'none');
+end
+
+function testSamplingPlanSanitizesForwardDosePlan(testCase)
+pln = planWithOptimizationPayload();
+
+samplingPlan = planWorkflow.sampling.SamplingService.samplingPlan(pln);
+
+verifyFalse(testCase,isfield(samplingPlan.propOpt,'dij_interval'));
+verifyFalse(testCase,isfield(samplingPlan.propOpt,'dij_prob'));
+verifyFalse(testCase,isfield(samplingPlan.propOpt,'scen4D'));
+verifyEqual(testCase,samplingPlan.propOpt.quantityOpt,'physicalDose');
+verifyEqual(testCase,samplingPlan.propOpt.optimizer,'ipopt');
+verifyEqual(testCase,samplingPlan.propDoseCalc.engine,'PhotonPencilBeam');
+end
+
+function pln = planWithOptimizationPayload()
+pln = struct();
+pln.radiationMode = 'photons';
+pln.machine = 'Generic';
+pln.bioModel = 'none';
+pln.propDoseCalc = struct('engine','PhotonPencilBeam');
+pln.propOpt = struct();
+pln.propOpt.quantityOpt = 'physicalDose';
+pln.propOpt.optimizer = 'ipopt';
+pln.propOpt.scen4D = 2;
+pln.propOpt.dij_interval = struct('center',sparse(2,2));
+pln.propOpt.dij_prob = struct('expected',sparse(2,2));
+end

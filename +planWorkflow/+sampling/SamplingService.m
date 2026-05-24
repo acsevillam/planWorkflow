@@ -192,6 +192,8 @@ classdef SamplingService
                     isa(pln.bioParam,'matRad_BiologicalModel')
                 pln = rmfield(pln,'bioParam');
             end
+
+            pln = planWorkflow.plan.ForwardDosePlanSanitizer.sanitize(pln);
         end
 
         function modelName = bioModelName(pln)
