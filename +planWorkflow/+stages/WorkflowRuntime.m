@@ -9,17 +9,22 @@ classdef WorkflowRuntime
         TaskRunner
         LogFn
         ReportGuiStageProgressFn
+        CheckpointFn
     end
 
     methods
         function obj = WorkflowRuntime(taskRunner,logFn, ...
-                reportGuiStageProgressFn)
+                reportGuiStageProgressFn,checkpointFn)
             if nargin < 3 || isempty(reportGuiStageProgressFn)
                 reportGuiStageProgressFn = @(varargin) [];
+            end
+            if nargin < 4 || isempty(checkpointFn)
+                checkpointFn = @(varargin) [];
             end
             obj.TaskRunner = taskRunner;
             obj.LogFn = logFn;
             obj.ReportGuiStageProgressFn = reportGuiStageProgressFn;
+            obj.CheckpointFn = checkpointFn;
 
             planWorkflow.stages.ContextValidator.requireFunctionHandle( ...
                 taskRunner,'runtime','runMeasuredPlanTask');
@@ -28,6 +33,8 @@ classdef WorkflowRuntime
             planWorkflow.stages.ContextValidator.requireFunctionHandle( ...
                 reportGuiStageProgressFn,'runtime', ...
                 'reportGuiStageProgress');
+            planWorkflow.stages.ContextValidator.requireFunctionHandle( ...
+                checkpointFn,'runtime','checkpoint');
         end
 
         function fn = taskRunner(obj)
@@ -40,6 +47,10 @@ classdef WorkflowRuntime
 
         function fn = reportGuiStageProgressFn(obj)
             fn = obj.ReportGuiStageProgressFn;
+        end
+
+        function fn = checkpointFn(obj)
+            fn = obj.CheckpointFn;
         end
     end
 

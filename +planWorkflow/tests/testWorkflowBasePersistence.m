@@ -420,6 +420,27 @@ for modeIx = 1:numel(modes)
 end
 end
 
+function testCompactDijRefsRehydratePersistedRefsDespiteRunIdentityDrift( ...
+        testCase)
+modes = {'INTERVAL2','INTERVAL3','PROB2'};
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    [compactData,dataMetadata,runConfig,cachePath] = ...
+        compactRobustnessFixture(testCase,mode);
+    runConfig.description = 'resumed-under-new-output-root';
+    runConfig.plan_template_hash = 'changed-after-cache-write';
+
+    fullInput = requireFullInput( ...
+        planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+        compactData,dataMetadata,runConfig,cachePath), ...
+        runConfig,cachePath);
+
+    verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3,mode);
+    verifyEqual(testCase,fullInput.dijKind, ...
+        compactData.optimizationInput.dijKind,mode);
+end
+end
+
 function testPullDoseMaterializesCompactArtifactsBeforeRefresh(testCase)
 modes = {'INTERVAL2','INTERVAL3','PROB2'};
 for modeIx = 1:numel(modes)
@@ -611,6 +632,64 @@ for modeIx = 1:numel(modes)
     verifyEqual(testCase,arrayfun(@(result) result.resultGUI.w, ...
         robustData.variantResults),3 * ones(1,expectedCount),mode);
 end
+end
+
+function testOptimizeStagePersistsAndReusesCompletedRobustVariants(testCase)
+cleanup = installFluenceOptimizationDijProbe(testCase); %#ok<NASGU>
+[compactData,~,runConfig,cachePath] = compactRobustnessFixture( ...
+    testCase,'PROB2');
+runConfig.cacheRootPath = cachePath;
+runConfig.optimizer = 'STUB';
+compactData = withoutQuantityOpt(compactData);
+data = optimizationStageRootData(compactData);
+firstTaskCount = 0;
+checkpointLabels = {};
+
+firstContext = planWorkflow.stages.OptimizeStage.context( ...
+    runConfig,data,@countedFirstRunTask,@(~) [],@recordCheckpoint);
+firstPatch = planWorkflow.stages.OptimizeStage.run(firstContext);
+
+expectedVariantCount = ...
+    planWorkflow.config.RobustPlanConfig.variantWithPenaltyCount( ...
+    compactData.planConfig);
+verifyEqual(testCase,firstTaskCount,expectedVariantCount + 1);
+verifyGreaterThanOrEqual(testCase,numel(checkpointLabels), ...
+    expectedVariantCount + 1);
+verifyTrue(testCase,isfolder(fullfile(cachePath, ...
+    'optimization_results')));
+verifyNumElements(testCase,dir(fullfile(cachePath, ...
+    'optimization_results','*.mat')),expectedVariantCount + 1);
+
+secondTaskCount = 0;
+secondContext = planWorkflow.stages.OptimizeStage.context( ...
+    runConfig,firstPatch.data,@countedSecondRunTask,@(~) [], ...
+    @(varargin) []);
+secondPatch = planWorkflow.stages.OptimizeStage.run(secondContext);
+
+verifyEqual(testCase,secondTaskCount,0);
+verifyNumElements(testCase,secondPatch.data.robustPlans{1}.variantResults, ...
+    expectedVariantCount);
+verifyEqual(testCase,arrayfun(@(result) result.resultGUI.w, ...
+    secondPatch.data.robustPlans{1}.variantResults), ...
+    3 * ones(1,expectedVariantCount));
+
+    function value = countedFirstRunTask(varargin)
+        firstTaskCount = firstTaskCount + 1;
+        task = varargin{end};
+        value = task();
+    end
+
+    function value = countedSecondRunTask(varargin)
+        secondTaskCount = secondTaskCount + 1;
+        task = varargin{end};
+        value = task();
+    end
+
+    function recordCheckpoint(stageName,partialPatch,label)
+        verifyEqual(testCase,stageName,'optimize');
+        verifyTrue(testCase,isfield(partialPatch,'data'));
+        checkpointLabels{end + 1} = char(label);
+    end
 end
 
 function testDosePullingUsesWorkflowRootForCompactRobustRefs(testCase)

@@ -527,7 +527,19 @@ classdef Engine < planWorkflow.WorkflowBase
                 obj.measuredTaskRunner(), ...
                 @(message) obj.log(message), ...
                 @(stageNameIn,fraction,message) ...
-                obj.reportGuiStageProgress(stageNameIn,fraction,message));
+                obj.reportGuiStageProgress(stageNameIn,fraction,message), ...
+                @(stageNameIn,partialPatch,label) ...
+                obj.checkpointStagePatch(stageNameIn,partialPatch,label));
+        end
+
+        function checkpointStagePatch(obj,stageName,partialPatch,label)
+            if nargin < 4 || isempty(label)
+                label = stageName;
+            end
+            obj.applyStagePatch(partialPatch);
+            obj.saveState();
+            obj.log(sprintf('Workflow checkpoint saved after %s.', ...
+                char(label)));
         end
 
         function taskRunner = measuredTaskRunner(obj)
