@@ -737,7 +737,7 @@ classdef WorkflowDataArtifact
             ref = struct();
             ref.artifactKind = ...
                 planWorkflow.persistence.WorkflowDataArtifact.RefKind;
-            ref.schemaVersion = 1;
+            ref.schemaVersion = 2;
             ref.cacheKind = char(cacheRef.cacheKind);
             ref.tag = char(cacheRef.tag);
             ref.variableName = char(variableName);
@@ -745,6 +745,26 @@ classdef WorkflowDataArtifact
             ref.dijKind = char(dijKind);
             ref.cacheRelativeFile = char(cacheRef.cacheRelativeFile);
             ref.cacheIdentityHash = cacheRef.cacheIdentityHash;
+            if isfield(cacheRef,'variables') && ~isempty(cacheRef.variables)
+                ref.variables = cacheRef.variables;
+            end
+            if isfield(cacheRef,'planId') && ~isempty(cacheRef.planId)
+                ref.planId = char(cacheRef.planId);
+            end
+            if isfield(cacheRef,'robustnessMode') && ...
+                    ~isempty(cacheRef.robustnessMode)
+                ref.robustnessMode = char(cacheRef.robustnessMode);
+            end
+            if isfield(cacheRef,'cstHash') && ~isempty(cacheRef.cstHash)
+                ref.cstHash = char(cacheRef.cstHash);
+            end
+            if isfield(cacheRef,'stfHash') && ~isempty(cacheRef.stfHash)
+                ref.stfHash = char(cacheRef.stfHash);
+            end
+            if isfield(cacheRef,'payloadContextHash') && ...
+                    ~isempty(cacheRef.payloadContextHash)
+                ref.payloadContextHash = char(cacheRef.payloadContextHash);
+            end
             if isfield(cacheRef,'producerTag')
                 ref.producerTag = char(cacheRef.producerTag);
             end

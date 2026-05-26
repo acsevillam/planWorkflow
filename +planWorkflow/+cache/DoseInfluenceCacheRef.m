@@ -3,7 +3,7 @@ classdef DoseInfluenceCacheRef
 
     properties (Constant)
         ArtifactKind = 'planWorkflowDoseInfluenceCacheRef'
-        SchemaVersion = 2
+        SchemaVersion = 3
     end
 
     methods (Static)
@@ -45,12 +45,23 @@ classdef DoseInfluenceCacheRef
                 planWorkflow.cache.DoseInfluenceCacheRef.relativeFile( ...
                 cacheFile,cachePath);
             ref.cacheIdentityHash = cacheMetadata.cacheIdentityHash;
+            if isfield(cacheMetadata,'planId') && ...
+                    ~isempty(cacheMetadata.planId)
+                ref.planId = char(cacheMetadata.planId);
+            end
+            if isfield(cacheMetadata,'robustnessMode') && ...
+                    ~isempty(cacheMetadata.robustnessMode)
+                ref.robustnessMode = char(cacheMetadata.robustnessMode);
+            end
             ref.producerTag = ...
                 planWorkflow.cache.DoseInfluenceCacheRef.metadataProducerTag( ...
                 cacheMetadata);
             ref.cachePhysicalTag = cachePhysicalTag;
             ref.variables = variables(:)';
             ref.totalNumOfBixels = totalNumOfBixels;
+            ref = ...
+                planWorkflow.cache.DoseInfluenceCacheRef.attachIdentityHashes( ...
+                ref,cacheKind,cacheMetadata);
             if isfield(cacheMetadata,'scenarioFingerprint') && ...
                     ~isempty(cacheMetadata.scenarioFingerprint)
                 ref.scenarioFingerprint = ...
@@ -109,6 +120,16 @@ classdef DoseInfluenceCacheRef
                     ['Cannot persist or resume %s from cache "%s": ' ...
                     '%s.'],char(role),cacheFile,char(scenarioReason));
             end
+
+            [clinicalCompatible,clinicalReason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.isPersistedRefClinicalContextCompatible( ...
+                cacheMetadata,ref,struct(), ...
+                planWorkflow.cache.DoseInfluenceCacheRef.payloadKind(ref));
+            if ~clinicalCompatible
+                error([char(errorPrefix) ':DijCacheRefClinicalMismatch'], ...
+                    ['Cannot persist or resume %s from cache "%s": ' ...
+                    '%s.'],char(role),cacheFile,char(clinicalReason));
+            end
         end
 
         function tf = isRef(value)
@@ -151,6 +172,39 @@ classdef DoseInfluenceCacheRef
             tf = isstruct(value) && isfield(value,fieldName) && ...
                 ~isempty(value.(fieldName)) && ...
                 ~isempty(char(value.(fieldName)));
+        end
+
+        function ref = attachIdentityHashes(ref,cacheKind,cacheMetadata)
+            cstHash = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.cacheIdentityComponentHash( ...
+                cacheMetadata,'cst');
+            if ~isempty(cstHash)
+                ref.cstHash = char(cstHash);
+            end
+            stfHash = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.cacheIdentityComponentHash( ...
+                cacheMetadata,'stf');
+            if ~isempty(stfHash)
+                ref.stfHash = char(stfHash);
+            end
+            payloadContextHash = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.payloadContextHash( ...
+                cacheMetadata,cacheKind);
+            if ~isempty(payloadContextHash)
+                ref.payloadContextHash = char(payloadContextHash);
+            end
+        end
+
+        function kind = payloadKind(ref)
+            kind = '';
+            if ~isstruct(ref) || ~isfield(ref,'cacheKind') || ...
+                    isempty(ref.cacheKind)
+                return;
+            end
+            switch char(ref.cacheKind)
+                case {'prob','interval'}
+                    kind = char(ref.cacheKind);
+            end
         end
 
         function rel = relativeFile(filePath,rootPath)

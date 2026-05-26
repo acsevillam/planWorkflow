@@ -62,9 +62,12 @@ classdef IntervalDoseInfluence
                 robustData);
             if planWorkflow.precompute.IntervalDoseInfluence.needsRobustNominalDij( ...
                     robustData)
-                robustData = ...
-                    planWorkflow.precompute.IntervalDoseInfluence.attachNominalDijFromContext( ...
-                    robustData);
+                [nominalCompatible,robustData] = ...
+                    planWorkflow.precompute.IntervalDoseInfluence.tryAttachCachedNominalDij( ...
+                    context,robustData,cacheFile);
+                if ~nominalCompatible
+                    return;
+                end
             end
             cacheHit = true;
             context.log(sprintf('Loaded cached interval dij: %s.', ...
@@ -434,55 +437,37 @@ classdef IntervalDoseInfluence
         end
 
         function [tf,reason] = isCachePayloadCompatible( ...
-                cached,robustData,compatibilityMode,ref)
+                cached,robustData,compatibilityMode,ref,rehydrateContext)
             if nargin < 3 || isempty(compatibilityMode)
                 compatibilityMode = 'discovery';
             end
             if nargin < 4
                 ref = struct();
             end
-            robustData = ...
-                planWorkflow.precompute.IntervalDoseInfluence.ensurePlanContext( ...
-                [],robustData);
+            if nargin < 5 || isempty(rehydrateContext)
+                rehydrateContext = struct();
+            end
             tf = false;
             reason = '';
             if ~isfield(cached,'cacheMetadata')
                 reason = 'missing cache metadata';
                 return;
             end
-            if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataForPlan( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache plan metadata does not match';
+            [tf,reason] = ...
+                planWorkflow.precompute.IntervalDoseInfluence.isCacheMetadataCompatible( ...
+                cached.cacheMetadata,robustData,compatibilityMode,ref, ...
+                rehydrateContext);
+            if ~tf
                 return;
             end
-            if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataCstCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache CST metadata does not match';
+
+            if strcmp(char(compatibilityMode),'rehydrate')
+                [tf,reason] = ...
+                    planWorkflow.precompute.IntervalDoseInfluence.isRehydratedCacheVariableCompatible( ...
+                    cached,ref);
                 return;
             end
-            if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataStfCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache STF metadata does not match';
-                return;
-            end
-            if ~isfield(cached.cacheMetadata,'intervalMode') || ...
-                    ~strcmp(cached.cacheMetadata.intervalMode, ...
-                    robustData.strategy.name)
-                reason = 'cache is not the requested interval payload';
-                return;
-            end
-            if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataIntervalContextCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache interval context metadata does not match';
-                return;
-            end
-            [scenarioCompatible,scenarioReason] = ...
-                planWorkflow.precompute.IntervalDoseInfluence.isScenarioCompatibleForMode( ...
-                cached.cacheMetadata,robustData,compatibilityMode,ref);
-            if ~scenarioCompatible
-                reason = scenarioReason;
-                return;
-            end
+
             if ~isfield(cached,'dij_interval') || ...
                     ~planWorkflow.precompute.IntervalDoseInfluence.isIntervalDijUsable( ...
                     cached.dij_interval,robustData.strategy.name)
@@ -506,6 +491,128 @@ classdef IntervalDoseInfluence
                 return;
             end
             tf = true;
+        end
+
+        function [tf,reason] = isCacheMetadataCompatible( ...
+                cacheMetadata,robustData,compatibilityMode,ref, ...
+                rehydrateContext)
+            if nargin < 3 || isempty(compatibilityMode)
+                compatibilityMode = 'discovery';
+            end
+            if nargin < 4
+                ref = struct();
+            end
+            if nargin < 5 || isempty(rehydrateContext)
+                rehydrateContext = struct();
+            end
+            robustData = ...
+                planWorkflow.precompute.IntervalDoseInfluence.ensurePlanContext( ...
+                [],robustData);
+            tf = false;
+            reason = '';
+            if ~isstruct(cacheMetadata)
+                reason = 'missing cache metadata';
+                return;
+            end
+            if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataForPlan( ...
+                    cacheMetadata,robustData)
+                reason = 'cache plan metadata does not match';
+                return;
+            end
+            if ~isfield(cacheMetadata,'intervalMode') || ...
+                    ~strcmp(cacheMetadata.intervalMode,robustData.strategy.name)
+                reason = 'cache is not the requested interval payload';
+                return;
+            end
+            switch char(compatibilityMode)
+                case 'discovery'
+                    if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataCstCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache CST metadata does not match';
+                        return;
+                    end
+                    if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataStfCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache STF metadata does not match';
+                        return;
+                    end
+                    if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataIntervalContextCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache interval context metadata does not match';
+                        return;
+                    end
+                    [tf,reason] = ...
+                        planWorkflow.precompute.PrecomputeCacheCompatibility.isDiscoveryScenarioCompatible( ...
+                        cacheMetadata,robustData);
+                case 'rehydrate'
+                    [tf,reason] = ...
+                        planWorkflow.precompute.PrecomputeCacheCompatibility.isPersistedRefClinicalContextCompatible( ...
+                        cacheMetadata,ref,rehydrateContext,'interval');
+                otherwise
+                    tf = false;
+                    reason = sprintf( ...
+                        'unknown cache compatibility mode "%s"', ...
+                        char(compatibilityMode));
+            end
+        end
+
+        function [tf,reason] = isRehydratedCacheVariableCompatible( ...
+                cached,ref)
+            tf = false;
+            reason = '';
+            if ~isstruct(ref) || ~isfield(ref,'variableName') || ...
+                    isempty(ref.variableName)
+                strategyName = 'INTERVAL2';
+                if isfield(cached,'cacheMetadata') && ...
+                        isstruct(cached.cacheMetadata) && ...
+                        isfield(cached.cacheMetadata,'intervalMode') && ...
+                        ~isempty(cached.cacheMetadata.intervalMode)
+                    strategyName = char(cached.cacheMetadata.intervalMode);
+                end
+                if isfield(cached,'dij_interval') && ...
+                        planWorkflow.precompute.IntervalDoseInfluence.isIntervalDijUsable( ...
+                        cached.dij_interval,strategyName) && ...
+                        isfield(cached,'dijIntervalContext') && ...
+                        planWorkflow.precompute.IntervalDoseInfluence.isIntervalDijContextUsable( ...
+                        cached.dijIntervalContext,cached.dij_interval)
+                    tf = true;
+                else
+                    reason = ['persisted ref does not declare a cache ' ...
+                        'variable and full interval payload is not usable'];
+                end
+                return;
+            end
+            variableName = char(ref.variableName);
+            if ~isfield(cached,variableName)
+                reason = sprintf('cache does not contain variable "%s"', ...
+                    variableName);
+                return;
+            end
+            switch variableName
+                case 'dij_interval'
+                    strategyName = 'INTERVAL2';
+                    if isfield(cached,'cacheMetadata') && ...
+                            isstruct(cached.cacheMetadata) && ...
+                            isfield(cached.cacheMetadata,'intervalMode') && ...
+                            ~isempty(cached.cacheMetadata.intervalMode)
+                        strategyName = char(cached.cacheMetadata.intervalMode);
+                    end
+                    tf = planWorkflow.precompute.IntervalDoseInfluence.isIntervalDijUsable( ...
+                        cached.dij_interval,strategyName);
+                    if ~tf
+                        reason = 'cached interval dij payload is not usable';
+                    end
+                case 'dijIntervalContext'
+                    tf = planWorkflow.precompute.IntervalDoseInfluence.isStandaloneIntervalDijContextUsable( ...
+                        cached.dijIntervalContext,ref);
+                    if ~tf
+                        reason = 'cached interval dij context is not usable';
+                    end
+                otherwise
+                    reason = sprintf( ...
+                        'unsupported interval cache variable "%s"', ...
+                        variableName);
+            end
         end
 
         function pln = createNominalOptimizationPlan(robustData,dijNominal)
@@ -605,6 +712,23 @@ classdef IntervalDoseInfluence
                 ~isempty(dijIntervalContext.physicalDose) && ...
                 isequal(size(dijIntervalContext.physicalDose{1}), ...
                 size(dij_interval.center));
+        end
+
+        function tf = isStandaloneIntervalDijContextUsable( ...
+                dijIntervalContext,ref)
+            tf = isstruct(dijIntervalContext) && ...
+                isfield(dijIntervalContext,'totalNumOfBixels') && ...
+                isfield(dijIntervalContext,'physicalDose') && ...
+                iscell(dijIntervalContext.physicalDose) && ...
+                ~isempty(dijIntervalContext.physicalDose);
+            if ~tf
+                return;
+            end
+            if isstruct(ref) && isfield(ref,'totalNumOfBixels') && ...
+                    ~isempty(ref.totalNumOfBixels)
+                tf = dijIntervalContext.totalNumOfBixels == ...
+                    ref.totalNumOfBixels;
+            end
         end
 
         function tf = isIntervalDijContextCompatibleWithStf( ...
@@ -828,6 +952,28 @@ classdef IntervalDoseInfluence
                 planWorkflow.precompute.IntervalDoseInfluence.createNominalOptimizationPlan( ...
                 robustData,robustData.dijNominal);
             robustData.stfNominal = robustData.stf;
+        end
+
+        function [tf,robustData] = tryAttachCachedNominalDij( ...
+                context,robustData,cacheFile)
+            tf = true;
+            try
+                robustData = ...
+                    planWorkflow.precompute.IntervalDoseInfluence.attachNominalDijFromContext( ...
+                    robustData);
+            catch ME
+                expectedErrors = { ...
+                    ['planWorkflow:precompute:IntervalDoseInfluence:' ...
+                    'MissingNominalDijContext'], ...
+                    ['planWorkflow:precompute:IntervalDoseInfluence:' ...
+                    'InconsistentNominalDijContext']};
+                if ~any(strcmp(ME.identifier,expectedErrors))
+                    rethrow(ME);
+                end
+                context.log(sprintf( ...
+                    'Ignoring stale interval dij cache: %s.',cacheFile));
+                tf = false;
+            end
         end
 
         function robustData = stripStoredIntervalPlanPayload(robustData)

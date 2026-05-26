@@ -61,9 +61,12 @@ classdef ProbDoseInfluence
                 robustData);
             if planWorkflow.precompute.ProbDoseInfluence.needsRobustNominalDij( ...
                     robustData)
-                robustData = ...
-                    planWorkflow.precompute.ProbDoseInfluence.attachNominalDijFromContext( ...
-                    robustData);
+                [nominalCompatible,robustData] = ...
+                    planWorkflow.precompute.ProbDoseInfluence.tryAttachCachedNominalDij( ...
+                    context,robustData,cacheFile);
+                if ~nominalCompatible
+                    return;
+                end
             end
             cacheHit = true;
             context.log(sprintf('Loaded cached PROB2 dij: %s.',cacheFile));
@@ -382,54 +385,37 @@ classdef ProbDoseInfluence
         end
 
         function [tf,reason] = isCachePayloadCompatible( ...
-                cached,robustData,compatibilityMode,ref)
+                cached,robustData,compatibilityMode,ref,rehydrateContext)
             if nargin < 3 || isempty(compatibilityMode)
                 compatibilityMode = 'discovery';
             end
             if nargin < 4
                 ref = struct();
             end
-            robustData = ...
-                planWorkflow.precompute.ProbDoseInfluence.ensurePlanContext( ...
-                [],robustData);
+            if nargin < 5 || isempty(rehydrateContext)
+                rehydrateContext = struct();
+            end
             tf = false;
             reason = '';
             if ~isfield(cached,'cacheMetadata')
                 reason = 'missing cache metadata';
                 return;
             end
-            if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataForPlan( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache plan metadata does not match';
+            [tf,reason] = ...
+                planWorkflow.precompute.ProbDoseInfluence.isCacheMetadataCompatible( ...
+                cached.cacheMetadata,robustData,compatibilityMode,ref, ...
+                rehydrateContext);
+            if ~tf
                 return;
             end
-            if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataCstCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache CST metadata does not match';
+
+            if strcmp(char(compatibilityMode),'rehydrate')
+                [tf,reason] = ...
+                    planWorkflow.precompute.ProbDoseInfluence.isRehydratedCacheVariableCompatible( ...
+                    cached,ref);
                 return;
             end
-            if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataStfCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache STF metadata does not match';
-                return;
-            end
-            if ~isfield(cached.cacheMetadata,'probabilisticMode') || ...
-                    ~strcmp(cached.cacheMetadata.probabilisticMode,'PROB')
-                reason = 'cache is not a PROB payload';
-                return;
-            end
-            if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataProbContextCompatible( ...
-                    cached.cacheMetadata,robustData)
-                reason = 'cache probabilistic context metadata does not match';
-                return;
-            end
-            [scenarioCompatible,scenarioReason] = ...
-                planWorkflow.precompute.ProbDoseInfluence.isScenarioCompatibleForMode( ...
-                cached.cacheMetadata,robustData,compatibilityMode,ref);
-            if ~scenarioCompatible
-                reason = scenarioReason;
-                return;
-            end
+
             if ~isfield(cached,'dij_prob') || ...
                     ~planWorkflow.precompute.ProbDoseInfluence.isProbDijUsable( ...
                     cached.dij_prob)
@@ -453,6 +439,113 @@ classdef ProbDoseInfluence
                 return;
             end
             tf = true;
+        end
+
+        function [tf,reason] = isCacheMetadataCompatible( ...
+                cacheMetadata,robustData,compatibilityMode,ref, ...
+                rehydrateContext)
+            if nargin < 3 || isempty(compatibilityMode)
+                compatibilityMode = 'discovery';
+            end
+            if nargin < 4
+                ref = struct();
+            end
+            if nargin < 5 || isempty(rehydrateContext)
+                rehydrateContext = struct();
+            end
+            robustData = ...
+                planWorkflow.precompute.ProbDoseInfluence.ensurePlanContext( ...
+                [],robustData);
+            tf = false;
+            reason = '';
+            if ~isstruct(cacheMetadata)
+                reason = 'missing cache metadata';
+                return;
+            end
+            if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataForPlan( ...
+                    cacheMetadata,robustData)
+                reason = 'cache plan metadata does not match';
+                return;
+            end
+            if ~isfield(cacheMetadata,'probabilisticMode') || ...
+                    ~strcmp(cacheMetadata.probabilisticMode,'PROB')
+                reason = 'cache is not a PROB payload';
+                return;
+            end
+            switch char(compatibilityMode)
+                case 'discovery'
+                    if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataCstCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache CST metadata does not match';
+                        return;
+                    end
+                    if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataStfCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache STF metadata does not match';
+                        return;
+                    end
+                    if ~planWorkflow.precompute.ProbDoseInfluence.isMetadataProbContextCompatible( ...
+                            cacheMetadata,robustData)
+                        reason = 'cache probabilistic context metadata does not match';
+                        return;
+                    end
+                    [tf,reason] = ...
+                        planWorkflow.precompute.PrecomputeCacheCompatibility.isDiscoveryScenarioCompatible( ...
+                        cacheMetadata,robustData);
+                case 'rehydrate'
+                    [tf,reason] = ...
+                        planWorkflow.precompute.PrecomputeCacheCompatibility.isPersistedRefClinicalContextCompatible( ...
+                        cacheMetadata,ref,rehydrateContext,'prob');
+                otherwise
+                    tf = false;
+                    reason = sprintf( ...
+                        'unknown cache compatibility mode "%s"', ...
+                        char(compatibilityMode));
+            end
+        end
+
+        function [tf,reason] = isRehydratedCacheVariableCompatible( ...
+                cached,ref)
+            tf = false;
+            reason = '';
+            if ~isstruct(ref) || ~isfield(ref,'variableName') || ...
+                    isempty(ref.variableName)
+                if isfield(cached,'dij_prob') && ...
+                        planWorkflow.precompute.ProbDoseInfluence.isProbDijUsable( ...
+                        cached.dij_prob) && ...
+                        isfield(cached,'dijProbContext') && ...
+                        planWorkflow.precompute.ProbDoseInfluence.isProbDijContextUsable( ...
+                        cached.dijProbContext,cached.dij_prob)
+                    tf = true;
+                else
+                    reason = ['persisted ref does not declare a cache ' ...
+                        'variable and full PROB payload is not usable'];
+                end
+                return;
+            end
+            variableName = char(ref.variableName);
+            if ~isfield(cached,variableName)
+                reason = sprintf('cache does not contain variable "%s"', ...
+                    variableName);
+                return;
+            end
+            switch variableName
+                case 'dij_prob'
+                    tf = planWorkflow.precompute.ProbDoseInfluence.isProbDijUsable( ...
+                        cached.dij_prob);
+                    if ~tf
+                        reason = 'cached PROB dij payload is not usable';
+                    end
+                case 'dijProbContext'
+                    tf = planWorkflow.precompute.ProbDoseInfluence.isStandaloneProbDijContextUsable( ...
+                        cached.dijProbContext,ref);
+                    if ~tf
+                        reason = 'cached PROB dij context is not usable';
+                    end
+                otherwise
+                    reason = sprintf('unsupported PROB cache variable "%s"', ...
+                        variableName);
+            end
         end
 
         function pln = createNominalOptimizationPlan(robustData,dijNominal)
@@ -548,6 +641,22 @@ classdef ProbDoseInfluence
                 ~isempty(dijProbContext.physicalDose) && ...
                 isequal(size(dijProbContext.physicalDose{1}), ...
                 size(dijProb.expected));
+        end
+
+        function tf = isStandaloneProbDijContextUsable(dijProbContext,ref)
+            tf = isstruct(dijProbContext) && ...
+                isfield(dijProbContext,'totalNumOfBixels') && ...
+                isfield(dijProbContext,'physicalDose') && ...
+                iscell(dijProbContext.physicalDose) && ...
+                ~isempty(dijProbContext.physicalDose);
+            if ~tf
+                return;
+            end
+            if isstruct(ref) && isfield(ref,'totalNumOfBixels') && ...
+                    ~isempty(ref.totalNumOfBixels)
+                tf = dijProbContext.totalNumOfBixels == ...
+                    ref.totalNumOfBixels;
+            end
         end
 
         function tf = isProbDijContextCompatibleWithStf( ...
@@ -751,6 +860,28 @@ classdef ProbDoseInfluence
                 planWorkflow.precompute.ProbDoseInfluence.createNominalOptimizationPlan( ...
                 robustData,robustData.dijNominal);
             robustData.stfNominal = robustData.stf;
+        end
+
+        function [tf,robustData] = tryAttachCachedNominalDij( ...
+                context,robustData,cacheFile)
+            tf = true;
+            try
+                robustData = ...
+                    planWorkflow.precompute.ProbDoseInfluence.attachNominalDijFromContext( ...
+                    robustData);
+            catch ME
+                expectedErrors = { ...
+                    ['planWorkflow:precompute:ProbDoseInfluence:' ...
+                    'MissingNominalDijContext'], ...
+                    ['planWorkflow:precompute:ProbDoseInfluence:' ...
+                    'InconsistentNominalDijContext']};
+                if ~any(strcmp(ME.identifier,expectedErrors))
+                    rethrow(ME);
+                end
+                context.log(sprintf( ...
+                    'Ignoring stale PROB2 dij cache: %s.',cacheFile));
+                tf = false;
+            end
         end
 
         function robustData = stripStoredProbPlanPayload(robustData)
