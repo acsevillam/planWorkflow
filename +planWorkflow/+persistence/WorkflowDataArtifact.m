@@ -751,6 +751,14 @@ classdef WorkflowDataArtifact
             if isfield(cacheRef,'cachePhysicalTag')
                 ref.cachePhysicalTag = char(cacheRef.cachePhysicalTag);
             end
+            if isfield(cacheRef,'scenarioFingerprint') && ...
+                    ~isempty(cacheRef.scenarioFingerprint)
+                ref.scenarioFingerprint = char(cacheRef.scenarioFingerprint);
+            end
+            if isfield(cacheRef,'numOfScenarios') && ...
+                    ~isempty(cacheRef.numOfScenarios)
+                ref.numOfScenarios = cacheRef.numOfScenarios;
+            end
             ref.totalNumOfBixels = ...
                 planWorkflow.precompute.OptimizationInput.totalNumOfBixels( ...
                 dij);

@@ -3,7 +3,7 @@ classdef DoseInfluenceCacheRef
 
     properties (Constant)
         ArtifactKind = 'planWorkflowDoseInfluenceCacheRef'
-        SchemaVersion = 1
+        SchemaVersion = 2
     end
 
     methods (Static)
@@ -51,6 +51,15 @@ classdef DoseInfluenceCacheRef
             ref.cachePhysicalTag = cachePhysicalTag;
             ref.variables = variables(:)';
             ref.totalNumOfBixels = totalNumOfBixels;
+            if isfield(cacheMetadata,'scenarioFingerprint') && ...
+                    ~isempty(cacheMetadata.scenarioFingerprint)
+                ref.scenarioFingerprint = ...
+                    char(cacheMetadata.scenarioFingerprint);
+            end
+            if isfield(cacheMetadata,'numOfScenarios') && ...
+                    ~isempty(cacheMetadata.numOfScenarios)
+                ref.numOfScenarios = cacheMetadata.numOfScenarios;
+            end
         end
 
         function assertMatchesMetadata(ref,cacheMetadata,cacheFile, ...
@@ -90,6 +99,15 @@ classdef DoseInfluenceCacheRef
                     ['Cannot persist or resume %s from cache "%s": ' ...
                     'physical cache tag does not match the declared ref.'], ...
                     char(role),cacheFile);
+            end
+
+            [scenarioCompatible,scenarioReason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.isPersistedRefScenarioCompatible( ...
+                cacheMetadata,ref);
+            if ~scenarioCompatible
+                error([char(errorPrefix) ':DijCacheRefScenarioMismatch'], ...
+                    ['Cannot persist or resume %s from cache "%s": ' ...
+                    '%s.'],char(role),cacheFile,char(scenarioReason));
             end
         end
 
