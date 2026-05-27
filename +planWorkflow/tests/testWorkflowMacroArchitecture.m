@@ -42,6 +42,60 @@ verifyEqual(testCase,workflowConfig.prepare.radiationMode,'protons');
 verifyEqual(testCase,workflowConfig.prepare.quantityOpt,'RBExDose');
 end
 
+function testCCowcVariantsFollowWorstCaseScenarioCount(testCase)
+robustScenario = struct('mode','wcScen', ...
+    'ctActive',true, ...
+    'setupActive',true, ...
+    'rangeActive',false, ...
+    'gantryActive',false, ...
+    'couchActive',false);
+
+plans = planWorkflow.config.RobustPlanCatalog.select( ...
+    'prostate','comparison_001','cMinimax', ...
+    'robustScenario',robustScenario, ...
+    'radiationMode','photons');
+
+verifyEqual(testCase,cCowcP2Values(plans),1:7);
+end
+
+function testCCowcVariantsPreserveDefaultImportanceScenarioSweep(testCase)
+plans = planWorkflow.config.RobustPlanCatalog.select( ...
+    'prostate','comparison_001','cMinimax', ...
+    'radiationMode','photons');
+
+verifyEqual(testCase,cCowcP2Values(plans),1:13);
+end
+
+function testCCowcVariantsStrideLargeScenarioCounts(testCase)
+robustScenario = planWorkflow.config.ScenarioSpec.defaults('impScen5');
+robustScenario.ctScenProb = [0.5 0.5];
+
+plans = planWorkflow.config.RobustPlanCatalog.select( ...
+    'prostate','comparison_001','cMinimax', ...
+    'robustScenario',robustScenario, ...
+    'radiationMode','photons');
+
+verifyEqual(testCase,cCowcP2Values(plans),[1:2:25 26]);
+end
+
+function testProstatePhotonMultipleWcScenCMinimaxUsesSevenScenarios(testCase)
+spec = macroSpecCatalog('prostate.photons.3482.multiple', ...
+    'profile','testing');
+optimizationScenario = struct('mode','wcScen', ...
+    'ctActive',true, ...
+    'setupActive',true, ...
+    'rangeActive',false, ...
+    'gantryActive',false, ...
+    'couchActive',false);
+
+workflowConfig = planWorkflow.macros.MacroRunner.build( ...
+    spec,'optimizationScenario',optimizationScenario);
+p2Values = cCowcP2Values(workflowConfig.precompute.robustPlans);
+
+verifyEqual(testCase,p2Values,1:7);
+verifyFalse(testCase,any(p2Values > 7));
+end
+
 function testBuildHeadAndNeckConfig(testCase)
 spec = macroSpecCatalog('head_and_neck.photons.2.INTERVAL2', ...
     'profile','testing');
@@ -464,6 +518,20 @@ for i = 1:numel(fields)
     verifyTrue(testCase,islogical(scenario.(fields{i})) && ...
         isscalar(scenario.(fields{i})),diagnostic);
 end
+end
+
+function values = cCowcP2Values(plans)
+planIds = {plans.id};
+planIx = find(strcmp(planIds,'cCOWC'),1);
+if isempty(planIx)
+    objectiveSetNames = {plans.objectiveSetName};
+    planIx = find(strcmp(objectiveSetNames,'cMinimax'),1);
+end
+if isempty(planIx)
+    error('testWorkflowMacroArchitecture:MissingCCowcPlan', ...
+        'Expected a c-COWC/cMinimax plan.');
+end
+values = [plans(planIx).variants.p2];
 end
 
 function verifyWrapperSelector(testCase,selector,diagnostic)

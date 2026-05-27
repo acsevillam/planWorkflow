@@ -281,7 +281,7 @@ classdef RobustPlanCatalog
                 plan.robustnessMode);
             plan.variants = ...
                 planWorkflow.config.RobustPlanCatalog.variants( ...
-                plan.robustnessMode);
+                plan.robustnessMode,plan.scenario);
         end
 
         function scenario = nominalScenario()
@@ -311,11 +311,15 @@ classdef RobustPlanCatalog
             end
         end
 
-        function variants = variants(robustnessMode)
+        function variants = variants(robustnessMode,scenario)
+            if nargin < 2
+                scenario = [];
+            end
             switch char(robustnessMode)
                 case 'c-COWC'
                     variants = ...
-                        planWorkflow.config.RobustPlanCatalog.cCowcVariants();
+                        planWorkflow.config.RobustPlanCatalog.cCowcVariants( ...
+                        scenario);
                 case 'INTERVAL2'
                     variants = ...
                         planWorkflow.config.RobustPlanCatalog.interval2Variants();
@@ -329,8 +333,15 @@ classdef RobustPlanCatalog
             end
         end
 
-        function variants = cCowcVariants()
-            values = 1:13;
+        function variants = cCowcVariants(scenario)
+            numScenarios = ...
+                planWorkflow.config.RobustPlanCatalog.scenarioCount( ...
+                scenario);
+            stride = ceil(numScenarios / 13);
+            values = 1:stride:numScenarios;
+            if values(end) ~= numScenarios
+                values(end + 1) = numScenarios;
+            end
             variants = repmat(struct('id','','label','','p1',1,'p2',1), ...
                 1,numel(values));
             for i = 1:numel(values)
@@ -339,6 +350,136 @@ classdef RobustPlanCatalog
                 variants(i).label = sprintf('p1=1 - p2=%d',p2);
                 variants(i).p1 = 1;
                 variants(i).p2 = p2;
+            end
+        end
+
+        function count = scenarioCount(scenario)
+            if nargin < 1 || isempty(scenario)
+                scenario = ...
+                    planWorkflow.config.RobustPlanCatalog.robustScenario();
+            end
+            if ~isfield(scenario,'mode') || isempty(scenario.mode)
+                scenario.mode = 'impScen5';
+            end
+            defaults = ...
+                planWorkflow.config.ScenarioSpec.defaults(scenario.mode);
+            scenario = planWorkflow.config.ScenarioSpec.normalize( ...
+                scenario,defaults,'robustPlan.scenario');
+            ctCount = ...
+                planWorkflow.config.RobustPlanCatalog.ctScenarioCount( ...
+                scenario);
+            mode = char(scenario.mode);
+            switch mode
+                case 'nomScen'
+                    count = ctCount;
+                case 'wcScen'
+                    scenarioCount = ...
+                        planWorkflow.config.RobustPlanCatalog.griddedScenarioCount( ...
+                        scenario,3);
+                    count = ctCount * scenarioCount;
+                case {'impScen','impScen5','impScen7', ...
+                        'impScen_permuted5','impScen_permuted7', ...
+                        'impScen_permuted5_truncated', ...
+                        'impScen_permuted7_truncated'}
+                    setupGridPoints = ...
+                        planWorkflow.config.RobustPlanCatalog.setupGridPoints( ...
+                        mode);
+                    scenarioCount = ...
+                        planWorkflow.config.RobustPlanCatalog.griddedScenarioCount( ...
+                        scenario,setupGridPoints);
+                    count = ctCount * scenarioCount;
+                case {'random','truncatedRndScen'}
+                    scenarioCount = ...
+                        planWorkflow.config.RobustPlanCatalog.sampledScenarioCount( ...
+                        scenario);
+                    count = ctCount * scenarioCount;
+                otherwise
+                    count = ctCount;
+            end
+            count = max(1,count);
+        end
+
+        function count = ctScenarioCount(scenario)
+            if isfield(scenario,'ctActive') && ~logical(scenario.ctActive)
+                count = 1;
+                return;
+            end
+            if isfield(scenario,'ctScenProb') && ...
+                    ~isempty(scenario.ctScenProb)
+                count = numel(scenario.ctScenProb);
+            else
+                count = 1;
+            end
+        end
+
+        function count = griddedScenarioCount(scenario,setupGridPoints)
+            setupActive = isfield(scenario,'setupActive') && ...
+                logical(scenario.setupActive);
+            rangeActive = isfield(scenario,'rangeActive') && ...
+                logical(scenario.rangeActive);
+            [setupCount,setupHasNominal] = ...
+                planWorkflow.config.RobustPlanCatalog.setupScenarioCount( ...
+                setupActive,setupGridPoints);
+            [rangeCount,rangeHasNominal] = ...
+                planWorkflow.config.RobustPlanCatalog.rangeScenarioCount( ...
+                rangeActive,scenario.numOfRangeGridPoints);
+            count = setupCount + rangeCount;
+            if setupHasNominal && rangeHasNominal
+                count = count - 1;
+            end
+        end
+
+        function [count,hasNominal] = setupScenarioCount( ...
+                setupActive,gridPoints)
+            if ~setupActive
+                count = 1;
+                hasNominal = true;
+                return;
+            end
+            hasNominal = mod(gridPoints,2) == 1;
+            count = 3 * gridPoints;
+            if hasNominal
+                count = count - 2;
+            end
+        end
+
+        function [count,hasNominal] = rangeScenarioCount( ...
+                rangeActive,gridPoints)
+            if ~rangeActive
+                count = 1;
+                hasNominal = true;
+                return;
+            end
+            count = gridPoints;
+            hasNominal = mod(gridPoints,2) == 1;
+        end
+
+        function count = sampledScenarioCount(scenario)
+            hasContinuousUncertainty = ...
+                (isfield(scenario,'setupActive') && ...
+                logical(scenario.setupActive)) || ...
+                (isfield(scenario,'rangeActive') && ...
+                logical(scenario.rangeActive)) || ...
+                (isfield(scenario,'gantryActive') && ...
+                logical(scenario.gantryActive)) || ...
+                (isfield(scenario,'couchActive') && ...
+                logical(scenario.couchActive));
+            if hasContinuousUncertainty
+                count = scenario.random_size;
+            else
+                count = 1;
+            end
+        end
+
+        function gridPoints = setupGridPoints(scenarioMode)
+            scenarioMode = regexprep(char(scenarioMode),'_truncated$','');
+            switch scenarioMode
+                case {'impScen5','impScen_permuted5'}
+                    gridPoints = 5;
+                case {'impScen7','impScen_permuted7'}
+                    gridPoints = 7;
+                otherwise
+                    gridPoints = 9;
             end
         end
 
