@@ -165,10 +165,13 @@ classdef SamplingService
                 context.runConfig);
             plnForSampling = ...
                 planWorkflow.sampling.SamplingService.samplingPlan(pln);
-            [caSamp,mSampDose,plnSamp,resultGUINomScen] = matRad_sampling( ...
+            [caSamp,mSampDose,plnSamp,resultGUINomScen] = ...
+                planWorkflow.sampling.SamplingService.withMatRadGuiDisabled( ...
+                @() matRad_sampling( ...
                 ctSampling,stf,cstForSampling,plnForSampling, ...
                 resultGUI.w,structSel, ...
-                multScen,'dvhDoseWindow',dvhDoseWindow,samplingOptions{:});
+                multScen,'dvhDoseWindow',dvhDoseWindow, ...
+                samplingOptions{:}));
 
             sample = struct();
             sample.caSamp = caSamp;
@@ -370,9 +373,32 @@ classdef SamplingService
                  '(\d+)\s*scenarios?\.'], ...
                 'tokens','once');
         end
+
+        function varargout = withMatRadGuiDisabled(taskFn)
+            if ~isa(taskFn,'function_handle')
+                error('planWorkflow:sampling:SamplingService:InvalidTask', ...
+                    'taskFn must be a function handle.');
+            end
+
+            matRadCfg = MatRad_Config.instance();
+            restoreDisableGui = matRadCfg.disableGUI;
+            matRadCfg.disableGUI = true;
+            cleanupObj = onCleanup(@() ...
+                planWorkflow.sampling.SamplingService.restoreMatRadGui( ...
+                matRadCfg,restoreDisableGui)); %#ok<NASGU>
+
+            varargout = cell(1,nargout);
+            [varargout{:}] = taskFn();
+        end
     end
 
     methods (Static, Access = private)
+        function restoreMatRadGui(matRadCfg,disableGuiValue)
+            if ~isempty(matRadCfg)
+                matRadCfg.disableGUI = disableGuiValue;
+            end
+        end
+
         function [ctSampling,cstSampling,normalizationReport] = ...
                 loadFullSamplingGeometry(context)
             normalizationReport = struct();
