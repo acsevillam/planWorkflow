@@ -686,6 +686,35 @@ verifyTrue(testCase,any(strcmp(workflow.state.completedStages, ...
 verifyEqual(testCase,workflow.stateFile,source.stateFile);
 end
 
+function testResumeEditorStateLoadsPersistedGuiData(testCase)
+template = planWorkflow.templates.PlanTemplate.loadForDescription( ...
+    'prostate','interval2_001');
+objectiveSetName = firstRobustObjectiveSetName(template);
+template = ...
+    planWorkflow.templates.ObjectiveRobustnessMutator.harmonizeTemplateNonNoneRobustness( ...
+    template,objectiveSetName,'INTERVAL3');
+
+source = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
+source.runConfig.plan_beams = '7F';
+source.setEffectivePlanTemplatePublic(template);
+source.data.results = struct('analysisCount',2);
+source.state.completedStages = {'prepared','precomputed', ...
+    'dose_pulled','optimized','sampled','analyzed'};
+source.state.currentStage = 'analyzed';
+source.save();
+
+editorState = ...
+    planWorkflow.gui.PlanEditor.resumeEditorState(source.stateFile);
+
+verifyEqual(testCase,editorState.runConfig.plan_beams,'7F');
+verifyEqual(testCase, ...
+    planWorkflow.templates.PlanTemplate.hash(editorState.template), ...
+    planWorkflow.templates.PlanTemplate.hash(template));
+verifyEqual(testCase,editorState.initialResults.analysisCount,2);
+verifyTrue(testCase,isfield(editorState.initialResults,'performance'));
+verifyEqual(testCase,editorState.state.currentStage,'analyzed');
+end
+
 function testGuiKeepsProgressReporterForWorkflowStages(testCase)
 workflow = planWorkflowTest.EngineProbe(baseWorkflowConfig(testCase));
 template = planWorkflow.templates.PlanTemplate.loadForDescription('prostate','interval2_001');

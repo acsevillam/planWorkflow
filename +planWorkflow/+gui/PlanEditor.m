@@ -1151,6 +1151,18 @@ classdef PlanEditor
                 if isempty(candidateStateFile)
                     return;
                 end
+                try
+                    operationCleanup = beginInteractiveOperation( ...
+                        'Loading workflow state...');
+                    resumedEditorState = ...
+                        planWorkflow.gui.PlanEditor.resumeEditorState( ...
+                        candidateStateFile);
+                    applyResumeEditorState(resumedEditorState);
+                    clear operationCleanup;
+                catch ME
+                    errordlg(ME.message,'Invalid workflow state');
+                    return;
+                end
                 resumeStateFile = candidateStateFile;
                 accepted = true;
                 lockEditorControls(true);
@@ -1158,7 +1170,84 @@ classdef PlanEditor
                 progressReporter.calculationAccepted();
                 progressReporter.log(sprintf( ...
                     'Resuming workflow from %s.',candidateStateFile));
+                showResumeInitialResults(resumedEditorState.initialResults);
                 uiresume(fig);
+            end
+
+            function applyResumeEditorState(resumedEditorState)
+                editorState = ...
+                    planWorkflow.gui.PlanEditorSession.initialize( ...
+                    resumedEditorState.template, ...
+                    resumedEditorState.runConfig);
+                template = editorState.template;
+                runConfig = editorState.runConfig;
+                descriptionIds = editorState.descriptionIds;
+                selectedDescriptionIx = editorState.selectedDescriptionIx;
+                templateIds = editorState.templateIds;
+                selectedTemplateIx = editorState.selectedTemplateIx;
+                includeOtherRadiationModes = ...
+                    editorState.includeOtherRadiationModes;
+                radiationModes = editorState.radiationModes;
+                selectedRadiationModeIx = ...
+                    editorState.selectedRadiationModeIx;
+                machineOptions = editorState.machineOptions;
+                selectedMachineIx = editorState.selectedMachineIx;
+                bioModelOptions = editorState.bioModelOptions;
+                selectedBioModelIx = editorState.selectedBioModelIx;
+                quantityOptions = editorState.quantityOptions;
+                selectedQuantityIx = editorState.selectedQuantityIx;
+                acquisitionTypes = editorState.acquisitionTypes;
+                selectedAcquisitionTypeIx = ...
+                    editorState.selectedAcquisitionTypeIx;
+                hlutFileNames = editorState.hlutFileNames;
+                selectedHlutFileIx = editorState.selectedHlutFileIx;
+                caseIds = editorState.caseIds;
+                selectedCaseIx = editorState.selectedCaseIx;
+                planParameterOptions = editorState.planParameterOptions;
+                planParameterSelection = ...
+                    editorState.planParameterSelection;
+                beamIds = editorState.beamIds;
+                selectedBeamIx = editorState.selectedBeamIx;
+                objectiveSetNames = editorState.objectiveSetNames;
+
+                preparePanel.setDescriptionIndex(selectedDescriptionIx);
+                preparePanel.setTemplateOptions(templateIds, ...
+                    selectedTemplateIx);
+                preparePanel.setCaseOptions(caseIds,selectedCaseIx);
+                preparePanel.setBeamOptions(beamIds,selectedBeamIx);
+                loadPrepareConfigTable();
+                loadBeamControls();
+                loadStructuresTable();
+                createObjectiveSetTabs();
+                loadObjectiveTable();
+                rebuildPrecomputeRobustTabs();
+                loadPrecomputeConfigTable();
+                stageController.setRunConfig(runConfig);
+                stageController.setTemplate(template);
+                stageController.loadAll();
+
+                options.stateFile = resumedEditorState.stateFile;
+                if isfield(resumedEditorState,'paths') && ...
+                        isfield(resumedEditorState.paths,'rootPath')
+                    options.rootPath = resumedEditorState.paths.rootPath;
+                end
+                if isfield(resumedEditorState,'state')
+                    if isfield(resumedEditorState.state,'currentStage')
+                        options.currentStage = ...
+                            resumedEditorState.state.currentStage;
+                    end
+                    if isfield(resumedEditorState.state,'completedStages')
+                        options.completedStages = ...
+                            resumedEditorState.state.completedStages;
+                    end
+                end
+            end
+
+            function showResumeInitialResults(initialResults)
+                if isstruct(initialResults) && ...
+                        ~isempty(fieldnames(initialResults))
+                    progressReporter.showResults(initialResults);
+                end
             end
 
             function stopCallback(~,~)
@@ -1335,9 +1424,116 @@ classdef PlanEditor
             end
         end
 
+        function editorState = resumeEditorState(stateFile)
+            planWorkflow.gui.PlanEditor.validateResumeStateFile(stateFile);
+
+            snapshot = load(stateFile,'runConfig','state','paths', ...
+                'className','artifactFiles');
+            editorState = struct();
+            editorState.stateFile = char(stateFile);
+            editorState.runConfig = snapshot.runConfig;
+            editorState.state = struct();
+            if isfield(snapshot,'state') && isstruct(snapshot.state)
+                editorState.state = snapshot.state;
+            end
+            editorState.paths = struct();
+            if isfield(snapshot,'paths') && isstruct(snapshot.paths)
+                editorState.paths = snapshot.paths;
+            end
+            editorState.artifactFiles = struct();
+            if isfield(snapshot,'artifactFiles') && ...
+                    isstruct(snapshot.artifactFiles)
+                editorState.artifactFiles = snapshot.artifactFiles;
+            end
+            editorState.template = ...
+                planWorkflow.gui.PlanEditor.resumePlanTemplate( ...
+                snapshot,stateFile);
+            editorState.initialResults = ...
+                planWorkflow.gui.PlanEditor.resumeInitialResults( ...
+                snapshot,stateFile);
+        end
+
     end
 
     methods (Static, Access = private)
+        function template = resumePlanTemplate(snapshot,stateFile)
+            template = [];
+            dataFile = planWorkflow.gui.PlanEditor.resumeArtifactFile( ...
+                snapshot,stateFile,'data','workflow_data.mat');
+            if ~isempty(dataFile) && isfile(dataFile)
+                dataSnapshot = load(dataFile,'data');
+                if isfield(dataSnapshot,'data') && ...
+                        isstruct(dataSnapshot.data) && ...
+                        isfield(dataSnapshot.data,'planTemplate') && ...
+                        ~isempty(dataSnapshot.data.planTemplate)
+                    template = dataSnapshot.data.planTemplate;
+                end
+            end
+            if isempty(template)
+                template = planWorkflow.templates.PlanTemplate.resolve( ...
+                    snapshot.runConfig);
+            end
+        end
+
+        function initialResults = resumeInitialResults(snapshot,stateFile)
+            initialResults = struct();
+            resultsFile = planWorkflow.gui.PlanEditor.resumeArtifactFile( ...
+                snapshot,stateFile,'results','workflow_results.mat');
+            if isempty(resultsFile) || ~isfile(resultsFile)
+                return;
+            end
+
+            resultsSnapshot = load(resultsFile,'results');
+            if ~isfield(resultsSnapshot,'results') || ...
+                    ~isstruct(resultsSnapshot.results)
+                return;
+            end
+            initialResults = resultsSnapshot.results;
+            if isempty(fieldnames(initialResults))
+                return;
+            end
+
+            performanceFile = ...
+                planWorkflow.gui.PlanEditor.resumeArtifactFile( ...
+                snapshot,stateFile,'performance', ...
+                'workflow_performance.mat');
+            if isempty(performanceFile) || ~isfile(performanceFile)
+                return;
+            end
+            performanceSnapshot = load(performanceFile,'performance');
+            if isfield(performanceSnapshot,'performance') && ...
+                    isstruct(performanceSnapshot.performance) && ...
+                    ~isfield(initialResults,'performance')
+                initialResults.performance = ...
+                    performanceSnapshot.performance;
+            end
+        end
+
+        function filePath = resumeArtifactFile(snapshot,stateFile,kind, ...
+                fallbackName)
+            filePath = '';
+            if isfield(snapshot,'artifactFiles') && ...
+                    isstruct(snapshot.artifactFiles) && ...
+                    isfield(snapshot.artifactFiles,kind) && ...
+                    ~isempty(snapshot.artifactFiles.(kind))
+                filePath = char(snapshot.artifactFiles.(kind));
+                return;
+            end
+
+            rootPath = '';
+            if isfield(snapshot,'paths') && isstruct(snapshot.paths) && ...
+                    isfield(snapshot.paths,'rootPath') && ...
+                    ~isempty(snapshot.paths.rootPath)
+                rootPath = char(snapshot.paths.rootPath);
+            end
+            if isempty(rootPath)
+                rootPath = fileparts(stateFile);
+            end
+            if ~isempty(rootPath)
+                filePath = fullfile(rootPath,fallbackName);
+            end
+        end
+
         function setControlsEnabled(handles,enabled)
             for i = 1:numel(handles)
                 if ishandle(handles(i))
