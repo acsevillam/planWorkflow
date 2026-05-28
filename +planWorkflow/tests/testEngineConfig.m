@@ -1170,6 +1170,55 @@ verifyEqual(testCase,planForOptimization.propOpt.dij_prob, ...
     robustData.dij_prob);
 end
 
+function testProbDijCacheWithoutRehydratableClinicalContextIsStale( ...
+        testCase)
+config = baseEngineConfig(testCase);
+config.plan_template = 'PROB2_001';
+config.precompute.robustPlans = robustPlanConfig( ...
+    'probPlan','PROB2','MeanVariance','PROB2','wcScen', ...
+    [5 10 5],robustVariantConfig('variant_1','Variant 1',1,1,1,1));
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.optimizationInput.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+
+robustData = intervalRobustData(workflow);
+robustData.cst = {1};
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels( ...
+    workflow.data.optimizationInput.dij.totalNumOfBixels);
+
+cacheContext = workflow.probCacheContextPublic(robustData);
+probTag = workflow.probDoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(probTag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_prob = probDij(workflow.data.optimizationInput.dij.totalNumOfBixels);
+dijProbContext = probDijContext(dij_prob); %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    probTag,robustData.pln,cacheContext);
+cacheMetadata.cacheIdentity = rmfield(cacheMetadata.cacheIdentity,'cst');
+cacheMetadata.probabilisticMode = 'PROB';
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_prob');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_prob');
+builtin('save',cacheFile,'dij_prob','dijProbContext', ...
+    'cacheMetadata','-v7.3');
+
+[cacheHit,robustData] = workflow.loadCachedProbDoseInfluencePublic( ...
+    robustData);
+
+verifyFalse(testCase,cacheHit);
+verifyFalse(testCase,isfield(robustData,'dij_prob'));
+end
+
 function testCachedProbDijUsesContextNominalDij(testCase)
 config = baseEngineConfig(testCase);
 config.plan_template = 'PROB2_001';
@@ -1537,6 +1586,54 @@ builtin('save',cacheFile,'dij_interval','dijIntervalContext', ...
 cacheHit = workflow.loadCachedIntervalDoseInfluencePublic(robustData);
 
 verifyFalse(testCase,cacheHit);
+end
+
+function testIntervalDijCacheWithoutRehydratableClinicalContextIsStale( ...
+        testCase)
+config = baseEngineConfig(testCase);
+config.precompute.robustPlans = robustPlanConfig( ...
+    'intervalPlan','INTERVAL2','Interval2','INTERVAL2','wcScen', ...
+    [5 10 5],robustVariantConfig('theta_1','Variant 1',1,1,1,1));
+workflow = planWorkflowTest.EngineProbe(config);
+workflow.data.optimizationInput.dij = referenceDij();
+
+scenarioModel = matRad_WorstCaseScenarios();
+scenarioModel.scenarioDimensionActive = {'ct','setup'};
+scenarioModel.shiftSD = [1 2 3];
+scenarioModel.wcSigma = 1;
+robustData = intervalRobustData(workflow);
+robustData.cst = {1};
+robustData.pln.multScen = scenarioModel;
+robustData.pln.propOpt = struct();
+robustData.stf = stfForBixels( ...
+    workflow.data.optimizationInput.dij.totalNumOfBixels);
+
+cacheContext = workflow.intervalCacheContextPublic(robustData);
+intervalTag = workflow.intervalDoseCacheTagPublic(robustData);
+cacheFile = workflow.cacheFilePublic(intervalTag,robustData.pln, ...
+    cacheContext);
+mkdir(fileparts(cacheFile));
+dij_interval = intervalDij( ...
+    workflow.data.optimizationInput.dij.totalNumOfBixels);
+dijIntervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
+cacheMetadata = workflow.cacheMetadataPublic( ...
+    intervalTag,robustData.pln,cacheContext);
+cacheMetadata.cacheIdentity = rmfield(cacheMetadata.cacheIdentity,'cst');
+cacheMetadata.intervalMode = 'INTERVAL2';
+cacheMetadata.scenarioFingerprint = ...
+    planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
+cacheMetadata.dijPrecomputingTiming = ...
+    sampleDijPrecomputingTiming('dij_interval');
+cacheMetadata.dijPrecomputingSize = ...
+    sampleDijPrecomputingSize('dij_interval');
+builtin('save',cacheFile,'dij_interval','dijIntervalContext', ...
+    'cacheMetadata','-v7.3');
+
+[cacheHit,robustData] = workflow.loadCachedIntervalDoseInfluencePublic( ...
+    robustData);
+
+verifyFalse(testCase,cacheHit);
+verifyFalse(testCase,isfield(robustData,'dij_interval'));
 end
 
 function testIntervalCacheContextIncludesPrecomputeStfGeometry(testCase)

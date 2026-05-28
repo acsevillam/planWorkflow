@@ -56,6 +56,32 @@ classdef RobustPlanCatalog
             end
         end
 
+        function validatePlanVariantsForScenario(plan,context)
+            if nargin < 2 || isempty(context)
+                context = 'robustPlan';
+            end
+            if ~isstruct(plan) || ~isscalar(plan) || ...
+                    ~isfield(plan,'robustnessMode') || ...
+                    ~strcmp(char(plan.robustnessMode),'c-COWC')
+                return;
+            end
+
+            numScenarios = ...
+                planWorkflow.config.RobustPlanCatalog.scenarioCount( ...
+                plan.scenario);
+            [maxP2,variantId] = ...
+                planWorkflow.config.RobustPlanCatalog.maxCCowcP2(plan);
+            if isempty(maxP2) || maxP2 <= numScenarios
+                return;
+            end
+
+            error(['planWorkflow:config:RobustPlanCatalog:' ...
+                'InvalidCCowcVariantScenarioCount'], ...
+                ['%s c-COWC variant "%s" declares p2=%g, but the ' ...
+                 'plan scenario only has %d optimization scenario(s).'], ...
+                char(context),char(variantId),maxP2,numScenarios);
+        end
+
         function validateSelectedPlans(runConfig,description,templateId, ...
                 expectedPlanKeys,varargin)
             options = planWorkflow.config.RobustPlanCatalog.parseOptions( ...
@@ -350,6 +376,40 @@ classdef RobustPlanCatalog
                 variants(i).label = sprintf('p1=1 - p2=%d',p2);
                 variants(i).p1 = 1;
                 variants(i).p2 = p2;
+            end
+        end
+
+        function [maxP2,variantId] = maxCCowcP2(plan)
+            maxP2 = [];
+            variantId = '';
+            variantSets = {'variants','variantsWithPenalties'};
+            for setIx = 1:numel(variantSets)
+                fieldName = variantSets{setIx};
+                if ~isfield(plan,fieldName) || isempty(plan.(fieldName))
+                    continue;
+                end
+                variants = plan.(fieldName);
+                for variantIx = 1:numel(variants)
+                    variant = variants(variantIx);
+                    if ~isfield(variant,'p2') || isempty(variant.p2)
+                        continue;
+                    end
+                    p2 = max(variant.p2(:));
+                    if isempty(maxP2) || p2 > maxP2
+                        maxP2 = p2;
+                        variantId = ...
+                            planWorkflow.config.RobustPlanCatalog.variantId( ...
+                            variant,variantIx,fieldName);
+                    end
+                end
+            end
+        end
+
+        function id = variantId(variant,variantIx,fieldName)
+            if isfield(variant,'id') && ~isempty(variant.id)
+                id = char(variant.id);
+            else
+                id = sprintf('%s(%d)',fieldName,variantIx);
             end
         end
 
