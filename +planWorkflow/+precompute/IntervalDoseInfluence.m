@@ -607,6 +607,12 @@ classdef IntervalDoseInfluence
             end
             switch char(compatibilityMode)
                 case 'discovery'
+                    [tf,reason] = ...
+                        planWorkflow.precompute.PrecomputeCacheCompatibility.hasCompactClinicalContext( ...
+                        cacheMetadata);
+                    if ~tf
+                        return;
+                    end
                     if ~planWorkflow.precompute.IntervalDoseInfluence.isMetadataCstCompatible( ...
                             cacheMetadata,robustData)
                         reason = 'cache CST metadata does not match';

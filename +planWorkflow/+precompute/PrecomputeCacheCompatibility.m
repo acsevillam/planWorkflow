@@ -102,6 +102,13 @@ classdef PrecomputeCacheCompatibility
             end
 
             [tf,reason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.isCompactRefContractComplete( ...
+                ref,payloadKind);
+            if ~tf
+                return;
+            end
+
+            [tf,reason] = ...
                 planWorkflow.precompute.PrecomputeCacheCompatibility.isPersistedRefScenarioCompatible( ...
                 cacheMetadata,ref);
             if ~tf
@@ -139,10 +146,17 @@ classdef PrecomputeCacheCompatibility
             if ~tf
                 return;
             end
+            [tf,reason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.compareRefClinicalContextHash( ...
+                cacheMetadata,ref,'cstGeometryHash', ...
+                'CST geometry');
+            if ~tf
+                return;
+            end
 
             [tf,reason] = ...
                 planWorkflow.precompute.PrecomputeCacheCompatibility.compareContextCst( ...
-                cacheMetadata,context);
+                cacheMetadata,ref,context);
             if ~tf
                 return;
             end
@@ -175,6 +189,88 @@ classdef PrecomputeCacheCompatibility
             hash = ...
                 planWorkflow.precompute.PrecomputeCacheCompatibility.cacheIdentityComponentHash( ...
                 cacheMetadata,componentName);
+        end
+
+        function hash = clinicalContextHash(cacheMetadata,fieldName)
+            hash = '';
+            if ~isstruct(cacheMetadata) || ...
+                    ~isfield(cacheMetadata,'cacheClinicalContext') || ...
+                    ~isstruct(cacheMetadata.cacheClinicalContext) || ...
+                    ~isfield(cacheMetadata.cacheClinicalContext,fieldName) || ...
+                    isempty(cacheMetadata.cacheClinicalContext.(fieldName))
+                return;
+            end
+            hash = char(cacheMetadata.cacheClinicalContext.(fieldName));
+        end
+
+        function [tf,reason] = hasCompactClinicalContext(cacheMetadata)
+            tf = false;
+            reason = '';
+            if ~isstruct(cacheMetadata) || ...
+                    ~isfield(cacheMetadata,'cacheClinicalContext') || ...
+                    ~isstruct(cacheMetadata.cacheClinicalContext)
+                reason = ['cache metadata does not include compact ' ...
+                    'rehydration context'];
+                return;
+            end
+            if isempty( ...
+                    planWorkflow.precompute.PrecomputeCacheCompatibility.clinicalContextHash( ...
+                    cacheMetadata,'cstGeometryHash'))
+                reason = ['cache metadata does not include compact CST ' ...
+                    'geometry identity'];
+                return;
+            end
+            if isempty( ...
+                    planWorkflow.precompute.PrecomputeCacheCompatibility.clinicalContextHash( ...
+                    cacheMetadata,'stfHash'))
+                reason = ['cache metadata does not include compact STF ' ...
+                    'identity'];
+                return;
+            end
+            if ~isfield(cacheMetadata,'scenarioFingerprint') || ...
+                    isempty(cacheMetadata.scenarioFingerprint)
+                reason = ['cache metadata does not include compact ' ...
+                    'scenario fingerprint'];
+                return;
+            end
+            if ~isfield(cacheMetadata,'numOfScenarios') || ...
+                    isempty(cacheMetadata.numOfScenarios)
+                reason = ['cache metadata does not include compact ' ...
+                    'scenario count'];
+                return;
+            end
+            tf = true;
+        end
+
+        function [tf,reason] = isCompactRefContractComplete( ...
+                ref,payloadKind)
+            tf = true;
+            reason = '';
+            if ~any(strcmp(char(payloadKind),{'interval','prob'}))
+                return;
+            end
+            if ~isstruct(ref)
+                tf = false;
+                reason = 'compact ref is not a struct';
+                return;
+            end
+            textFields = {'cachePhysicalTag','cstGeometryHash', ...
+                'stfHash','payloadContextHash','scenarioFingerprint'};
+            for fieldIx = 1:numel(textFields)
+                fieldName = textFields{fieldIx};
+                if ~planWorkflow.precompute.PrecomputeCacheCompatibility.hasTextField( ...
+                        ref,fieldName)
+                    tf = false;
+                    reason = sprintf('compact ref does not include %s', ...
+                        fieldName);
+                    return;
+                end
+            end
+            if ~isfield(ref,'numOfScenarios') || ...
+                    isempty(ref.numOfScenarios)
+                tf = false;
+                reason = 'compact ref does not include numOfScenarios';
+            end
         end
 
         function reason = compatibilityReport(cacheMetadata,robustData, ...
@@ -275,28 +371,53 @@ classdef PrecomputeCacheCompatibility
             end
         end
 
-        function [tf,reason] = compareContextCst(cacheMetadata,context)
+        function [tf,reason] = compareRefClinicalContextHash( ...
+                cacheMetadata,ref,refFieldName,label)
+            tf = true;
+            reason = '';
+            if ~planWorkflow.precompute.PrecomputeCacheCompatibility.hasTextField( ...
+                    ref,refFieldName)
+                return;
+            end
+            actualHash = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.clinicalContextHash( ...
+                cacheMetadata,refFieldName);
+            if isempty(actualHash)
+                tf = false;
+                reason = sprintf(['declared ref includes %s hash, but ' ...
+                    'cache metadata does not'],char(label));
+                return;
+            end
+            tf = strcmp(char(actualHash),char(ref.(refFieldName)));
+            if ~tf
+                reason = sprintf(['cache %s metadata does not match ' ...
+                    'the persisted ref'],char(label));
+            end
+        end
+
+        function [tf,reason] = compareContextCst(cacheMetadata,ref,context)
             tf = true;
             reason = '';
             if ~isstruct(context) || ~isfield(context,'cst') || ...
                     isempty(context.cst)
                 return;
             end
-            actualHash = ...
-                planWorkflow.precompute.PrecomputeCacheCompatibility.cacheIdentityComponentHash( ...
-                cacheMetadata,'cst');
-            if isempty(actualHash)
+            if ~planWorkflow.precompute.PrecomputeCacheCompatibility.hasTextField( ...
+                    ref,'cstGeometryHash')
                 tf = false;
-                reason = ['cache metadata does not include CST identity ' ...
-                    'required by the rehydration context'];
+                reason = ['compact ref does not include CST geometry ' ...
+                    'identity required by the rehydration context'];
                 return;
             end
-            expectedHash = planWorkflow.cache.CacheIdentity.valueHash( ...
-                planWorkflow.cache.CacheIdentity.cstIdentity(context.cst));
-            tf = strcmp(char(actualHash),char(expectedHash));
+            expectedHash = ...
+                planWorkflow.cache.CacheIdentity.valueHash( ...
+                planWorkflow.cache.CacheIdentity.cstGeometryIdentity( ...
+                context.cst));
+            tf = strcmp(char(ref.cstGeometryHash), ...
+                char(expectedHash));
             if ~tf
-                reason = ['cache CST metadata does not match the ' ...
-                    'rehydration context'];
+                reason = ['cache CST geometry metadata does not match ' ...
+                    'the rehydration context'];
             end
         end
 

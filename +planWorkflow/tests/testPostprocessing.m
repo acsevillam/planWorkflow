@@ -169,6 +169,135 @@ verifyTrue(testCase,hasTabTitle(frame.tabGroup,'Results'));
 verifyTrue(testCase,ishandle(frame.resultsTab));
 end
 
+function testPostprocessingFrameShowsSingleNativeResultsAndPngFigures(testCase)
+if ~usejava('desktop')
+    return;
+end
+oldVisible = get(groot,'DefaultFigureVisible');
+set(groot,'DefaultFigureVisible','off');
+cleanupVisibility = onCleanup( ...
+    @() set(groot,'DefaultFigureVisible',oldVisible));
+
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+pngFile = fullfile(fixture.Folder,'endpoint_scatter.png');
+imwrite(uint8(255 * ones(2,2,3)),pngFile);
+
+options = planWorkflow.postprocessing.CliCommandBuilder.defaultConfig();
+callbacks = struct('close',@(~,~) []);
+frame = planWorkflow.gui.PostprocessingEditorFrame.create( ...
+    options,callbacks);
+cleanupFig = onCleanup(@() closeFigure(frame.fig));
+
+entries = struct('id','endpoint','label','Endpoint scatter', ...
+    'filePath',pngFile,'kind','figure');
+nativeItems = nativeResultItem('Run A',fixture.Folder);
+frame = planWorkflow.gui.PostprocessingEditorFrame.showResultsTab( ...
+    frame,fixture.Folder,entries,nativeItems,callbacks);
+
+verifyTrue(testCase,hasTabTitle(frame.tabGroup,'Results'));
+verifyTrue(testCase,hasTabTitle(frame.resultGroup,'Reference'));
+verifyTrue(testCase,hasTabTitle(frame.resultGroup, ...
+    'Postprocessing figures'));
+verifyFalse(testCase,hasTabTitle(frame.resultGroup,'Run A'));
+referenceTabs = findall(frame.resultsTab,'Type','uitab', ...
+    'Title','Reference');
+verifyNotEmpty(testCase,referenceTabs);
+referenceFigureTabs = findall(referenceTabs(1),'Type','uitab', ...
+    'Title','Figures');
+verifyNotEmpty(testCase,referenceFigureTabs);
+robustTabs = findall(frame.resultsTab,'Type','uitab', ...
+    'Title','Robust plan');
+verifyNotEmpty(testCase,robustTabs);
+robustFigureTabs = findall(robustTabs(1),'Type','uitab', ...
+    'Title','Figures');
+verifyNotEmpty(testCase,robustFigureTabs);
+end
+
+function testPostprocessingFrameShowsMultipleNativeResultSources(testCase)
+if ~usejava('desktop')
+    return;
+end
+oldVisible = get(groot,'DefaultFigureVisible');
+set(groot,'DefaultFigureVisible','off');
+cleanupVisibility = onCleanup( ...
+    @() set(groot,'DefaultFigureVisible',oldVisible));
+
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+pngFile = fullfile(fixture.Folder,'timing.png');
+imwrite(uint8(255 * ones(2,2,3)),pngFile);
+
+options = planWorkflow.postprocessing.CliCommandBuilder.defaultConfig();
+callbacks = struct('close',@(~,~) []);
+frame = planWorkflow.gui.PostprocessingEditorFrame.create( ...
+    options,callbacks);
+cleanupFig = onCleanup(@() closeFigure(frame.fig));
+
+entries = struct('id','timing','label','Timing', ...
+    'filePath',pngFile,'kind','figure');
+nativeItems = [nativeResultItem('Run A',fixture.Folder) ...
+    nativeResultItem('Run B',fixture.Folder)];
+frame = planWorkflow.gui.PostprocessingEditorFrame.showResultsTab( ...
+    frame,fixture.Folder,entries,nativeItems,callbacks);
+
+verifyTrue(testCase,hasTabTitle(frame.resultGroup,'Run A'));
+verifyTrue(testCase,hasTabTitle(frame.resultGroup,'Run B'));
+verifyTrue(testCase,hasTabTitle(frame.resultGroup, ...
+    'Postprocessing figures'));
+referenceTabs = findall(frame.resultsTab,'Type','uitab', ...
+    'Title','Reference');
+verifyGreaterThanOrEqual(testCase,numel(referenceTabs),2);
+nativeFigureTabs = findall(frame.resultsTab,'Type','uitab', ...
+    'Title','Figures');
+verifyGreaterThanOrEqual(testCase,numel(nativeFigureTabs),4);
+end
+
+function testWorkflowResultsLoaderLoadsCompactSyntheticResults(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+runFolder = fullfile(fixture.Folder,'synthetic_run');
+samplingFolder = fullfile(runFolder,'sampling_analysis');
+mkdir(runFolder);
+mkdir(samplingFolder);
+workflowFile = fullfile(runFolder,'workflow_results.mat');
+referenceFigureFile = fullfile(samplingFolder,'reference_gamma.fig');
+robustFigureFile = fullfile(samplingFolder,'robust_gamma.fig');
+touchFile(referenceFigureFile);
+touchFile(robustFigureFile);
+
+results = syntheticNativeResults('loader-run');
+results.sampling.reference.figureFiles = struct( ...
+    'gamma','/remote/run/sampling_analysis/reference_gamma.fig');
+results.sampling.reference.doseStat = struct('meanCube',ones(2), ...
+    'stdCube',2 * ones(2));
+results.sampling.robust = {struct( ...
+    'expectedQi',struct('name','CTV','mean',79), ...
+    'figureFiles',struct( ...
+    'gamma','/remote/run/sampling_analysis/robust_gamma.fig'), ...
+    'doseStat',struct('meanCube',3 * ones(2)))};
+resultsMetadata = struct('runId','metadata-run'); %#ok<NASGU>
+save(workflowFile,'results','resultsMetadata');
+
+item = planWorkflow.postprocessing.WorkflowResultsLoader.load( ...
+    workflowFile);
+
+verifyEqual(testCase,item.sourceFile,canonicalPath(workflowFile));
+verifyEqual(testCase,item.label,'loader-run');
+verifyTrue(testCase,isfield(item.results,'performance'));
+verifyTrue(testCase,isfield(item.results.sampling.reference,'figureFiles'));
+verifyTrue(testCase,isfield(item.results.sampling.robust{1}, ...
+    'figureFiles'));
+verifyEqual(testCase,item.results.sampling.reference.figureFiles.gamma, ...
+    referenceFigureFile);
+verifyEqual(testCase,item.results.sampling.robust{1}.figureFiles.gamma, ...
+    robustFigureFile);
+verifyFalse(testCase,isfield( ...
+    item.results.sampling.reference.doseStat,'meanCube'));
+verifyFalse(testCase,isfield( ...
+    item.results.sampling.robust{1}.doseStat,'meanCube'));
+end
+
 function touchFile(filePath)
 folder = fileparts(filePath);
 if ~isempty(folder) && ~isfolder(folder)
@@ -183,6 +312,44 @@ function closeFigure(fig)
 if ~isempty(fig) && ishandle(fig)
     close(fig);
 end
+end
+
+function item = nativeResultItem(label,figureFolder)
+if nargin < 2
+    figureFolder = tempdir;
+end
+item = struct( ...
+    'sourceFile',fullfile(tempdir,[char(label) '.mat']), ...
+    'label',char(label), ...
+    'results',syntheticNativeResults(label,figureFolder));
+end
+
+function results = syntheticNativeResults(runId,figureFolder)
+if nargin < 2
+    figureFolder = '';
+end
+results = struct();
+results.runConfig = struct('runId',char(runId));
+results.sampling.reference.expectedQi = struct( ...
+    'name','CTV','COV1',1,'mean',78);
+results.sampling.robust = {struct( ...
+    'label','Robust plan', ...
+    'expectedQi',struct('name','CTV','COV1',1,'mean',79))};
+if ~isempty(figureFolder)
+    figurePrefix = regexprep(char(runId),'[^A-Za-z0-9_]','_');
+    referenceFigure = fullfile(figureFolder, ...
+        [figurePrefix '_reference_gamma.fig']);
+    robustFigure = fullfile(figureFolder, ...
+        [figurePrefix '_robust_gamma.fig']);
+    touchFile(referenceFigure);
+    touchFile(robustFigure);
+    results.sampling.reference.figureFiles = struct( ...
+        'gamma',referenceFigure);
+    results.sampling.robust{1}.figureFiles = struct( ...
+        'gamma',robustFigure);
+end
+results.performance.stageTimings.prepare = struct( ...
+    'lastStatus','completed','attempts',1);
 end
 
 function path = canonicalPath(path)

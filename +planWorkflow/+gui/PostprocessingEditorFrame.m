@@ -49,14 +49,36 @@ classdef PostprocessingEditorFrame
             end
         end
 
-        function frame = showResultsTab(frame,outputDir,entries,callbacks)
+        function frame = showResultsTab(frame,outputDir,entries, ...
+                nativeResultItems,callbacks)
+            if nargin < 5
+                callbacks = nativeResultItems;
+                nativeResultItems = ...
+                    planWorkflow.gui.PostprocessingEditorFrame.emptyNativeResultItems();
+            end
+            nativeResultItems = ...
+                planWorkflow.gui.PostprocessingEditorFrame.normalizeNativeResultItems( ...
+                nativeResultItems);
+
             frame = planWorkflow.gui.PostprocessingEditorFrame.deleteResultsTab( ...
                 frame);
             frame.resultsTab = uitab(frame.tabGroup,'Title','Results');
             frame.resultGroup = uitabgroup('Parent',frame.resultsTab, ...
                 'Units','normalized','Position',[0.02 0.10 0.96 0.87]);
-            frame = planWorkflow.gui.PostprocessingEditorFrame.addFiguresPanelTab( ...
-                frame,frame.resultGroup,char(outputDir),entries,callbacks);
+            frame = ...
+                planWorkflow.gui.PostprocessingEditorFrame.addNativeResultsTabs( ...
+                frame,nativeResultItems);
+            if ~isempty(entries)
+                frame = ...
+                    planWorkflow.gui.PostprocessingEditorFrame.addFiguresPanelTab( ...
+                    frame,frame.resultGroup,char(outputDir),entries, ...
+                    callbacks,'Postprocessing figures');
+            end
+            if isempty(nativeResultItems) && isempty(entries)
+                planWorkflow.gui.PostprocessingEditorFrame.addSummaryTab( ...
+                    frame.resultGroup,'Summary', ...
+                    {'No native workflow results or postprocessing figures are available.'});
+            end
             try
                 set(frame.tabGroup,'SelectedTab',frame.resultsTab);
             catch
@@ -273,9 +295,39 @@ classdef PostprocessingEditorFrame
                 'BackgroundColor',[1 1 1]);
         end
 
+        function frame = addNativeResultsTabs(frame,nativeResultItems)
+            if isempty(nativeResultItems)
+                return;
+            end
+
+            options = struct('showEmptySummary',true, ...
+                'includePerformance',true);
+            if numel(nativeResultItems) == 1
+                frame.progressReporter.addNativeResultsTabs( ...
+                    frame.resultGroup,nativeResultItems(1).results,options);
+                return;
+            end
+
+            usedTitles = {};
+            for i = 1:numel(nativeResultItems)
+                titleText = ...
+                    planWorkflow.gui.PostprocessingEditorFrame.sourceTabTitle( ...
+                    nativeResultItems(i),i,usedTitles);
+                usedTitles{end + 1} = titleText; %#ok<AGROW>
+                sourceTab = uitab(frame.resultGroup,'Title',titleText);
+                sourceGroup = uitabgroup('Parent',sourceTab, ...
+                    'Units','normalized','Position',[0.02 0.05 0.96 0.90]);
+                frame.progressReporter.addNativeResultsTabs( ...
+                    sourceGroup,nativeResultItems(i).results,options);
+            end
+        end
+
         function frame = addFiguresPanelTab(frame,resultGroup,outputDir, ...
-                entries,callbacks)
-            tab = uitab(resultGroup,'Title','Figures');
+                entries,callbacks,titleText)
+            if nargin < 6 || isempty(titleText)
+                titleText = 'Figures';
+            end
+            tab = uitab(resultGroup,'Title',titleText);
             panel = planWorkflow.gui.PostprocessingEditorFrame.createReadOnlyPanel( ...
                 tab,'planWorkflowPostprocessingFiguresPanel');
 
@@ -308,6 +360,12 @@ classdef PostprocessingEditorFrame
                 planWorkflow.gui.PanelScroller.configure( ...
                     scrollSlider,rowControls,y);
             end
+        end
+
+        function addSummaryTab(resultGroup,titleText,messages)
+            tab = uitab(resultGroup,'Title',titleText);
+            uicontrol('Parent',tab,'Style','listbox','String',messages, ...
+                'Units','normalized','Position',[0.03 0.05 0.94 0.90]);
         end
 
         function frame = addFooter(frame,fig,tabGroup,callbacks)
@@ -376,6 +434,52 @@ classdef PostprocessingEditorFrame
                     isfield(callbacks,'openOutputFolderPath') && ...
                     isa(callbacks.openOutputFolderPath,'function_handle')
                 callbacks.openOutputFolderPath(src,event,folderPath);
+            end
+        end
+
+        function items = emptyNativeResultItems()
+            template = struct('sourceFile','','label','','results',struct());
+            items = template([]);
+        end
+
+        function items = normalizeNativeResultItems(items)
+            if nargin < 1 || isempty(items)
+                items = ...
+                    planWorkflow.gui.PostprocessingEditorFrame.emptyNativeResultItems();
+                return;
+            end
+            if ~isstruct(items)
+                error('planWorkflow:gui:PostprocessingEditorFrame:InvalidNativeResults', ...
+                    'Native result items must be a struct array.');
+            end
+            requiredFields = {'sourceFile','label','results'};
+            for i = 1:numel(requiredFields)
+                fieldName = requiredFields{i};
+                if ~isfield(items,fieldName)
+                    error('planWorkflow:gui:PostprocessingEditorFrame:InvalidNativeResults', ...
+                        'Native result items must include a %s field.', ...
+                        fieldName);
+                end
+            end
+        end
+
+        function titleText = sourceTabTitle(item,index,usedTitles)
+            titleText = '';
+            if isstruct(item) && isfield(item,'label') && ...
+                    ~isempty(item.label)
+                titleText = strtrim(char(string(item.label)));
+            end
+            if isempty(titleText)
+                titleText = sprintf('Source %d',index);
+            end
+            if strlength(string(titleText)) > 48
+                titleText = char(extractBefore(string(titleText),49));
+            end
+            baseTitle = titleText;
+            suffix = 2;
+            while any(strcmp(usedTitles,titleText))
+                titleText = sprintf('%s (%d)',baseTitle,suffix);
+                suffix = suffix + 1;
             end
         end
 

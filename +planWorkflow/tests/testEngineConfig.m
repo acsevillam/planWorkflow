@@ -1201,7 +1201,7 @@ dij_prob = probDij(workflow.data.optimizationInput.dij.totalNumOfBixels);
 dijProbContext = probDijContext(dij_prob); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     probTag,robustData.pln,cacheContext);
-cacheMetadata.cacheIdentity = rmfield(cacheMetadata.cacheIdentity,'cst');
+cacheMetadata = rmfield(cacheMetadata,'cacheClinicalContext');
 cacheMetadata.probabilisticMode = 'PROB';
 cacheMetadata.scenarioFingerprint = ...
     planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);
@@ -1241,6 +1241,7 @@ scenarioModel.wcSigma = 1;
 robustData = struct();
 robustData.planConfig = workflow.runConfig.precompute.robustPlans(1);
 robustData.strategy = planWorkflow.robustness.Prob2Strategy();
+robustData.cst = {1};
 robustData.pln.multScen = scenarioModel;
 robustData.pln.propOpt = struct();
 robustData.stf = stfForBixels(workflow.data.optimizationInput.dij.totalNumOfBixels);
@@ -1618,7 +1619,7 @@ dij_interval = intervalDij( ...
 dijIntervalContext = intervalDijContext(dij_interval); %#ok<NASGU>
 cacheMetadata = workflow.cacheMetadataPublic( ...
     intervalTag,robustData.pln,cacheContext);
-cacheMetadata.cacheIdentity = rmfield(cacheMetadata.cacheIdentity,'cst');
+cacheMetadata = rmfield(cacheMetadata,'cacheClinicalContext');
 cacheMetadata.intervalMode = 'INTERVAL2';
 cacheMetadata.scenarioFingerprint = ...
     planWorkflow.cache.CacheIdentity.scenarioFingerprint(scenarioModel);

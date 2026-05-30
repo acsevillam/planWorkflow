@@ -91,6 +91,24 @@ classdef StageDataLifecycle
                     end
             end
         end
+
+        function samplingResults = compactSamplingResults(samplingResults)
+            if ~isstruct(samplingResults) || isempty(samplingResults)
+                return;
+            end
+            if isfield(samplingResults,'reference')
+                samplingResults.reference = ...
+                    planWorkflow.results.SamplingDataCompactor.compactPlanSamplingResults( ...
+                    samplingResults.reference);
+            end
+            if isfield(samplingResults,'robust') && iscell(samplingResults.robust)
+                for resultIx = 1:numel(samplingResults.robust)
+                    samplingResults.robust{resultIx} = ...
+                        planWorkflow.results.SamplingDataCompactor.compactPlanSamplingResults( ...
+                        samplingResults.robust{resultIx});
+                end
+            end
+        end
     end
 
     methods (Static, Access = private)
@@ -187,24 +205,6 @@ classdef StageDataLifecycle
                 data.sampling,runConfig, ...
                 planWorkflow.resources.StageDataLifecycle.cachePath( ...
                 runConfig));
-        end
-
-        function samplingResults = compactSamplingResults(samplingResults)
-            if ~isstruct(samplingResults) || isempty(samplingResults)
-                return;
-            end
-            if isfield(samplingResults,'reference')
-                samplingResults.reference = ...
-                    planWorkflow.results.SamplingDataCompactor.compactPlanSamplingResults( ...
-                    samplingResults.reference);
-            end
-            if isfield(samplingResults,'robust') && iscell(samplingResults.robust)
-                for resultIx = 1:numel(samplingResults.robust)
-                    samplingResults.robust{resultIx} = ...
-                        planWorkflow.results.SamplingDataCompactor.compactPlanSamplingResults( ...
-                        samplingResults.robust{resultIx});
-                end
-            end
         end
 
         function releaseParallelPool(logFn,stageName,runConfig)

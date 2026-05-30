@@ -3,7 +3,7 @@ classdef DoseInfluenceCacheRef
 
     properties (Constant)
         ArtifactKind = 'planWorkflowDoseInfluenceCacheRef'
-        SchemaVersion = 3
+        SchemaVersion = 4
     end
 
     methods (Static)
@@ -70,6 +70,15 @@ classdef DoseInfluenceCacheRef
             if isfield(cacheMetadata,'numOfScenarios') && ...
                     ~isempty(cacheMetadata.numOfScenarios)
                 ref.numOfScenarios = cacheMetadata.numOfScenarios;
+            end
+            [isComplete,reason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.isCompactRefContractComplete( ...
+                ref,cacheKind);
+            if ~isComplete
+                error(['planWorkflow:cache:DoseInfluenceCacheRef:' ...
+                    'IncompleteCompactRef'], ...
+                    'Cannot create compact dose influence ref: %s.', ...
+                    char(reason));
             end
         end
 
@@ -186,6 +195,12 @@ classdef DoseInfluenceCacheRef
                 cacheMetadata,'stf');
             if ~isempty(stfHash)
                 ref.stfHash = char(stfHash);
+            end
+            cstGeometryHash = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.clinicalContextHash( ...
+                cacheMetadata,'cstGeometryHash');
+            if ~isempty(cstGeometryHash)
+                ref.cstGeometryHash = char(cstGeometryHash);
             end
             payloadContextHash = ...
                 planWorkflow.precompute.PrecomputeCacheCompatibility.payloadContextHash( ...

@@ -734,10 +734,19 @@ classdef WorkflowDataArtifact
         end
 
         function ref = createRef(cacheRef,variableName,dij,dijKind,role)
+            [isComplete,reason] = ...
+                planWorkflow.precompute.PrecomputeCacheCompatibility.isCompactRefContractComplete( ...
+                cacheRef,cacheRef.cacheKind);
+            if ~isComplete
+                error(['planWorkflow:persistence:WorkflowDataArtifact:' ...
+                    'IncompleteCompactDijRef'], ...
+                    'Cannot persist %s with incomplete compact ref: %s.', ...
+                    char(role),char(reason));
+            end
             ref = struct();
             ref.artifactKind = ...
                 planWorkflow.persistence.WorkflowDataArtifact.RefKind;
-            ref.schemaVersion = 2;
+            ref.schemaVersion = 3;
             ref.cacheKind = char(cacheRef.cacheKind);
             ref.tag = char(cacheRef.tag);
             ref.variableName = char(variableName);
@@ -760,6 +769,10 @@ classdef WorkflowDataArtifact
             end
             if isfield(cacheRef,'stfHash') && ~isempty(cacheRef.stfHash)
                 ref.stfHash = char(cacheRef.stfHash);
+            end
+            if isfield(cacheRef,'cstGeometryHash') && ...
+                    ~isempty(cacheRef.cstGeometryHash)
+                ref.cstGeometryHash = char(cacheRef.cstGeometryHash);
             end
             if isfield(cacheRef,'payloadContextHash') && ...
                     ~isempty(cacheRef.payloadContextHash)

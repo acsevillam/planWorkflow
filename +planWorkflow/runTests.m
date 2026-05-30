@@ -1,9 +1,10 @@
-function results = runTests(pathToMatRadRoot)
+function results = runTests(pathToMatRadRoot,varargin)
 % runTests Run the planWorkflow MATLAB unit tests.
 
 if nargin < 1
     pathToMatRadRoot = '';
 end
+options = parseOptions(varargin{:});
 
 planWorkflowFolder = fileparts(mfilename('fullpath'));
 toolboxFolder = fileparts(planWorkflowFolder);
@@ -19,9 +20,12 @@ if ~any(strcmp(strsplit(path,pathsep),testFolder))
 end
 
 suite = matlab.unittest.TestSuite.fromFolder(testFolder);
+suite = planWorkflow.testing.selectTestSuiteByProfile( ...
+    suite,options.Profile);
 if isempty(suite)
     error('planWorkflow:runTests:EmptySuite', ...
-        'No planWorkflow tests were discovered in %s.',testFolder);
+        'No planWorkflow tests were discovered in %s for profile "%s".', ...
+        testFolder,options.Profile);
 end
 runner = matlab.unittest.TestRunner.withTextOutput( ...
     'Verbosity',matlab.unittest.Verbosity.Detailed);
@@ -32,6 +36,17 @@ if nargout == 0 && ~all([results.Passed])
         '%d planWorkflow test(s) did not pass.',sum(~[results.Passed]));
 end
 
+end
+
+function options = parseOptions(varargin)
+parser = inputParser();
+parser.FunctionName = 'planWorkflow.runTests';
+addParameter(parser,'Profile','full',@(value) ...
+    ischar(value) || (isstring(value) && isscalar(value)));
+parse(parser,varargin{:});
+options = parser.Results;
+options.Profile = validatestring(char(options.Profile), ...
+    {'fast','full','real'},'planWorkflow.runTests','Profile');
 end
 
 function initializeMatRad(planWorkflowFolder,pathToMatRadRoot)

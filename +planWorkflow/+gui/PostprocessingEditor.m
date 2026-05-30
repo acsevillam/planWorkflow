@@ -18,6 +18,8 @@ classdef PostprocessingEditor
             state.selectedFilterRows = [];
             state.resultEntries = ...
                 planWorkflow.postprocessing.GeneratedFileIndex.pngEntries('');
+            state.nativeResultItems = ...
+                planWorkflow.postprocessing.WorkflowResultsLoader.emptyItems();
             state.running = false;
 
             callbacks = struct( ...
@@ -192,6 +194,7 @@ classdef PostprocessingEditor
                 end
 
                 previousEntries = state.resultEntries;
+                previousNativeResultItems = state.nativeResultItems;
                 state.running = true;
                 set(frame.runButton,'Enable','off');
                 cleanupObj = onCleanup(@() finishRunUi());
@@ -214,18 +217,24 @@ classdef PostprocessingEditor
                     end
                     entries = ...
                         planWorkflow.postprocessing.GeneratedFileIndex.pngEntries(outputDir);
-                    if isempty(entries)
+                    nativeResultItems = loadNativeResultItems(state.sources);
+                    if isempty(entries) && isempty(nativeResultItems)
                         error('planWorkflow:gui:PostprocessingEditor:NoGeneratedFigures', ...
-                            'No PNG figures were generated in %s.',outputDir);
+                            ['No PNG figures were generated in %s and no ' ...
+                            'native workflow results could be loaded.'], ...
+                            outputDir);
                     end
                     state.resultEntries = entries;
+                    state.nativeResultItems = nativeResultItems;
                     frame = ...
                         planWorkflow.gui.PostprocessingEditorFrame.showResultsTab( ...
-                        frame,outputDir,state.resultEntries,callbacks);
+                        frame,outputDir,state.resultEntries, ...
+                        state.nativeResultItems,callbacks);
                     frame.progressReporter.setProgress(1,'Postprocessing completed.');
                     frame.progressReporter.log('Postprocessing completed.');
                 catch ME
                     state.resultEntries = previousEntries;
+                    state.nativeResultItems = previousNativeResultItems;
                     frame.progressReporter.log(ME.message);
                     errordlg(ME.message,'Run postprocessing');
                 end
@@ -309,6 +318,29 @@ classdef PostprocessingEditor
                     if ~isempty(line)
                         frame.progressReporter.log(line);
                     end
+                end
+            end
+
+            function nativeResultItems = loadNativeResultItems(sourceFiles)
+                nativeResultItems = ...
+                    planWorkflow.postprocessing.WorkflowResultsLoader.emptyItems();
+                for sourceIx = 1:numel(sourceFiles)
+                    sourceFile = char(sourceFiles{sourceIx});
+                    try
+                        item = ...
+                            planWorkflow.postprocessing.WorkflowResultsLoader.load( ...
+                            sourceFile);
+                        nativeResultItems(end + 1) = item; %#ok<AGROW>
+                    catch ME
+                        frame.progressReporter.log(sprintf( ...
+                            'Could not load native results from %s: %s', ...
+                            sourceFile,ME.message));
+                    end
+                end
+                if ~isempty(nativeResultItems)
+                    frame.progressReporter.log(sprintf( ...
+                        'Loaded native workflow results from %d source(s).', ...
+                        numel(nativeResultItems)));
                 end
             end
         end

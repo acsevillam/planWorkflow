@@ -330,6 +330,9 @@ classdef DoseInfluenceCache
             metadata.cacheIdentityHash = descriptor.identityHash;
             metadata.cacheIdentityShortHash = descriptor.shortHash;
             metadata.cacheRelativeKey = descriptor.relativeKey;
+            metadata.cacheClinicalContext = ...
+                planWorkflow.cache.CacheIdentity.clinicalContext( ...
+                context);
             if isfield(runConfig,'plan_template_hash')
                 metadata.planTemplateHash = runConfig.plan_template_hash;
             end

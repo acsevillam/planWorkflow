@@ -164,6 +164,53 @@ classdef PlanProgressReporter < handle
             obj.createResultsTab(results);
         end
 
+        function tabCount = addNativeResultsTabs(obj,parentGroup,results, ...
+                options)
+            if nargin < 4
+                options = struct();
+            end
+
+            tabCount = 0;
+            if ~obj.isAvailable() || isempty(parentGroup) || ...
+                    ~ishandle(parentGroup)
+                return;
+            end
+
+            runConfig = struct();
+            if isstruct(results) && isfield(results,'runConfig')
+                runConfig = results.runConfig;
+            end
+            performance = ...
+                planWorkflow.gui.PlanProgressReporter.resultPerformance( ...
+                results);
+
+            geometryEntries = ...
+                planWorkflow.gui.PlanProgressReporter.geometryFigureEntries( ...
+                results);
+            if ~isempty(geometryEntries)
+                obj.addGeometryResultTab(parentGroup,geometryEntries);
+                tabCount = tabCount + 1;
+            end
+
+            if isstruct(results) && isfield(results,'sampling')
+                tabCount = tabCount + ...
+                    obj.addSamplingResultTabs(parentGroup, ...
+                    results.sampling,runConfig,results,performance);
+            end
+
+            if tabCount == 0 && obj.optionValue( ...
+                    options,'showEmptySummary',true)
+                obj.addSummaryTab(parentGroup,'Summary', ...
+                    {'No analysis result entries were found.'});
+                tabCount = tabCount + 1;
+            end
+
+            if obj.optionValue(options,'includePerformance',false) && ...
+                    obj.addPerformanceTab(parentGroup,results)
+                tabCount = tabCount + 1;
+            end
+        end
+
         function setRecalculateAnalysisCallback(obj,callback)
             if nargin < 2 || isempty(callback)
                 obj.RecalculateAnalysisCallback = [];
@@ -492,35 +539,9 @@ classdef PlanProgressReporter < handle
                 'Tag','planWorkflowRecalculateAnalysisButton', ...
                 'Callback',@(~,~) obj.recalculateAnalysisFromButton());
             obj.updateRecalculateAnalysisButton();
-
-            runConfig = struct();
-            if isstruct(results) && isfield(results,'runConfig')
-                runConfig = results.runConfig;
-            end
-            performance = ...
-                planWorkflow.gui.PlanProgressReporter.resultPerformance( ...
-                results);
-
-            tabCount = 0;
-
-            geometryEntries = ...
-                planWorkflow.gui.PlanProgressReporter.geometryFigureEntries( ...
-                results);
-            if ~isempty(geometryEntries)
-                obj.addGeometryResultTab(resultGroup,geometryEntries);
-                tabCount = tabCount + 1;
-            end
-
-            if isstruct(results) && isfield(results,'sampling')
-                tabCount = tabCount + ...
-                    obj.addSamplingResultTabs(resultGroup, ...
-                    results.sampling,runConfig,results,performance);
-            end
-
-            if tabCount == 0
-                obj.addSummaryTab(resultGroup,'Summary', ...
-                    {'No analysis result entries were found.'});
-            end
+            obj.addNativeResultsTabs(resultGroup,results, ...
+                struct('showEmptySummary',true, ...
+                'includePerformance',false));
 
             obj.addPerformanceTab(obj.TabGroupHandle,results);
 

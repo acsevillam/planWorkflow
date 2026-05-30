@@ -904,6 +904,69 @@ verifyTrue(testCase,contains(helpRows{3,2},'Elapsed real time'));
 verifyTrue(testCase,contains(helpRows{8,2},'Highest MATLAB process'));
 end
 
+function testAddNativeResultsTabsPopulatesProvidedGroup(testCase)
+fixture = testCase.applyFixture( ...
+    matlab.unittest.fixtures.TemporaryFolderFixture);
+referenceFigure = fullfile(fixture.Folder,'reference_gamma.fig');
+robustFigure = fullfile(fixture.Folder,'robust_gamma.fig');
+touchFile(referenceFigure);
+touchFile(robustFigure);
+
+guiFig = figure('Visible','off');
+cleanupGui = onCleanup(@() closeFigure(guiFig));
+fill = uipanel('Parent',guiFig,'Position',[0 0 0 1]);
+status = uicontrol('Parent',guiFig,'Style','text');
+details = uicontrol('Parent',guiFig,'Style','listbox');
+stopButton = uicontrol('Parent',guiFig,'Style','pushbutton');
+tabGroup = uitabgroup('Parent',guiFig);
+reporter = planWorkflow.gui.PlanProgressReporter( ...
+    guiFig,fill,status,details,stopButton,tabGroup);
+
+hostTab = uitab(tabGroup,'Title','Host');
+nativeGroup = uitabgroup('Parent',hostTab);
+results = struct();
+results.sampling.reference.expectedQi = struct( ...
+    'name','CTV','COV1',1,'mean',78);
+results.sampling.reference.figureFiles = struct('gamma',referenceFigure);
+results.sampling.robust = {struct( ...
+    'label','Robust plan', ...
+    'expectedQi',struct('name','CTV','COV1',1,'mean',79), ...
+    'figureFiles',struct('gamma',robustFigure))};
+results.performance = syntheticPerformanceResources();
+
+tabCount = reporter.addNativeResultsTabs(nativeGroup,results, ...
+    struct('includePerformance',true));
+
+verifyGreaterThanOrEqual(testCase,tabCount,3);
+nativeTitles = tabTitles(get(nativeGroup,'Children'));
+verifyTrue(testCase,any(strcmp(nativeTitles,'Reference')));
+verifyTrue(testCase,any(strcmp(nativeTitles,'Robust plan')));
+verifyTrue(testCase,any(strcmp(nativeTitles,'Performance')));
+topTitles = tabTitles(get(tabGroup,'Children'));
+verifyFalse(testCase,any(strcmp(topTitles,'Performance')));
+performanceTabs = findall(guiFig,'Type','uitab','Title','Performance');
+verifyNumElements(testCase,performanceTabs,1);
+verifyTrue(testCase,isequal(get(performanceTabs(1),'Parent'),nativeGroup));
+
+referenceTabs = findall(hostTab,'Type','uitab','Title','Reference');
+verifyNotEmpty(testCase,referenceTabs);
+referenceFigureTabs = findall(referenceTabs(1),'Type','uitab', ...
+    'Title','Figures');
+verifyNotEmpty(testCase,referenceFigureTabs);
+referenceFigureFields = findall(referenceFigureTabs(1),'Style','edit', ...
+    'String','reference_gamma.fig');
+verifyNotEmpty(testCase,referenceFigureFields);
+
+robustTabs = findall(hostTab,'Type','uitab','Title','Robust plan');
+verifyNotEmpty(testCase,robustTabs);
+robustFigureTabs = findall(robustTabs(1),'Type','uitab', ...
+    'Title','Figures');
+verifyNotEmpty(testCase,robustFigureTabs);
+robustFigureFields = findall(robustFigureTabs(1),'Style','edit', ...
+    'String','robust_gamma.fig');
+verifyNotEmpty(testCase,robustFigureFields);
+end
+
 function resources = syntheticPerformanceResources()
 resources = struct();
 resources.stageTimings = struct();
