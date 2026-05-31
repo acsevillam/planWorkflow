@@ -1053,7 +1053,41 @@ voxelDrift{1,4}{1} = 'different-voxel-set';
 verifyNotEqual(testCase, ...
     planWorkflow.cache.CacheIdentity.valueHash( ...
     planWorkflow.cache.CacheIdentity.cstGeometryIdentity(voxelDrift)), ...
-    baseHash);
+        baseHash);
+end
+
+function testTransferObjectivesPreservesDestinationGeometry(testCase)
+destination = multiScenarioCst(2);
+destination{1,5}.Priority = 3;
+destination{1,6} = {struct('penalty',1,'parameters',{{'base'}})};
+source = multiScenarioCst(1);
+source{1,4}{1} = 'reference-ct-voi1';
+source{1,5}.Priority = 99;
+source{1,6} = {struct('penalty',77,'parameters',{{'pulled'}})};
+destinationHash = cstGeometryHash(destination);
+
+updated = planWorkflow.structures.transferObjectives(destination,source);
+
+verifyEqual(testCase,cstGeometryHash(updated),destinationHash);
+verifyEqual(testCase,updated{1,4},destination{1,4});
+verifyEqual(testCase,updated{1,5},destination{1,5});
+verifyEqual(testCase,updated{1,6}{1}.penalty,77);
+verifyEqual(testCase,updated{1,6}{1}.parameters,{'pulled'});
+end
+
+function testTransferObjectivesRejectsDuplicateNames(testCase)
+destination = [multiScenarioCst(1); multiScenarioCst(1)];
+source = multiScenarioCst(1);
+
+verifyError(testCase,@() planWorkflow.structures.transferObjectives( ...
+    destination,source), ...
+    'planWorkflow:structures:transferObjectives:DuplicateStructureName');
+
+destination = multiScenarioCst(1);
+source = [multiScenarioCst(1); multiScenarioCst(1)];
+verifyError(testCase,@() planWorkflow.structures.transferObjectives( ...
+    destination,source), ...
+    'planWorkflow:structures:transferObjectives:DuplicateStructureName');
 end
 
 function testWorkflowDataArtifactDerivedRefsAllowOwnerContextDrift( ...
@@ -1101,6 +1135,71 @@ for modeIx = 1:numel(modes)
         runConfig,cachePath), ...
         ['planWorkflow:cache:DoseInfluenceCacheService:' ...
         'IncompatibleCompactCacheOnResume'],mode);
+end
+end
+
+function testWorkflowDataArtifactCompactRejectsOptimizationInputContextChange( ...
+        testCase)
+modes = {'INTERVAL3','PROB2'};
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    [data,runConfig,cachePath] = robustnessPersistenceFixture( ...
+        testCase,mode);
+    data.optimizationInput.cst = multiScenarioCst(2);
+    data.optimizationInput.cst{1,4}{1} = 'drifted-ct-voi1';
+
+    verifyError(testCase,@() ...
+        planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+        data,runConfig,cachePath), ...
+        ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+        'InvalidOptimizationInputDijRefContext'],mode);
+end
+end
+
+function testPulledObjectivesKeepCompactNominalRefsRehydratable(testCase)
+modes = {'INTERVAL3','PROB2'};
+for modeIx = 1:numel(modes)
+    mode = modes{modeIx};
+    [data,runConfig,cachePath,expectedRef] = ...
+        robustnessPersistenceFixture(testCase,mode);
+    data.planConfig.hasNominalObjectives = true;
+    data.planConfig.requiresNominalDij = true;
+    data.optimizationInput = nominalCompactOptimizationInput(data,mode);
+    pulledCst = multiScenarioCst(1);
+    pulledCst{1,4}{1} = 'reference-ct-voi1';
+    pulledCst{1,6} = {struct('penalty',77, ...
+        'parameters',{{'pulled'}})};
+
+    badData = data;
+    badData.cst = pulledCst;
+    badData.optimizationInput.cst = pulledCst;
+    verifyError(testCase,@() ...
+        planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+        badData,runConfig,cachePath), ...
+        ['planWorkflow:persistence:WorkflowDataArtifact:' ...
+        'InvalidOptimizationInputDijRefContext'],mode);
+
+    data.cst = planWorkflow.structures.transferObjectives( ...
+        data.cst,pulledCst);
+    data.optimizationInput.cst = data.cst;
+    verifyEqual(testCase,cstGeometryHash(data.optimizationInput.cst), ...
+        expectedRef.cstGeometryHash,mode);
+
+    [compactData,workflowDataMetadata] = ...
+        planWorkflow.persistence.WorkflowDataArtifact.compactForSave( ...
+        data,runConfig,cachePath);
+    dataMetadata = struct('workflowData',workflowDataMetadata);
+    fullInput = requireFullInput( ...
+        planWorkflow.persistence.WorkflowDataArtifact.rehydrateAfterLoad( ...
+        compactData,dataMetadata,runConfig,cachePath), ...
+        runConfig,cachePath);
+
+    verifyEqual(testCase,fullInput.dij.totalNumOfBixels,3,mode);
+    verifyEqual(testCase,fullInput.cst{1,6}{1}.penalty,77,mode);
+    verifyEqual(testCase,fullInput.cst{1,6}{1}.parameters, ...
+        {'pulled'},mode);
+    verifyEqual(testCase,cstGeometryHash(fullInput.cst), ...
+        expectedRef.cstGeometryHash,mode);
 end
 end
 
@@ -1665,6 +1764,26 @@ for scenarioIx = 1:numScenarios
 end
 cst{1,5} = struct();
 cst{1,6} = [];
+end
+
+function hash = cstGeometryHash(cst)
+hash = planWorkflow.cache.CacheIdentity.valueHash( ...
+    planWorkflow.cache.CacheIdentity.cstGeometryIdentity(cst));
+end
+
+function input = nominalCompactOptimizationInput(data,mode)
+switch char(mode)
+    case {'INTERVAL2','INTERVAL3'}
+        input = planWorkflow.precompute.OptimizationInput.build( ...
+            data.ct,data.cst,data.pln,data.stf, ...
+            data.dijIntervalContext,'nominal','interval-nominal');
+    case 'PROB2'
+        input = planWorkflow.precompute.OptimizationInput.build( ...
+            data.ct,data.cst,data.pln,data.stf, ...
+            data.dijProbContext,'nominal','prob-nominal');
+    otherwise
+        error('Unsupported nominal compact mode "%s".',char(mode));
+end
 end
 
 function [data,runConfig,cachePath,expectedRef] = ...
